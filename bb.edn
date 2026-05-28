@@ -1,0 +1,4 @@
+{:paths ["src" "test"]
+ :tasks
+ {test {:doc "Run tests"
+        :task (load-file "test_runner.clj")}}}
