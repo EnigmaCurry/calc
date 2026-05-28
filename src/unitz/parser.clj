@@ -193,6 +193,46 @@
 (defn parse-decimal-token [s]
   (bigdec s))
 
+(def number-words
+  {"zero" 0 "one" 1 "two" 2 "three" 3 "four" 4 "five" 5
+   "six" 6 "seven" 7 "eight" 8 "nine" 9 "ten" 10
+   "eleven" 11 "twelve" 12 "thirteen" 13 "fourteen" 14 "fifteen" 15
+   "sixteen" 16 "seventeen" 17 "eighteen" 18 "nineteen" 19
+   "twenty" 20 "thirty" 30 "forty" 40 "fifty" 50
+   "sixty" 60 "seventy" 70 "eighty" 80 "ninety" 90})
+
+(def multiplier-words
+  {"hundred" 100 "thousand" 1000 "million" 1000000 "billion" 1000000000})
+
+(defn parse-number-words
+  "Parse English number words from tokens starting at index i.
+   Returns [value next-index] or nil."
+  [tokens i]
+  (loop [j i
+         total 0N
+         current 0N
+         found? false]
+    (let [t (some-> (nth tokens j nil) str/lower-case)
+          word-val (get number-words t)
+          mult-val (get multiplier-words t)]
+      (cond
+        ;; A base number word: accumulate into current group
+        word-val
+        (recur (inc j) total (+ current word-val) true)
+
+        ;; A multiplier: multiply current group and add to total
+        (and mult-val found?)
+        (let [group (if (zero? current) 1N current)]
+          (if (>= mult-val 1000)
+            (recur (inc j) (+ total (* group mult-val)) 0N true)
+            (recur (inc j) total (* group mult-val) true)))
+
+        ;; Done parsing number words
+        found?
+        [(+ total current) j]
+
+        :else nil))))
+
 (defn numeric-token? [s]
   (boolean
    (or (re-matches #"\d+" s)
@@ -217,7 +257,7 @@
   (let [t (some-> (nth tokens i nil) str/lower-case)
         t2 (some-> (nth tokens (inc i) nil) str/lower-case)]
     (cond
-      (#{"a" "an" "one"} t)
+      (#{"a" "an"} t)
       [1N (inc i)]
 
       (= "half" t)
@@ -235,6 +275,10 @@
 
       (some? (parse-number-token t))
       [(parse-number-token t) (inc i)]
+
+      ;; English number words: "ten", "twenty three", "one hundred", etc.
+      (parse-number-words tokens i)
+      (parse-number-words tokens i)
 
       :else
       nil)))
