@@ -635,39 +635,83 @@
       (parse-number-at tokens i) i
       :else (recur (inc i)))))
 
+(defn- split-on-qty-ops
+  "Split tokens on * or / that appear between quantity groups.
+   A token is a quantity operator when it is followed by something that
+   starts a number.  Returns {:segments [[tok ...] ...] :ops [:* or :/ ...]}
+   or nil when no quantity-level operators are found."
+  [tokens]
+  (loop [i 0, current [], segments [], ops []]
+    (cond
+      (>= i (count tokens))
+      (when (seq ops)
+        {:segments (conj segments current) :ops ops})
+
+      (and (#{"*" "/"} (nth tokens i))
+           (seq current)
+           (< (inc i) (count tokens))
+           (some? (parse-number-at tokens (inc i))))
+      (recur (inc i) [] (conj segments current)
+             (conj ops (if (= "*" (nth tokens i)) :* :/)))
+
+      :else
+      (recur (inc i) (conj current (nth tokens i)) segments ops))))
+
+(defn- parse-qty-segment
+  "Parse a single quantity segment (number + optional unit).
+   Returns {:value N :unit U} or nil."
+  [seg-tokens]
+  (when-let [[value j] (parse-number-at seg-tokens 0)]
+    (let [j (if (#{"a" "an"} (some-> (nth seg-tokens j nil) str/lower-case))
+              (inc j)
+              j)]
+      (if (>= j (count seg-tokens))
+        {:value value :unit {}}
+        {:value value :unit (parse-unit-phrase
+                             (str/join " " (subvec seg-tokens j)))}))))
+
 (defn parse-quantity [s]
   (let [tokens (->> (str/split (str/trim s) #"\s+")
                     (remove str/blank?)
                     vec)]
-    (loop [i 0
-           terms []]
-      (if (>= i (count tokens))
-        (cond
-          (empty? terms)
-          (throw (ex-info "Unparseable quantity"
-                          {:error :unparseable-quantity
-                           :quantity s}))
+    ;; Try quantity arithmetic: "100 MB / 100 Mbps", "60 mph * 2 hours"
+    (or (when-let [{:keys [segments ops]} (split-on-qty-ops tokens)]
+          (let [parsed (mapv parse-qty-segment segments)]
+            (when (and (every? some? parsed)
+                       ;; First operand must have a unit — otherwise it is
+                       ;; plain scalar math (e.g. "3 * 4 feet", "100 / 4 feet")
+                       (not= {} (:unit (first parsed))))
+              {:qty-expr true :terms parsed :ops ops})))
+        ;; Existing: simple or mixed quantities
+        (loop [i 0
+               terms []]
+          (if (>= i (count tokens))
+            (cond
+              (empty? terms)
+              (throw (ex-info "Unparseable quantity"
+                              {:error :unparseable-quantity
+                               :quantity s}))
 
-          (= 1 (count terms))
-          (first terms)
+              (= 1 (count terms))
+              (first terms)
 
-          :else
-          terms)
+              :else
+              terms)
 
-        (let [[value j] (or (parse-number-at tokens i)
-                            (throw (ex-info "Expected number"
-                                            {:error :expected-number
-                                             :token (nth tokens i nil)})))
-              ;; Allows "half a gallon"
-              j (if (#{"a" "an"} (some-> (nth tokens j nil) str/lower-case))
-                  (inc j)
-                  j)
-              next-i (next-number-index tokens j)
-              unit-tokens (subvec tokens j (or next-i (count tokens)))
-              unit-str (str/join " " unit-tokens)]
-          (recur (or next-i (count tokens))
-                 (conj terms {:value value
-                              :unit (parse-unit-phrase unit-str)})))))))
+            (let [[value j] (or (parse-number-at tokens i)
+                                (throw (ex-info "Expected number"
+                                                {:error :expected-number
+                                                 :token (nth tokens i nil)})))
+                  ;; Allows "half a gallon"
+                  j (if (#{"a" "an"} (some-> (nth tokens j nil) str/lower-case))
+                      (inc j)
+                      j)
+                  next-i (next-number-index tokens j)
+                  unit-tokens (subvec tokens j (or next-i (count tokens)))
+                  unit-str (str/join " " unit-tokens)]
+              (recur (or next-i (count tokens))
+                     (conj terms {:value value
+                                  :unit (parse-unit-phrase unit-str)}))))))))
 
 (defn extract-format [s]
   (cond

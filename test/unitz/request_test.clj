@@ -65,6 +65,47 @@
                         {:value 30N :unit :min}]
              :to :min})))))
 
+(deftest evaluates-quantity-arithmetic
+  (testing "data / data-rate = time"
+    (is (= 8N
+           (u/convert-request
+            {:op :convert
+             :quantity {:qty-expr true
+                        :terms [{:value 100N :unit :MB}
+                                {:value 100N :unit {:Mb 1 :s -1}}]
+                        :ops [:/]}
+             :to :s}))))
+
+  (testing "speed * time = distance"
+    (is (= 120N
+           (u/convert-request
+            {:op :convert
+             :quantity {:qty-expr true
+                        :terms [{:value 60N :unit {:mi 1 :hr -1}}
+                                {:value 2N :unit :hr}]
+                        :ops [:*]}
+             :to :mi}))))
+
+  (testing "distance / time = speed"
+    (is (= 50N
+           (u/convert-request
+            {:op :convert
+             :quantity {:qty-expr true
+                        :terms [{:value 100N :unit :km}
+                                {:value 2N :unit :hr}]
+                        :ops [:/]}
+             :to {:km 1 :hr -1}}))))
+
+  (testing "scalar multiply"
+    (is (= 6.4M
+           (u/convert-request
+            {:op :convert
+             :quantity {:qty-expr true
+                        :terms [{:value 100N :unit :MB}
+                                {:value 8N :unit {}}]
+                        :ops [:*]}
+             :to :Gb})))))
+
 (deftest rejects-incompatible-dimensions
   (testing "length cannot convert to mass"
     (is (= {:error :incompatible-dimensions

@@ -555,3 +555,47 @@
       {:op :convert
        :quantity {:value 100N :unit {:ft 1 :s -1}}
        :to {:mi 1 :hr -1}})))
+
+(deftest parses-quantity-arithmetic
+  (testing "division of quantities: data / rate = time"
+    (is (= {:op :convert
+            :quantity {:qty-expr true
+                       :terms [{:value 100N :unit :MB}
+                               {:value 100N :unit {:Mb 1 :s -1}}]
+                       :ops [:/]}
+            :to :s}
+           (parser/parse-request "100 MB / 100 Mbps in seconds"))))
+
+  (testing "multiplication of quantities: speed * time = distance"
+    (is (= {:op :convert
+            :quantity {:qty-expr true
+                       :terms [{:value 60N :unit {:mi 1 :hr -1}}
+                               {:value 2N :unit :hr}]
+                       :ops [:*]}
+            :to :mi}
+           (parser/parse-request "60 mph * 2 hours in miles"))))
+
+  (testing "distance / time = speed"
+    (is (= {:op :convert
+            :quantity {:qty-expr true
+                       :terms [{:value 100N :unit :km}
+                               {:value 2N :unit :hr}]
+                       :ops [:/]}
+            :to {:km 1 :hr -1}}
+           (parser/parse-request "100 km / 2 hours in kph"))))
+
+  (testing "scalar-first arithmetic stays as plain math"
+    ;; "3 * 4 feet" → scalar math, not qty arithmetic
+    (is (= {:op :convert
+            :quantity {:value 12N :unit :ft}
+            :to :m}
+           (parser/parse-request "3 * 4 feet in meters"))))
+
+  (testing "unit-first with scalar second is qty arithmetic"
+    (is (= {:op :convert
+            :quantity {:qty-expr true
+                       :terms [{:value 100N :unit :MB}
+                               {:value 8N :unit {}}]
+                       :ops [:*]}
+            :to :Gb}
+           (parser/parse-request "100 MB * 8 in Gb")))))

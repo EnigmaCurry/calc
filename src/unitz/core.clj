@@ -675,6 +675,30 @@
           converted
           (recur (rest remaining) (+ total converted)))))))
 
+(defn- evaluate-qty-expr
+  "Evaluate quantity arithmetic: multiply/divide quantities with units,
+   then convert the result to `to-unit`."
+  [{:keys [terms ops]} to-unit]
+  (let [first-spec (unit-spec (:unit (first terms)))
+        result (reduce
+                (fn [{:keys [value dim]} [op term]]
+                  (let [spec     (unit-spec (:unit term))
+                        term-val (* (bigdec (:value term)) (:scale spec))]
+                    (case op
+                      :* {:value (* value term-val)
+                          :dim   (merge-dims dim (:dim spec))}
+                      :/ {:value (safe-div value term-val)
+                          :dim   (merge-dims dim (scale-dim (:dim spec) -1))})))
+                {:value (* (bigdec (:value (first terms))) (:scale first-spec))
+                 :dim   (:dim first-spec)}
+                (map vector ops (rest terms)))
+        to-spec (unit-spec to-unit)]
+    (if (= (:dim result) (:dim to-spec))
+      (normalize-number (safe-div (:value result) (:scale to-spec)))
+      {:error :incompatible-dimensions
+       :from  (:dim result)
+       :to    (:dim to-spec)})))
+
 (defn convert-request [{:keys [op quantity to] :as request}]
   (cond
     (error? request)
@@ -683,6 +707,9 @@
     (not= op :convert)
     {:error :unsupported-operation
      :op op}
+
+    (:qty-expr quantity)
+    (evaluate-qty-expr quantity to)
 
     (vector? quantity)
     (convert-mixed quantity to)
