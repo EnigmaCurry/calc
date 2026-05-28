@@ -216,6 +216,10 @@
           word-val (get number-words t)
           mult-val (get multiplier-words t)]
       (cond
+        ;; Skip "and" between number words (e.g. "one hundred and two")
+        (and (= "and" t) found?)
+        (recur (inc j) total current true)
+
         ;; A base number word: accumulate into current group
         word-val
         (recur (inc j) total (+ current word-val) true)
