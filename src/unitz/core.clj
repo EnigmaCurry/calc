@@ -8,17 +8,17 @@
    ;; Length
    ;; -------------------------
 
-   :m    {:kind      :length
-          :dimension {:length 1}
-          :factor    1}
+   :m {:kind      :length
+       :dimension {:length 1}
+       :factor    1}
 
-   :ft   {:kind      :length
-          :dimension {:length 1}
-          :factor    381/1250}
+   :ft {:kind      :length
+        :dimension {:length 1}
+        :factor    381/1250}
 
-   :yd   {:kind      :length
-          :dimension {:length 1}
-          :factor    1143/1250}
+   :yd {:kind      :length
+        :dimension {:length 1}
+        :factor    1143/1250}
 
    :mile {:kind      :length
           :dimension {:length 1}
@@ -31,13 +31,13 @@
    ;; Area is not a base dimension.
    ;; It is length^2.
 
-   :m2   {:kind      :area
-          :dimension {:length 2}
-          :factor    1}
+   :m2 {:kind      :area
+        :dimension {:length 2}
+        :factor    1}
 
-   :ft2  {:kind      :area
-          :dimension {:length 2}
-          :factor    (* 381/1250 381/1250)}
+   :ft2 {:kind      :area
+         :dimension {:length 2}
+         :factor    (* 381/1250 381/1250)}
 
    :acre {:kind      :area
           :dimension {:length 2}
@@ -49,65 +49,65 @@
    ;;
    ;; Volume is length^3.
 
-   :m3    {:kind      :volume
-           :dimension {:length 3}
-           :factor    1}
+   :m3 {:kind      :volume
+        :dimension {:length 3}
+        :factor    1}
 
    :liter {:kind      :volume
            :dimension {:length 3}
            :factor    1/1000}
 
-   :L     {:kind      :volume
-           :dimension {:length 3}
-           :factor    1/1000}
+   :L {:kind      :volume
+       :dimension {:length 3}
+       :factor    1/1000}
 
-   :ml    {:kind      :volume
-           :dimension {:length 3}
-           :factor    1/1000000}
+   :ml {:kind      :volume
+        :dimension {:length 3}
+        :factor    1/1000000}
 
-   :gal   {:kind      :volume
-           :dimension {:length 3}
-           :factor    473176473/125000000000}
+   :gal {:kind      :volume
+         :dimension {:length 3}
+         :factor    473176473/125000000000}
 
    ;; -------------------------
    ;; Mass
    ;; -------------------------
 
-   :kg   {:kind      :mass
-          :dimension {:mass 1}
-          :factor    1}
+   :kg {:kind      :mass
+        :dimension {:mass 1}
+        :factor    1}
 
-   :g    {:kind      :mass
-          :dimension {:mass 1}
-          :factor    1/1000}
+   :g {:kind      :mass
+       :dimension {:mass 1}
+       :factor    1/1000}
 
-   :lb   {:kind      :mass
-          :dimension {:mass 1}
-          :factor    45359237/100000000}
+   :lb {:kind      :mass
+        :dimension {:mass 1}
+        :factor    45359237/100000000}
 
-   :oz   {:kind      :mass
-          :dimension {:mass 1}
-          :factor    45359237/1600000000}
+   :oz {:kind      :mass
+        :dimension {:mass 1}
+        :factor    45359237/1600000000}
 
    ;; -------------------------
    ;; Time
    ;; -------------------------
 
-   :s    {:kind      :time
-          :dimension {:time 1}
-          :factor    1}
+   :s {:kind      :time
+       :dimension {:time 1}
+       :factor    1}
 
-   :min  {:kind      :time
-          :dimension {:time 1}
-          :factor    60}
+   :min {:kind      :time
+         :dimension {:time 1}
+         :factor    60}
 
    :hour {:kind      :time
           :dimension {:time 1}
           :factor    3600}
 
-   :day  {:kind      :time
-          :dimension {:time 1}
-          :factor    86400}
+   :day {:kind      :time
+         :dimension {:time 1}
+         :factor    86400}
 
    ;; -------------------------
    ;; Speed
@@ -115,20 +115,25 @@
    ;;
    ;; Speed is length / time.
 
-   :mps  {:kind      :speed
-          :dimension {:length 1
-                      :time -1}
-          :factor    1}
+   :mps {:kind      :speed
+         :dimension {:length 1
+                     :time   -1}
+         :factor    1}
 
-   :fps  {:kind      :speed
-          :dimension {:length 1
-                      :time -1}
-          :factor    381/1250}
+   :kph {:kind      :speed
+         :dimension {:length 1
+                     :time   -1}
+         :factor    5/18}
 
-   :mph  {:kind      :speed
-          :dimension {:length 1
-                      :time -1}
-          :factor    (/ 201168/125 3600)}
+   :fps {:kind      :speed
+         :dimension {:length 1
+                     :time   -1}
+         :factor    381/1250}
+
+   :mph {:kind      :speed
+         :dimension {:length 1
+                     :time   -1}
+         :factor    (/ 201168/125 3600)}
 
    ;; -------------------------
    ;; Acceleration
@@ -138,7 +143,7 @@
 
    :mps2 {:kind      :acceleration
           :dimension {:length 1
-                      :time -2}
+                      :time   -2}
           :factor    1}
 
    ;; -------------------------
@@ -147,11 +152,11 @@
    ;;
    ;; Newton = kg*m/s^2
 
-   :N    {:kind      :force
-          :dimension {:mass 1
-                      :length 1
-                      :time -2}
-          :factor    1}
+   :N {:kind      :force
+       :dimension {:mass   1
+                   :length 1
+                   :time   -2}
+       :factor    1}
 
    ;; -------------------------
    ;; Energy
@@ -159,11 +164,11 @@
    ;;
    ;; Joule = kg*m^2/s^2
 
-   :J    {:kind      :energy
-          :dimension {:mass 1
-                      :length 2
-                      :time -2}
-          :factor    1}
+   :J {:kind      :energy
+       :dimension {:mass   1
+                   :length 2
+                   :time   -2}
+       :factor    1}
 
    ;; -------------------------
    ;; Power
@@ -171,19 +176,19 @@
    ;;
    ;; Watt = kg*m^2/s^3
 
-   :W    {:kind      :power
-          :dimension {:mass 1
-                      :length 2
-                      :time -3}
-          :factor    1}
+   :W {:kind      :power
+       :dimension {:mass   1
+                   :length 2
+                   :time   -3}
+       :factor    1}
 
    ;; -------------------------
    ;; Electric current
    ;; -------------------------
 
-   :A    {:kind      :electric-current
-          :dimension {:current 1}
-          :factor    1}
+   :A {:kind      :electric-current
+       :dimension {:current 1}
+       :factor    1}
 
    ;; -------------------------
    ;; Temperature
@@ -192,25 +197,25 @@
    ;; For now, only Kelvin works cleanly with factor-only conversion.
    ;; Fahrenheit and Celsius need offsets, so add them later.
 
-   :K    {:kind      :temperature
-          :dimension {:temperature 1}
-          :factor    1}
+   :K {:kind      :temperature
+       :dimension {:temperature 1}
+       :factor    1}
 
    ;; -------------------------
    ;; Amount of substance
    ;; -------------------------
 
-   :mol  {:kind      :amount
-          :dimension {:amount 1}
-          :factor    1}
+   :mol {:kind      :amount
+         :dimension {:amount 1}
+         :factor    1}
 
    ;; -------------------------
    ;; Luminous intensity
    ;; -------------------------
 
-   :cd   {:kind      :luminous-intensity
-          :dimension {:luminous 1}
-          :factor    1}})
+   :cd {:kind      :luminous-intensity
+        :dimension {:luminous 1}
+        :factor    1}})
 
 (defn unit
   "Look up unit metadata for unit keyword `u`.
