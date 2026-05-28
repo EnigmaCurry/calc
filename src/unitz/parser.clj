@@ -261,6 +261,119 @@
     :else
     nil))
 
+;; ---------------------------------------------------------------------------
+;; Simple arithmetic expression evaluator  (+, -, *, /, parens)
+;; ---------------------------------------------------------------------------
+
+(declare ^:private math-parse-expr)
+
+(defn- math-tokenize
+  "Tokenize a math expression into [:num v], [:op ch], [:lp], [:rp]."
+  [s]
+  (let [n (count s)]
+    (loop [i 0, tokens []]
+      (if (>= i n)
+        tokens
+        (let [ch (nth s i)]
+          (cond
+            (Character/isWhitespace ch)
+            (recur (inc i) tokens)
+
+            (or (Character/isDigit ch) (= ch \.))
+            (let [end (loop [j (inc i)]
+                        (if (and (< j n)
+                                 (let [c (nth s j)]
+                                   (or (Character/isDigit c) (= c \.))))
+                          (recur (inc j))
+                          j))
+                  ns (subs s i end)
+                  v  (if (str/includes? ns ".")
+                       (bigdec ns)
+                       (bigint ns))]
+              (recur end (conj tokens [:num v])))
+
+            (= ch \() (recur (inc i) (conj tokens [:lp]))
+            (= ch \)) (recur (inc i) (conj tokens [:rp]))
+
+            (#{\+ \* \/} ch)
+            (recur (inc i) (conj tokens [:op ch]))
+
+            (= ch \-)
+            (if (or (empty? tokens) (#{:lp :op} (first (peek tokens))))
+              ;; Unary minus: absorb into next number
+              (let [j   (inc i)
+                    end (loop [k j]
+                          (if (and (< k n)
+                                   (let [c (nth s k)]
+                                     (or (Character/isDigit c) (= c \.))))
+                            (recur (inc k))
+                            k))]
+                (if (> end j)
+                  (let [ns (subs s i end)
+                        v  (if (str/includes? ns ".")
+                             (bigdec ns)
+                             (bigint ns))]
+                    (recur end (conj tokens [:num v])))
+                  nil))
+              (recur (inc i) (conj tokens [:op ch])))
+
+            :else nil))))))
+
+(defn- math-parse-factor [tokens pos]
+  (when (< pos (count tokens))
+    (case (first (nth tokens pos))
+      :num [(second (nth tokens pos)) (inc pos)]
+      :lp  (when-let [[v npos] (math-parse-expr tokens (inc pos))]
+             (when (and (< npos (count tokens))
+                        (= :rp (first (nth tokens npos))))
+               [v (inc npos)]))
+      nil)))
+
+(defn- math-parse-term [tokens pos]
+  (when-let [[v0 p0] (math-parse-factor tokens pos)]
+    (loop [acc v0, p p0]
+      (if (and (< p (count tokens))
+               (= :op (first (nth tokens p)))
+               (#{\* \/} (second (nth tokens p))))
+        (let [op (second (nth tokens p))]
+          (if-let [[v2 p2] (math-parse-factor tokens (inc p))]
+            (recur (if (= \* op) (* acc v2) (/ acc v2)) p2)
+            [acc p]))
+        [acc p]))))
+
+(defn- math-parse-expr [tokens pos]
+  (when-let [[v0 p0] (math-parse-term tokens pos)]
+    (loop [acc v0, p p0]
+      (if (and (< p (count tokens))
+               (= :op (first (nth tokens p)))
+               (#{\+ \-} (second (nth tokens p))))
+        (let [op (second (nth tokens p))]
+          (if-let [[v2 p2] (math-parse-term tokens (inc p))]
+            (recur (if (= \+ op) (+ acc v2) (- acc v2)) p2)
+            [acc p]))
+        [acc p]))))
+
+(defn parse-math
+  "Evaluate a simple arithmetic expression string. Returns a number or nil."
+  [s]
+  (when-let [tokens (math-tokenize (str/trim s))]
+    (when (seq tokens)
+      (let [[v pos] (math-parse-expr tokens 0)]
+        (when (and v (= pos (count tokens)))
+          v)))))
+
+(defn evaluate-math-exprs
+  "Replace parenthesised arithmetic expressions in `s` with their values."
+  [s]
+  (let [result (str/replace s #"\(([^()]+)\)"
+                            (fn [[match inner]]
+                              (if-let [v (parse-math inner)]
+                                (str v)
+                                match)))]
+    (if (= result s)
+      s
+      (recur result))))
+
 (defn parse-number-at [tokens i]
   (let [t (some-> (nth tokens i nil) str/lower-case)
         t2 (some-> (nth tokens (inc i) nil) str/lower-case)]
@@ -361,6 +474,14 @@
 
       (some #{"per"} lower-tokens)
       (let [i (.indexOf lower-tokens "per")
+            num-tokens (subvec tokens 0 i)
+            den-tokens (subvec tokens (inc i))]
+        (merge-unit-maps
+         (unit-map (parse-unit-product num-tokens) 1)
+         (unit-map (parse-unit-product den-tokens) -1)))
+
+      (some #{"/"} lower-tokens)
+      (let [i (.indexOf lower-tokens "/")
             num-tokens (subvec tokens 0 i)
             den-tokens (subvec tokens (inc i))]
         (merge-unit-maps
@@ -503,7 +624,7 @@
 (defn parse-request [phrase]
   (let [original phrase]
     (try
-      (let [cleaned (clean-phrase phrase)
+      (let [cleaned (evaluate-math-exprs (clean-phrase phrase))
             [without-format format] (extract-format cleaned)
             [without-approx approx?] (extract-approx without-format)
             pieces (split-request without-approx)]

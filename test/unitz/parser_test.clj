@@ -345,3 +345,47 @@
     (is (= {:error :unparseable
             :phrase "banana canoe surprise"}
            (parser/parse-request "banana canoe surprise")))))
+
+(deftest parses-math-expressions
+  (testing "parenthesised arithmetic in quantity"
+    (are [phrase expected] (= expected (parser/parse-request phrase))
+
+      "(2+2) cubic yards in gallons"
+      {:op :convert
+       :quantity {:value 4N :unit {:yd 3}}
+       :to :gal}
+
+      "(3*4) feet in meters"
+      {:op :convert
+       :quantity {:value 12N :unit :ft}
+       :to :m}
+
+      "(10-3) miles in km"
+      {:op :convert
+       :quantity {:value 7N :unit :mi}
+       :to :km}
+
+      "(100/4) pounds in kg"
+      {:op :convert
+       :quantity {:value 25N :unit :lb}
+       :to :kg}))
+
+  (testing "nested parentheses"
+    (is (= {:op :convert
+            :quantity {:value 20N :unit :ft}
+            :to :m}
+           (parser/parse-request "((2+3)*4) feet in meters")))))
+
+(deftest parses-slash-unit-separator
+  (testing "'/' works like 'per' in unit phrases"
+    (are [phrase expected] (= expected (parser/parse-request phrase))
+
+      "25 miles / hour in kph"
+      {:op :convert
+       :quantity {:value 25N :unit {:mi 1 :hr -1}}
+       :to {:km 1 :hr -1}}
+
+      "100 feet / second in mph"
+      {:op :convert
+       :quantity {:value 100N :unit {:ft 1 :s -1}}
+       :to {:mi 1 :hr -1}})))
