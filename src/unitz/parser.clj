@@ -217,7 +217,7 @@
   (let [t (some-> (nth tokens i nil) str/lower-case)
         t2 (some-> (nth tokens (inc i) nil) str/lower-case)]
     (cond
-      (#{"a" "an"} t)
+      (#{"a" "an" "one"} t)
       [1N (inc i)]
 
       (= "half" t)
@@ -453,6 +453,18 @@
           {:error :unparseable
            :phrase original}
           (let [[quantity-str to-str] pieces
+                ;; Try swapping if quantity side has no number
+                ;; e.g. "seconds in one year" -> "one year" to "seconds"
+                [quantity-str to-str]
+                (try
+                  (parse-quantity quantity-str)
+                  [quantity-str to-str]
+                  (catch Exception _
+                    (try
+                      (parse-quantity to-str)
+                      [to-str quantity-str]
+                      (catch Exception _
+                        [quantity-str to-str]))))
                 request (cond-> {:op :convert
                                  :quantity (parse-quantity quantity-str)
                                  :to (parse-unit-phrase to-str)}
