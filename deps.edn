@@ -1,0 +1,11 @@
+{:paths ["src"]
+
+ :deps {org.jline/jline {:mvn/version "3.28.0"}}
+
+ :aliases
+ {:test
+  {:extra-paths ["test"]
+   :main-opts ["-e" "(load-file \"test/test_runner_jvm.clj\")"]}
+
+  :cli
+  {:main-opts ["-m" "calc.cli"]}}}
