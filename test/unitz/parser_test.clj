@@ -374,7 +374,173 @@
     (is (= {:op :convert
             :quantity {:value 20N :unit :ft}
             :to :m}
-           (parser/parse-request "((2+3)*4) feet in meters")))))
+           (parser/parse-request "((2+3)*4) feet in meters"))))
+
+  (testing "bare math without parentheses — no spaces"
+    (are [phrase expected] (= expected (parser/parse-request phrase))
+
+      "2+2 miles in km"
+      {:op :convert
+       :quantity {:value 4N :unit :mi}
+       :to :km}
+
+      "3*4 feet in inches"
+      {:op :convert
+       :quantity {:value 12N :unit :ft}
+       :to :in}
+
+      "10-3 pounds in kg"
+      {:op :convert
+       :quantity {:value 7N :unit :lb}
+       :to :kg}))
+
+  (testing "bare math with spaces between operators"
+    (are [phrase expected] (= expected (parser/parse-request phrase))
+
+      "2 + 2 miles in km"
+      {:op :convert
+       :quantity {:value 4N :unit :mi}
+       :to :km}
+
+      "3 * 4 feet in meters"
+      {:op :convert
+       :quantity {:value 12N :unit :ft}
+       :to :m}
+
+      "100 - 37 pounds in kg"
+      {:op :convert
+       :quantity {:value 63N :unit :lb}
+       :to :kg}
+
+      "2 + 3 + 5 gallons in liters"
+      {:op :convert
+       :quantity {:value 10N :unit :gal}
+       :to :l}))
+
+  (testing "operator precedence"
+    (are [phrase expected] (= expected (parser/parse-request phrase))
+
+      "(2+3*4) feet in meters"
+      {:op :convert
+       :quantity {:value 14N :unit :ft}
+       :to :m}
+
+      "(10-2*3) yards in feet"
+      {:op :convert
+       :quantity {:value 4N :unit :yd}
+       :to :ft}))
+
+  (testing "decimal arithmetic"
+    (are [phrase expected] (= expected (parser/parse-request phrase))
+
+      "(1.5+2.5) kg in pounds"
+      {:op :convert
+       :quantity {:value 4.0M :unit :kg}
+       :to :lb}
+
+      "(0.5*6) liters in gallons"
+      {:op :convert
+       :quantity {:value 3.0M :unit :l}
+       :to :gal}))
+
+  (testing "unary minus in parentheses"
+    (is (= {:op :convert
+            :quantity {:value 5N :unit :ft}
+            :to :m}
+           (parser/parse-request "(-2+7) feet in meters"))))
+
+  (testing "division in parentheses"
+    (are [phrase expected] (= expected (parser/parse-request phrase))
+
+      "(12/4) feet in inches"
+      {:op :convert
+       :quantity {:value 3N :unit :ft}
+       :to :in}
+
+      "(100/3) meters in feet"
+      {:op :convert
+       :quantity {:value 100/3 :unit :m}
+       :to :ft}))
+
+  (testing "math with natural language forms"
+    (are [phrase expected] (= expected (parser/parse-request phrase))
+
+      "how many inches are in (2+1) feet?"
+      {:op :convert
+       :quantity {:value 3N :unit :ft}
+       :to :in}
+
+      "convert (5*2) km to miles"
+      {:op :convert
+       :quantity {:value 10N :unit :km}
+       :to :mi}
+
+      "what is (3+3) cups in ml?"
+      {:op :convert
+       :quantity {:value 6N :unit :cup}
+       :to :ml}))
+
+  (testing "exponentiation with ^"
+    (are [phrase expected] (= expected (parser/parse-request phrase))
+
+      "2^3 feet in inches"
+      {:op :convert
+       :quantity {:value 8N :unit :ft}
+       :to :in}
+
+      "(2^3) meters in feet"
+      {:op :convert
+       :quantity {:value 8N :unit :m}
+       :to :ft}
+
+      "3^2 yards in feet"
+      {:op :convert
+       :quantity {:value 9N :unit :yd}
+       :to :ft}
+
+      "2 ^ 4 pounds in kg"
+      {:op :convert
+       :quantity {:value 16N :unit :lb}
+       :to :kg}))
+
+  (testing "^ is right-associative and higher precedence than *"
+    (are [phrase expected] (= expected (parser/parse-request phrase))
+
+      ;; 2^3^2 = 2^9 = 512
+      "(2^3^2) grams in kg"
+      {:op :convert
+       :quantity {:value 512N :unit :g}
+       :to :kg}
+
+      ;; 2*3^2 = 2*9 = 18
+      "(2*3^2) feet in yards"
+      {:op :convert
+       :quantity {:value 18N :unit :ft}
+       :to :yd}
+
+      ;; 1+2^3 = 1+8 = 9
+      "(1+2^3) miles in km"
+      {:op :convert
+       :quantity {:value 9N :unit :mi}
+       :to :km}))
+
+  (testing "math does not break plain numbers or fractions"
+    (are [phrase expected] (= expected (parser/parse-request phrase))
+
+      "42 feet in meters"
+      {:op :convert
+       :quantity {:value 42N :unit :ft}
+       :to :m}
+
+      "3 1/2 inches in cm"
+      {:op :convert
+       :quantity {:value 7/2 :unit :in}
+       :to :cm}
+
+      "1/2 cup in tablespoons"
+      {:op :convert
+       :quantity {:value 1/2 :unit :cup}
+       :to :tbsp})))
 
 (deftest parses-slash-unit-separator
   (testing "'/' works like 'per' in unit phrases"

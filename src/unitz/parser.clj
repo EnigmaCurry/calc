@@ -141,28 +141,100 @@
 
    "psi" :psi
 
-   "b" :B
+   ;; Bits
+   "bit" :bit
+   "bits" :bit
+
+   ;; Bytes (decimal / SI)
+   "B" :B
    "byte" :B
    "bytes" :B
 
+   "KB" :KB
    "kb" :KB
    "kilobyte" :KB
    "kilobytes" :KB
 
+   "MB" :MB
    "mb" :MB
    "megabyte" :MB
    "megabytes" :MB
 
+   "GB" :GB
+   "gb" :GB
+   "gigabyte" :GB
+   "gigabytes" :GB
+
+   "TB" :TB
+   "tb" :TB
+   "terabyte" :TB
+   "terabytes" :TB
+
+   "PB" :PB
+   "pb" :PB
+   "petabyte" :PB
+   "petabytes" :PB
+
+   "EB" :EB
+   "eb" :EB
+   "exabyte" :EB
+   "exabytes" :EB
+
+   ;; Bytes (binary / IEC)
+   "KiB" :KiB
+   "kib" :KiB
+   "kibibyte" :KiB
+   "kibibytes" :KiB
+
+   "MiB" :MiB
    "mib" :MiB
    "mebibyte" :MiB
    "mebibytes" :MiB
 
+   "GiB" :GiB
    "gib" :GiB
    "gibibyte" :GiB
    "gibibytes" :GiB
 
+   "TiB" :TiB
+   "tib" :TiB
+   "tebibyte" :TiB
+   "tebibytes" :TiB
+
+   "PiB" :PiB
+   "pib" :PiB
+   "pebibyte" :PiB
+   "pebibytes" :PiB
+
+   "EiB" :EiB
+   "eib" :EiB
+   "exbibyte" :EiB
+   "exbibytes" :EiB
+
+   ;; Bits (decimal)
+   "Kb" :Kb
+   "kilobit" :Kb
+   "kilobits" :Kb
+
+   "Mb" :Mb
    "megabit" :Mb
-   "megabits" :Mb})
+   "megabits" :Mb
+
+   "Gb" :Gb
+   "gigabit" :Gb
+   "gigabits" :Gb
+
+   "Tb" :Tb
+   "terabit" :Tb
+   "terabits" :Tb
+
+   "Pb" :Pb
+   "petabit" :Pb
+   "petabits" :Pb
+
+   "Eb" :Eb
+   "exabit" :Eb
+   "exabits" :Eb})
 
 (def special-unit-forms
   {"mph" {:mi 1 :hr -1}
@@ -173,7 +245,29 @@
    "m/s" {:m 1 :s -1}
    "fps" {:ft 1 :s -1}
    "ft/s" {:ft 1 :s -1}
-   "mbps" {:Mb 1 :s -1}})
+
+   ;; Bit rates (lowercase b = bits)
+   "bps"  {:bit 1 :s -1}
+   "Kbps" {:Kb 1 :s -1}
+   "kbps" {:Kb 1 :s -1}
+   "Mbps" {:Mb 1 :s -1}
+   "mbps" {:Mb 1 :s -1}
+   "Gbps" {:Gb 1 :s -1}
+   "gbps" {:Gb 1 :s -1}
+   "Tbps" {:Tb 1 :s -1}
+   "tbps" {:Tb 1 :s -1}
+   "Pbps" {:Pb 1 :s -1}
+   "pbps" {:Pb 1 :s -1}
+   "Ebps" {:Eb 1 :s -1}
+   "ebps" {:Eb 1 :s -1}
+
+   ;; Byte rates (uppercase B = bytes)
+   "KBps" {:KB 1 :s -1}
+   "MBps" {:MB 1 :s -1}
+   "GBps" {:GB 1 :s -1}
+   "TBps" {:TB 1 :s -1}
+   "PBps" {:PB 1 :s -1}
+   "EBps" {:EB 1 :s -1}})
 
 (defn clean-phrase [s]
   (-> s
@@ -295,7 +389,7 @@
             (= ch \() (recur (inc i) (conj tokens [:lp]))
             (= ch \)) (recur (inc i) (conj tokens [:rp]))
 
-            (#{\+ \* \/} ch)
+            (#{\+ \* \/ \^} ch)
             (recur (inc i) (conj tokens [:op ch]))
 
             (= ch \-)
@@ -329,14 +423,30 @@
                [v (inc npos)]))
       nil)))
 
+(defn- math-pow [base exp]
+  (cond
+    (zero? exp) 1N
+    (pos? exp)  (reduce * 1N (repeat exp base))
+    :else       (/ 1N (math-pow base (- exp)))))
+
+(defn- math-parse-power
+  "Parse factor (^ factor)* — right-associative."
+  [tokens pos]
+  (when-let [[base p0] (math-parse-factor tokens pos)]
+    (if (and (< p0 (count tokens))
+             (= [:op \^] (nth tokens p0)))
+      (when-let [[exp p1] (math-parse-power tokens (inc p0))]
+        [(math-pow base exp) p1])
+      [base p0])))
+
 (defn- math-parse-term [tokens pos]
-  (when-let [[v0 p0] (math-parse-factor tokens pos)]
+  (when-let [[v0 p0] (math-parse-power tokens pos)]
     (loop [acc v0, p p0]
       (if (and (< p (count tokens))
                (= :op (first (nth tokens p)))
                (#{\* \/} (second (nth tokens p))))
         (let [op (second (nth tokens p))]
-          (if-let [[v2 p2] (math-parse-factor tokens (inc p))]
+          (if-let [[v2 p2] (math-parse-power tokens (inc p))]
             (recur (if (= \* op) (* acc v2) (/ acc v2)) p2)
             [acc p]))
         [acc p]))))
@@ -374,6 +484,27 @@
       s
       (recur result))))
 
+(defn- try-parse-math-tokens
+  "Greedily collect num op num op num ... from `tokens` starting at `i`.
+   Operators are +, -, * (not / to avoid ambiguity with unit division).
+   Returns [value next-index] when at least one operator was consumed, else nil."
+  [tokens i]
+  (loop [j i, parts []]
+    (let [tok (nth tokens j nil)]
+      (if (even? (count parts))
+        ;; Expecting a number
+        (if (and tok (numeric-token? tok))
+          (recur (inc j) (conj parts tok))
+          (when (>= (count parts) 3)
+            (when-let [v (parse-math (str/join " " parts))]
+              [v j])))
+        ;; Expecting an operator (+, -, *)
+        (if (and tok (= 1 (count tok)) (#{\+ \- \* \^} (first tok)))
+          (recur (inc j) (conj parts tok))
+          (when (>= (count parts) 3)
+            (when-let [v (parse-math (str/join " " parts))]
+              [v j])))))))
+
 (defn parse-number-at [tokens i]
   (let [t (some-> (nth tokens i nil) str/lower-case)
         t2 (some-> (nth tokens (inc i) nil) str/lower-case)]
@@ -387,15 +518,17 @@
       (= "quarter" t)
       [1/4 (inc i)]
 
-      (and (some? (parse-number-token t))
-           (some? t2)
-           (re-matches #"\d+/\d+" t2))
-      [(+ (parse-number-token t)
-          (parse-number-token t2))
-       (+ i 2)]
-
+      ;; Plain number, possibly followed by mixed fraction or math operators
       (some? (parse-number-token t))
-      [(parse-number-token t) (inc i)]
+      (or (try-parse-math-tokens tokens i)
+          (if (and (some? t2) (re-matches #"\d+/\d+" t2))
+            [(+ (parse-number-token t) (parse-number-token t2))
+             (+ i 2)]
+            [(parse-number-token t) (inc i)]))
+
+      ;; Single token containing math (no spaces): 2+2, 3*4-1
+      (and (some? t) (some? (parse-math t)))
+      [(parse-math t) (inc i)]
 
       ;; English number words: "ten", "twenty three", "one hundred", etc.
       (parse-number-words tokens i)
@@ -405,11 +538,12 @@
       nil)))
 
 (defn normalize-unit-token [s]
-  (let [k (-> s
-              str/trim
-              (str/replace #"^[^\w]+|[^\w]+$" "")
-              str/lower-case)]
-    (or (get unit-aliases k)
+  (let [raw (-> s
+                str/trim
+                (str/replace #"^[^\w]+|[^\w]+$" ""))
+        k   (str/lower-case raw)]
+    (or (get unit-aliases raw)
+        (get unit-aliases k)
         (throw (ex-info "Unknown unit"
                         {:error :unknown-unit
                          :unit s})))))
@@ -430,6 +564,9 @@
   (let [raw token
         lower (str/lower-case raw)]
     (cond
+      (contains? special-unit-forms raw)
+      (get special-unit-forms raw)
+
       (contains? special-unit-forms lower)
       (get special-unit-forms lower)
 

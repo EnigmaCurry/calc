@@ -494,12 +494,33 @@
    :acre {:dim {:length 2} :scale 4046.8564224M}
 
    ;; Data. Base is byte.
+   ;; Bits
+   :bit  {:dim {:data 1} :scale 0.125M}
+
+   ;; Bytes (decimal / SI)
    :B    {:dim {:data 1} :scale 1M}
    :KB   {:dim {:data 1} :scale 1000M}
    :MB   {:dim {:data 1} :scale 1000000M}
+   :GB   {:dim {:data 1} :scale 1000000000M}
+   :TB   {:dim {:data 1} :scale 1000000000000M}
+   :PB   {:dim {:data 1} :scale 1000000000000000M}
+   :EB   {:dim {:data 1} :scale 1000000000000000000M}
+
+   ;; Bytes (binary / IEC)
+   :KiB  {:dim {:data 1} :scale 1024M}
    :MiB  {:dim {:data 1} :scale 1048576M}
    :GiB  {:dim {:data 1} :scale 1073741824M}
+   :TiB  {:dim {:data 1} :scale 1099511627776M}
+   :PiB  {:dim {:data 1} :scale 1125899906842624M}
+   :EiB  {:dim {:data 1} :scale 1152921504606846976M}
+
+   ;; Bits (decimal)
+   :Kb   {:dim {:data 1} :scale 125M}
    :Mb   {:dim {:data 1} :scale 125000M}
+   :Gb   {:dim {:data 1} :scale 125000000M}
+   :Tb   {:dim {:data 1} :scale 125000000000M}
+   :Pb   {:dim {:data 1} :scale 125000000000000M}
+   :Eb   {:dim {:data 1} :scale 125000000000000000M}
 
    ;; Derived mechanical units.
    :N    {:dim {:mass 1 :length 1 :time -2} :scale 1M}
