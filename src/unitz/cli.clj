@@ -42,7 +42,9 @@
     "  unitz 2 cubic yards to US liquid gallons"]))
 
 (defn -main [& args]
-  (let [input (str/trim (str/join " " args))]
+  (let [verbose? (some #{"-v" "--verbose"} args)
+        args (remove #{"-v" "--verbose"} args)
+        input (str/trim (str/join " " args))]
     (if (str/blank? input)
       (do
         (binding [*out* *err*]
@@ -55,7 +57,9 @@
               (binding [*out* *err*]
                 (println error))
               (System/exit 1))
-            (println result)))
+            (if verbose?
+              (println (str input " = " result))
+              (println result))))
         (catch Exception e
           (binding [*out* *err*]
             (println "Error:" (.getMessage e)))

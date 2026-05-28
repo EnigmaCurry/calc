@@ -95,6 +95,10 @@
 
    "millennium" :millennium
    "millennia" :millennium
+   "millenium" :millennium
+   "millenia" :millennium
+   "milennium" :millennium
+   "milennia" :millennium
 
    "cup" :cup
    "cups" :cup
