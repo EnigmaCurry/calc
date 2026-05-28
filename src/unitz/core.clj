@@ -1,23 +1,213 @@
 (ns unitz.core)
 
 (def units
-  {;; Length
-   :m    {:dimension {:length 1}
-          :scale     1}
-   :ft   {:dimension {:length 1}
-          :scale     381/1250}
-   :yd   {:dimension {:length 1}
-          :scale     1143/1250}
-   :mile {:dimension {:length 1}
-          :scale     201168/125}
+  {;; -------------------------
+   ;; Length
+   ;; -------------------------
 
+   :m    {:kind      :length
+          :dimension {:length 1}
+          :factor    1}
+
+   :ft   {:kind      :length
+          :dimension {:length 1}
+          :factor    381/1250}
+
+   :yd   {:kind      :length
+          :dimension {:length 1}
+          :factor    1143/1250}
+
+   :mile {:kind      :length
+          :dimension {:length 1}
+          :factor    201168/125}
+
+   ;; -------------------------
+   ;; Area
+   ;; -------------------------
+   ;;
+   ;; Area is not a base dimension.
+   ;; It is length^2.
+
+   :m2   {:kind      :area
+          :dimension {:length 2}
+          :factor    1}
+
+   :ft2  {:kind      :area
+          :dimension {:length 2}
+          :factor    (* 381/1250 381/1250)}
+
+   :acre {:kind      :area
+          :dimension {:length 2}
+          :factor    40468564224/10000000}
+
+   ;; -------------------------
+   ;; Volume
+   ;; -------------------------
+   ;;
+   ;; Volume is length^3.
+
+   :m3    {:kind      :volume
+           :dimension {:length 3}
+           :factor    1}
+
+   :liter {:kind      :volume
+           :dimension {:length 3}
+           :factor    1/1000}
+
+   :L     {:kind      :volume
+           :dimension {:length 3}
+           :factor    1/1000}
+
+   :ml    {:kind      :volume
+           :dimension {:length 3}
+           :factor    1/1000000}
+
+   :gal   {:kind      :volume
+           :dimension {:length 3}
+           :factor    473176473/125000000000}
+
+   ;; -------------------------
+   ;; Mass
+   ;; -------------------------
+
+   :kg   {:kind      :mass
+          :dimension {:mass 1}
+          :factor    1}
+
+   :g    {:kind      :mass
+          :dimension {:mass 1}
+          :factor    1/1000}
+
+   :lb   {:kind      :mass
+          :dimension {:mass 1}
+          :factor    45359237/100000000}
+
+   :oz   {:kind      :mass
+          :dimension {:mass 1}
+          :factor    45359237/1600000000}
+
+   ;; -------------------------
    ;; Time
-   :s    {:dimension {:time 1}
-          :scale     1}
-   :min  {:dimension {:time 1}
-          :scale     60}
-   :hour {:dimension {:time 1}
-          :scale     3600}})
+   ;; -------------------------
+
+   :s    {:kind      :time
+          :dimension {:time 1}
+          :factor    1}
+
+   :min  {:kind      :time
+          :dimension {:time 1}
+          :factor    60}
+
+   :hour {:kind      :time
+          :dimension {:time 1}
+          :factor    3600}
+
+   :day  {:kind      :time
+          :dimension {:time 1}
+          :factor    86400}
+
+   ;; -------------------------
+   ;; Speed
+   ;; -------------------------
+   ;;
+   ;; Speed is length / time.
+
+   :mps  {:kind      :speed
+          :dimension {:length 1
+                      :time -1}
+          :factor    1}
+
+   :fps  {:kind      :speed
+          :dimension {:length 1
+                      :time -1}
+          :factor    381/1250}
+
+   :mph  {:kind      :speed
+          :dimension {:length 1
+                      :time -1}
+          :factor    (/ 201168/125 3600)}
+
+   ;; -------------------------
+   ;; Acceleration
+   ;; -------------------------
+   ;;
+   ;; Acceleration is length / time^2.
+
+   :mps2 {:kind      :acceleration
+          :dimension {:length 1
+                      :time -2}
+          :factor    1}
+
+   ;; -------------------------
+   ;; Force
+   ;; -------------------------
+   ;;
+   ;; Newton = kg*m/s^2
+
+   :N    {:kind      :force
+          :dimension {:mass 1
+                      :length 1
+                      :time -2}
+          :factor    1}
+
+   ;; -------------------------
+   ;; Energy
+   ;; -------------------------
+   ;;
+   ;; Joule = kg*m^2/s^2
+
+   :J    {:kind      :energy
+          :dimension {:mass 1
+                      :length 2
+                      :time -2}
+          :factor    1}
+
+   ;; -------------------------
+   ;; Power
+   ;; -------------------------
+   ;;
+   ;; Watt = kg*m^2/s^3
+
+   :W    {:kind      :power
+          :dimension {:mass 1
+                      :length 2
+                      :time -3}
+          :factor    1}
+
+   ;; -------------------------
+   ;; Electric current
+   ;; -------------------------
+
+   :A    {:kind      :electric-current
+          :dimension {:current 1}
+          :factor    1}
+
+   ;; -------------------------
+   ;; Temperature
+   ;; -------------------------
+   ;;
+   ;; For now, only Kelvin works cleanly with factor-only conversion.
+   ;; Fahrenheit and Celsius need offsets, so add them later.
+
+   :K    {:kind      :temperature
+          :dimension {:temperature 1}
+          :factor    1}
+
+   ;; -------------------------
+   ;; Amount of substance
+   ;; -------------------------
+
+   :mol  {:kind      :amount
+          :dimension {:amount 1}
+          :factor    1}
+
+   ;; -------------------------
+   ;; Luminous intensity
+   ;; -------------------------
+
+   :cd   {:kind      :luminous-intensity
+          :dimension {:luminous 1}
+          :factor    1}})
 
 (defn unit
   "Look up unit metadata for unit keyword `u`.
@@ -25,14 +215,14 @@
   Returns a map containing at least:
 
   - `:dimension` — a dimensional exponent map, such as `{:length 1}`
-  - `:scale` — the scale factor relative to the base unit for that dimension
+  - `:factor` — the scale factor relative to the base unit for that dimension
 
   Throws an `ex-info` exception if `u` is unknown.
 
   Example:
 
       (unit :ft)
-      ;; => {:dimension {:length 1}, :scale 381/1250}"
+      ;; => {:dimension {:length 1}, :factor 381/1250}"
   [u]
   (or (get units u)
       (throw (ex-info "Unknown unit" {:unit u}))))
@@ -82,7 +272,7 @@
       per-sec  => time^-1"
   [u]
   {:dimension (update-vals (:dimension u) -)
-   :scale (/ 1 (:scale u))})
+   :factor (/ 1 (:factor u))})
 
 (defn multiply-units
   "Multiply one or more unit metadata maps.
@@ -91,7 +281,7 @@
   Scales are multiplied."
   [& us]
   {:dimension (apply merge-exponents (map :dimension us))
-   :scale (apply * (map :scale us))})
+   :factor (apply * (map :factor us))})
 
 (defn divide-units
   "Divide unit metadata map `a` by unit metadata map `b`."
@@ -114,8 +304,8 @@
     (throw (ex-info "Incompatible units"
                     {:from-dimension (:dimension from)
                      :to-dimension (:dimension to)})))
-  (/ (* value (:scale from))
-     (:scale to)))
+  (/ (* value (:factor from))
+     (:factor to)))
 
 (defn unit-expr
   "Resolve a unit expression into a unit metadata map.
@@ -192,26 +382,3 @@
   (convert-resolved-units value
                           (unit-expr from)
                           (unit-expr to)))
-
-(comment
-  (:scale (:ft units))
-  ;;; Test user API:
-  (unit :ft)
-  (compatible? :ft :yd)
-  (compatible? [:/ :mile :hour] [:/ :ft :s])
-  (convert 12 :ft :yd)
-  (convert 60 [:/ :mile :hour] [:/ :ft :s])
-  (convert 1 [:* :yd :yd] [:* :ft :ft])
-
-  ;;;Test internal:
-  (clean-exponents {:length 2 :time 0})
-  (merge-exponents {:length 1 :time -1})
-  (divide-units (unit :m) (unit :s))
-  (divide-units (unit :ft) (unit :s))
-  (divide-units (unit :mile) (unit :hour))
-  (def ft-per-second
-    (divide-units (unit :ft) (unit :s)))
-  (def miles-per-hour
-    (divide-units (unit :mile) (unit :hour)))
-  (convert-resolved-units 60 miles-per-hour ft-per-second))
-

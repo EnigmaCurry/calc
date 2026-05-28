@@ -1,4 +1,4 @@
 {:paths ["src" "test"]
  :tasks
  {test {:doc "Run tests"
-        :task (load-file "test_runner.clj")}}}
+        :task (load-file "test/test_runner.clj")}}}

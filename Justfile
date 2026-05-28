@@ -4,14 +4,18 @@ set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 help:
     just --list
 
+# Enter `nix develop` sub-shell
+dev:
+    nix develop
+
 # Fast tests under Babashka
-test-bb:
+_test-bb:
     bb test
 
 # JVM Clojure tests
-test-clj:
+_test-clj:
     clojure -M:test
 
-# Run both runtimes
-test: test-bb test-clj
+# Run tests in both Babashka and Clojure JVM
+test: _test-bb _test-clj
 
