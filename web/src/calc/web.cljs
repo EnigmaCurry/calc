@@ -41,10 +41,22 @@
             {:error (format-error result)}
             {:result (format-number result)}))))))
 
+(defn load-history []
+  (try
+    (when-let [raw (.getItem js/localStorage "calc-history")]
+      (js->clj (js/JSON.parse raw) :keywordize-keys true))
+    (catch :default _ [])))
+
+(defn save-history! [history]
+  (try
+    (.setItem js/localStorage "calc-history"
+              (js/JSON.stringify (clj->js history)))
+    (catch :default _ nil)))
+
 (defonce state (r/atom {:input ""
                         :result nil
                         :error nil
-                        :history []}))
+                        :history (load-history)}))
 
 (defonce log-ref (atom nil))
 
@@ -79,6 +91,7 @@
                          :result (:result result)
                          :error (:error result)}]
                        h)))
+        (save-history! (:history @state))
         (js/setTimeout scroll-log-to-top 0)))))
 
 (defn on-keydown [e]
@@ -100,6 +113,7 @@
                                    :result (:result result)
                                    :error (:error result)}]
                                  h)))
+                  (save-history! (:history @state))
                   (js/setTimeout scroll-log-to-top 0)))}
    text])
 
@@ -115,7 +129,9 @@
                :on-change #(swap! state assoc :input (.. % -target -value))
                :on-key-down on-keydown}]
       [:button.convert {:on-click evaluate!} "="]
-      [:button.clear {:on-click #(reset! state {:input "" :result nil :error nil :history []})} "CE"]
+      [:button.clear {:on-click #(when (js/confirm "Clear all history?")
+                                    (reset! state {:input "" :result nil :error nil :history []})
+                                    (save-history! []))} "CE"]
       [:a.help {:href "https://github.com/EnigmaCurry/calc"
                 :target "_blank"
                 :rel "noopener"} "?"]]
