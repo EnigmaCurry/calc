@@ -53,10 +53,6 @@
          #"Incompatible units"
          (u/convert 1 :ft :s)))))
 
-(ns unitz.conversion-test
-  (:require [clojure.test :refer [deftest is testing]]
-            [unitz.core :as u]))
-
 (deftest length-conversion-test
   (testing "feet to yards"
     (is (= 4N
