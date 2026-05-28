@@ -151,6 +151,10 @@
    "kph" {:km 1 :hr -1}
    "km/h" {:km 1 :hr -1}
    "kmph" {:km 1 :hr -1}
+   "mps" {:m 1 :s -1}
+   "m/s" {:m 1 :s -1}
+   "fps" {:ft 1 :s -1}
+   "ft/s" {:ft 1 :s -1}
    "mbps" {:Mb 1 :s -1}})
 
 (defn clean-phrase [s]
