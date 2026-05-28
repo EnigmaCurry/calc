@@ -91,6 +91,45 @@
       background: var(--accent-hover);
     }
 
+    button.clear {
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      font-weight: 600;
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+
+    button.clear:hover {
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    a.help {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      text-decoration: none;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+
+    a.help:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
     main {
       position: fixed;
       top: var(--header-height);

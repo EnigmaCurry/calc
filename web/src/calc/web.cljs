@@ -114,7 +114,11 @@
                :auto-focus true
                :on-change #(swap! state assoc :input (.. % -target -value))
                :on-key-down on-keydown}]
-      [:button.convert {:on-click evaluate!} "="]]
+      [:button.convert {:on-click evaluate!} "="]
+      [:button.clear {:on-click #(reset! state {:input "" :result nil :error nil :history []})} "CE"]
+      [:a.help {:href "https://github.com/EnigmaCurry/calc"
+                :target "_blank"
+                :rel "noopener"} "?"]]
 
      [:main {:ref #(reset! log-ref %)}
       (if (seq history)
