@@ -109,4 +109,12 @@
 
   (testing "meters per second to named mps"
     (is (= 1
-           (u/convert 1 [:/ :m :s] :mps)))))
+           (u/convert 1 [:/ :m :s] :mps))))
+
+  (testing "kph to mps"
+    (is (= 5/18
+           (u/convert 1 :kph :mps))))
+
+  (testing "mph to kph"
+    (is (= 301752/3125
+           (u/convert 60 :mph :kph)))))

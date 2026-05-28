@@ -148,6 +148,9 @@
 
 (def special-unit-forms
   {"mph" {:mi 1 :hr -1}
+   "kph" {:km 1 :hr -1}
+   "km/h" {:km 1 :hr -1}
+   "kmph" {:km 1 :hr -1}
    "mbps" {:Mb 1 :s -1}})
 
 (defn clean-phrase [s]

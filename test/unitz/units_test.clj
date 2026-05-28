@@ -39,4 +39,6 @@
     (is (= {:length 1 :time -1}
            (:dimension (u/unit :mps))))
     (is (= {:length 1 :time -1}
-           (:dimension (u/unit :mph))))))
+           (:dimension (u/unit :mph))))
+    (is (= {:length 1 :time -1}
+           (:dimension (u/unit :kph))))))
