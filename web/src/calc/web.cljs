@@ -31,15 +31,21 @@
 (defn evaluate [input]
   (let [input (str/trim input)]
     (when-not (str/blank? input)
-      ;; First try as pure math expression
-      (if-let [math-result (parser/parse-math input)]
-        {:result (format-number math-result)}
-        ;; Then try as unit conversion
-        (let [parsed (parser/parse-request input)
-              result (core/convert-request parsed)]
-          (if (core/error? result)
-            {:error (format-error result)}
-            {:result (format-number result)}))))))
+      (try
+        ;; First try as pure math expression
+        (if-let [math-result (parser/parse-math input)]
+          {:result (format-number math-result)}
+          ;; Then try as unit conversion
+          (let [parsed (parser/parse-request input)
+                result (core/convert-request parsed)]
+            (if (core/error? result)
+              {:error (format-error result)}
+              {:result (format-number result)})))
+        (catch :default e
+          {:error (if-let [data (.-data e)]
+                    (format-error (js->clj data :keywordize-keys true))
+                    (.-message e))})))))
+
 
 (defn load-history []
   (try
@@ -55,7 +61,10 @@
 
 (defn load-theme []
   (or (try (.getItem js/localStorage "calc-theme") (catch :default _ nil))
-      "dark"))
+      (if (and js/window.matchMedia
+               (.-matches (.matchMedia js/window "(prefers-color-scheme: light)")))
+        "light"
+        "dark")))
 
 (defonce state (r/atom {:input ""
                         :result nil
@@ -93,22 +102,30 @@
   (when-let [el @log-ref]
     (set! (.-scrollTop el) 0)))
 
+(def clear-commands #{"clear" "/clear" "reset" "/reset"})
+
+(defn clear-history! []
+  (swap! state assoc :input "" :result nil :error nil :history [])
+  (save-history! []))
+
 (defn evaluate! []
-  (let [input (:input @state)]
+  (let [input (str/trim (:input @state))]
     (when-not (str/blank? input)
-      (let [result (evaluate input)]
-        (swap! state assoc
-               :result (:result result)
-               :error (:error result)
-               :input "")
-        (swap! state update :history
-               (fn [h]
-                 (into [{:input input
-                         :result (:result result)
-                         :error (:error result)}]
-                       h)))
-        (save-history! (:history @state))
-        (js/setTimeout scroll-log-to-top 0)))))
+      (if (clear-commands (str/lower-case input))
+        (clear-history!)
+        (let [result (evaluate input)]
+          (swap! state assoc
+                 :result (:result result)
+                 :error (:error result)
+                 :input "")
+          (swap! state update :history
+                 (fn [h]
+                   (into [{:input input
+                           :result (:result result)
+                           :error (:error result)}]
+                         h)))
+          (save-history! (:history @state))
+          (js/setTimeout scroll-log-to-top 0))))))
 
 (defn on-keydown [e]
   (when (= "Enter" (.-key e))
@@ -163,9 +180,8 @@
         [:nav.menu
          [:button.menu-item
           {:on-click (fn []
-                      (when (js/confirm "Clear all history?")
-                        (swap! state assoc :input "" :result nil :error nil :history [] :menu-open false)
-                        (save-history! [])))}
+                      (clear-history!)
+                      (swap! state assoc :menu-open false))}
           "Clear Everything"]
          [:button.menu-item
           {:on-click (fn []
