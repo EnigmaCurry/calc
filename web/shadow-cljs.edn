@@ -4,7 +4,7 @@
  {:app {:target :browser
         :output-dir "public/js"
         :asset-path "js"
-        :modules {:main {:init-fn unitz.web/init}}
+        :modules {:main {:init-fn calc.web/init}}
         :release {:output-dir "public/js"
                   :compiler-options {:optimizations :advanced}}
         :devtools {:http-root "public"

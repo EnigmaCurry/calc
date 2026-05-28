@@ -1,8 +1,8 @@
-(ns unitz.web
+(ns calc.web
   (:require [reagent.core :as r]
             [reagent.dom.client :as rdom]
-            [unitz.core :as core]
-            [unitz.parser :as parser]
+            [calc.core :as core]
+            [calc.parser :as parser]
             [clojure.string :as str]))
 
 (defn format-number [x]
@@ -97,7 +97,7 @@
   (let [{:keys [input result error history]} @state]
     [:div.container
      [:header
-      [:h1 "unitz"]
+      [:h1 "calc"]
       [:p.subtitle "Unit conversion & calculator in your browser"]]
 
      [:main
@@ -139,10 +139,10 @@
 
      [:footer
       [:p "Powered by "
-       [:a {:href "https://github.com/EnigmaCurry/unitz"
+       [:a {:href "https://github.com/EnigmaCurry/calc"
             :target "_blank"
-            :rel "noopener"} "unitz"]
-       " \u2014 a Clojure/ClojureScript library for unit conversion"]]]))
+            :rel "noopener"} "calc"]
+       " \u2014 a Clojure/ClojureScript unit conversion calculator"]]]))
 
 (defonce root (atom nil))
 
