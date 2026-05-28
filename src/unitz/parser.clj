@@ -481,12 +481,18 @@
     :else
     nil))
 
-(defn unknown-unit-error [phrase ex]
+(defn parse-error [phrase ex]
   (let [data (ex-data ex)]
-    (if (= :unknown-unit (:error data))
+    (case (:error data)
+      :unknown-unit
       {:error :unknown-unit
        :unit (:unit data)
        :phrase phrase}
+
+      :ambiguous-quantities
+      {:error :ambiguous-quantities
+       :phrase phrase}
+
       (throw ex))))
 
 
@@ -513,14 +519,25 @@
                       [to-str quantity-str]
                       (catch Exception _
                         [quantity-str to-str]))))
-                request (cond-> {:op :convert
-                                 :quantity (parse-quantity quantity-str)
-                                 :to (parse-unit-phrase to-str)}
-                          approx? (assoc :approx? true)
-                          format (assoc :format format))]
-            request)))
+                ;; Check if the target side also has a quantity
+                to-has-number?
+                (try
+                  (parse-quantity to-str)
+                  true
+                  (catch Exception _ false))]
+            (if to-has-number?
+              (throw (ex-info "Both sides have quantities"
+                              {:error :ambiguous-quantities
+                               :quantity quantity-str
+                               :to to-str}))
+              (let [request (cond-> {:op :convert
+                                     :quantity (parse-quantity quantity-str)
+                                     :to (parse-unit-phrase to-str)}
+                              approx? (assoc :approx? true)
+                              format (assoc :format format))]
+                request)))))
       (catch clojure.lang.ExceptionInfo ex
-        (or (unknown-unit-error original ex)
+        (or (parse-error original ex)
             {:error :unparseable
              :phrase original}))
       (catch Exception _

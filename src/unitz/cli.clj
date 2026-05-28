@@ -17,6 +17,7 @@
   (case error
     :unknown-unit (str "Error: Unknown unit \"" unit "\"")
     :unparseable (str "Error: Could not parse \"" phrase "\"")
+    :ambiguous-quantities (str "Error: Both sides of the conversion have quantities")
     :incompatible-dimensions (str "Error: Incompatible dimensions")
     :unsupported-operation (str "Error: Unsupported operation")
     :invalid-request (str "Error: Invalid request")

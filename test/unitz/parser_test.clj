@@ -334,6 +334,12 @@
             :phrase "12 blorps in meters"}
            (parser/parse-request "12 blorps in meters")))))
 
+(deftest parser-reports-ambiguous-quantities
+  (testing "both sides having quantities produces a specific error"
+    (is (= {:error :ambiguous-quantities
+            :phrase "5 seconds in 102 years"}
+           (parser/parse-request "5 seconds in 102 years")))))
+
 (deftest parser-reports-unparseable-phrases
   (testing "nonsense input gets a useful parse error"
     (is (= {:error :unparseable
