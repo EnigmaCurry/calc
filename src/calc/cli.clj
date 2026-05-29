@@ -4,7 +4,7 @@
             [calc.format :as fmt]
             [clojure.string :as str]
             [calc.parser :as parser])
-  (:import (org.jline.reader LineReaderBuilder EndOfFileException UserInterruptException LineReader)
+  (:import (org.jline.reader LineReaderBuilder EndOfFileException UserInterruptException LineReader History)
            (org.jline.terminal TerminalBuilder))
   (:gen-class))
 
@@ -269,7 +269,7 @@
 
                       ("clear" "reset")
                       (do
-                        (.purge (.getHistory reader))
+                        (.purge ^History (.getHistory reader))
                         (print "\033[2J\033[H")
                         (flush)
                         (println "Screen and history cleared.")
