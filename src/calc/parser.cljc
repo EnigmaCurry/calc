@@ -679,9 +679,9 @@
     (let [[_ to quantity] (re-matches #"(?i)^how many (.+?)(?:\s+are)? in (.+)$" s)]
       [quantity to])
 
-    ;; how many yards is 12 feet
-    (re-matches #"(?i)^how many .+ is .+$" s)
-    (let [[_ to quantity] (re-matches #"(?i)^how many (.+) is (.+)$" s)]
+    ;; how many yards is/are 12 feet
+    (re-matches #"(?i)^how many .+ (?:is|are) .+$" s)
+    (let [[_ to quantity] (re-matches #"(?i)^how many (.+) (?:is|are) (.+)$" s)]
       [quantity to])
 
     ;; 12 feet is how many yards
@@ -760,8 +760,8 @@
    ;; how many X [are] in Y → from=Y, target=X
    (when-let [[_ to from] (re-matches #"(?i)^how many (.+?)(?:\s+are)? in (.+)$" input)]
      {:from (str/trim from) :target (str/trim to)})
-   ;; how many X is Y → from=Y, target=X
-   (when-let [[_ to from] (re-matches #"(?i)^how many (.+) is (.+)$" input)]
+   ;; how many X is/are Y → from=Y, target=X
+   (when-let [[_ to from] (re-matches #"(?i)^how many (.+) (?:is|are) (.+)$" input)]
      {:from (str/trim from) :target (str/trim to)})
    ;; Y is how many X → from=Y, target=X
    (when-let [[_ from to] (re-matches #"(?i)^(.+) is how many (.+)$" input)]
