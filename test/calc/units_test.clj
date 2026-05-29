@@ -1,6 +1,6 @@
 (ns calc.units-test
   (:require [clojure.test :refer [deftest is testing]]
-            [calc.core :as u]))
+            [calc.units :as u]))
 
 (deftest unit-registry-shape-test
   (testing "every non-temperature unit has dim and scale"

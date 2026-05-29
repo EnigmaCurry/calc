@@ -1,4 +1,4 @@
-(ns calc.core
+(ns calc.units
   #?(:clj (:import [java.math BigDecimal MathContext RoundingMode])))
 
 ;; ============================================================================
@@ -7,12 +7,28 @@
 
 #?(:clj (def ^:private math-context MathContext/DECIMAL128))
 
+(defn ->bigdec
+  "Convert a number to BigDecimal on JVM (using string representation for precision).
+   Identity on CLJS."
+  [x]
+  #?(:clj
+     (cond
+       (instance? BigDecimal x) x
+       (integer? x) (BigDecimal/valueOf (long x))
+       (ratio? x)   (.divide (BigDecimal/valueOf (long (numerator x)))
+                             (BigDecimal/valueOf (long (denominator x)))
+                             math-context)
+       :else         (BigDecimal. (str x)))
+     :cljs x))
+
 (defn safe-div [a b]
   #?(:clj
      (cond
        (or (instance? BigDecimal a)
-           (instance? BigDecimal b))
-       (.divide (bigdec a) (bigdec b) math-context)
+           (instance? BigDecimal b)
+           (ratio? a)
+           (ratio? b))
+       (.divide (->bigdec a) (->bigdec b) math-context)
 
        :else
        (/ a b))
@@ -47,20 +63,6 @@
        (int x)
        ;; Round to 12 significant digits to avoid floating point noise
        (js/parseFloat (.toPrecision (js/Number x) 12)))))
-
-(defn- ->bigdec
-  "Convert a number to BigDecimal on JVM (using string representation for precision).
-   Identity on CLJS."
-  [x]
-  #?(:clj
-     (cond
-       (instance? BigDecimal x) x
-       (integer? x) (BigDecimal/valueOf (long x))
-       (ratio? x)   (.divide (BigDecimal/valueOf (long (numerator x)))
-                             (BigDecimal/valueOf (long (denominator x)))
-                             math-context)
-       :else         (BigDecimal. (str x)))
-     :cljs x))
 
 ;; ============================================================================
 ;; Consolidated unit registry
@@ -467,7 +469,7 @@
    {:current 2 :time 4 :mass -1 :length -2} "Capacitance"
    {:mass 1 :length 2 :time -2 :current -2} "Inductance"})
 
-(def ^:private auto-scale-units
+(def auto-scale-units
   "Ordered lists of [unit-key scale] for each dimension with auto-scale units."
   (let [as-entries (for [[k v] unit-defs
                          :when (and (:auto-scale v) (:dim v))]
@@ -479,19 +481,15 @@
                       (map (fn [[k v]] [k (:scale v)]))
                       (sort-by (fn [[_ s]] #?(:clj (double s) :cljs s))))]))))
 
-(def ^:private unit-display-names
+(def unit-display-names
   (into {} (for [[k v] unit-defs :when (:name v)] [k (:name v)])))
 
-(def ^:private unit-short-names
+(def unit-short-names
   (into {} (for [[k v] unit-defs :when (:short v)] [k (:short v)])))
 
 ;; ============================================================================
 ;; Unit groups for display (help pages, unit listings)
 ;; ============================================================================
-;;
-;; Each group specifies unit keys; display names are derived from :aliases
-;; in unit-defs (second alias = singular full name). This is the single
-;; source of truth for how units are grouped in CLI and web help output.
 
 (defn- unit-display-label
   "Derive a singular display name from a unit's :aliases vector.
@@ -563,7 +561,7 @@
         unit-group-spec))
 
 ;; ============================================================================
-;; Dimension and conversion functions
+;; Dimension and unit algebra
 ;; ============================================================================
 
 (defn canonical-unit [u]
@@ -646,220 +644,3 @@
   {:error :incompatible-dimensions
    :from (:dim (unit-spec from-unit))
    :to   (:dim (unit-spec to-unit))})
-
-(defn convert-scalar [value from-unit to-unit]
-  (if-not (compatible? from-unit to-unit)
-    (incompatible-error from-unit to-unit)
-    (let [{from-scale :scale} (unit-spec from-unit)
-          {to-scale :scale}   (unit-spec to-unit)]
-      (normalize-number
-       (safe-div (* value from-scale) to-scale)))))
-
-(def ^:private temp-offset (->bigdec 273.15))
-(def ^:private temp-32 (->bigdec 32))
-(def ^:private temp-5 (->bigdec 5))
-(def ^:private temp-9 (->bigdec 9))
-
-(defn c->k [c]
-  (+ c temp-offset))
-
-(defn k->c [k]
-  (- k temp-offset))
-
-(defn f->c [f]
-  (* (- f temp-32) (safe-div temp-5 temp-9)))
-
-(defn c->f [c]
-  (+ (* c (safe-div temp-9 temp-5)) temp-32))
-
-(defn temperature->kelvin [value unit]
-  (case unit
-    :K value
-    :degC (c->k value)
-    :degF (c->k (f->c value))))
-
-(defn kelvin->temperature [value unit]
-  (case unit
-    :K value
-    :degC (k->c value)
-    :degF (c->f (k->c value))))
-
-(defn convert-temperature [value from-unit to-unit]
-  (if-not (and (temperature-units from-unit)
-               (temperature-units to-unit))
-    (let [temp-dim {:temperature 1}
-          from-dim (if (temperature-units from-unit) temp-dim (:dim (unit-spec from-unit)))
-          to-dim   (if (temperature-units to-unit)   temp-dim (:dim (unit-spec to-unit)))]
-      {:error :incompatible-dimensions :from from-dim :to to-dim})
-    (normalize-number
-     (-> value
-         (temperature->kelvin from-unit)
-         (kelvin->temperature to-unit)))))
-
-(defn temperature-request? [from-unit to-unit]
-  (or (temperature-units from-unit)
-      (temperature-units to-unit)))
-
-(defn convert-one [{:keys [value unit]} to-unit]
-  (if (temperature-request? unit to-unit)
-    (convert-temperature value unit to-unit)
-    (convert-scalar value unit to-unit)))
-
-(defn error? [x]
-  (and (map? x) (contains? x :error)))
-
-(defn convert-mixed [terms to-unit]
-  (loop [remaining terms
-         total 0]
-    (if (empty? remaining)
-      (normalize-number total)
-      (let [converted (convert-one (first remaining) to-unit)]
-        (if (error? converted)
-          converted
-          (recur (rest remaining) (+ total converted)))))))
-
-(defn- coerce-to-decimal [x]
-  #?(:clj (bigdec x)
-     :cljs x))
-
-(defn- evaluate-qty-expr
-  "Evaluate quantity arithmetic: multiply/divide quantities with units,
-   then convert the result to `to-unit`."
-  [{:keys [terms ops]} to-unit]
-  (let [first-spec (unit-spec (:unit (first terms)))
-        result (reduce
-                (fn [{:keys [value dim]} [op term]]
-                  (let [spec     (unit-spec (:unit term))
-                        term-val (* (coerce-to-decimal (:value term)) (:scale spec))]
-                    (case op
-                      :* {:value (* value term-val)
-                          :dim   (merge-dims dim (:dim spec))}
-                      :/ {:value (safe-div value term-val)
-                          :dim   (merge-dims dim (scale-dim (:dim spec) -1))})))
-                {:value (* (coerce-to-decimal (:value (first terms))) (:scale first-spec))
-                 :dim   (:dim first-spec)}
-                (map vector ops (rest terms)))
-        to-spec (unit-spec to-unit)]
-    (if (= (:dim result) (:dim to-spec))
-      (normalize-number (safe-div (:value result) (:scale to-spec)))
-      {:error :incompatible-dimensions
-       :from  (:dim result)
-       :to    (:dim to-spec)})))
-
-;; ---------------------------------------------------------------------------
-;; Auto-scaling: pick the best unit for a given dimension and SI value
-;; ---------------------------------------------------------------------------
-
-(defn- pick-best-unit
-  "From a sorted candidate list, pick the largest unit where |value/scale| >= 1."
-  [candidates abs-val]
-  (or (->> candidates
-           reverse
-           (filter (fn [[_ s]]
-                     (>= #?(:clj (double (safe-div abs-val s))
-                            :cljs (/ abs-val s))
-                         1.0)))
-           first)
-      (first candidates)))
-
-(defn- try-compound-unit
-  "Try to decompose `dim` into num-dim / denom-dim where both are in
-   auto-scale-units. Returns {:value ... :unit-label \"W/day\"} or nil."
-  [dim si-value]
-  (let [known-dims (keys auto-scale-units)
-        candidates
-        (for [num-dim   known-dims
-              :let [remainder (normalize-map
-                               (merge-with - dim num-dim))]
-              :when (seq remainder)
-              :when (every? neg? (vals remainder))
-              :let [denom-dim (normalize-map
-                               (into {} (map (fn [[k v]] [k (- v)]) remainder)))]
-              :when (get auto-scale-units denom-dim)
-              :let [num-cands   (get auto-scale-units num-dim)
-                    denom-cands (get auto-scale-units denom-dim)]
-              [denom-key denom-scale] denom-cands
-              :let [;; value in "num-SI / this-denom-unit" = si-value * denom-scale
-                    adjusted (* si-value denom-scale)
-                    abs-adj  #?(:clj (.abs (bigdec adjusted)) :cljs (js/Math.abs adjusted))
-                    [num-key num-scale] (pick-best-unit num-cands abs-adj)
-                    converted (normalize-number (safe-div adjusted num-scale))
-                    abs-conv #?(:clj (double (.abs (bigdec converted)))
-                                :cljs (js/Math.abs converted))
-      ]]
-          {:value     converted
-           :abs-conv  abs-conv
-           :unit-label (str (get unit-short-names num-key (name num-key))
-                            "/"
-                            (get unit-short-names denom-key (name denom-key)))})]
-    ;; Pick the candidate whose value is most naturally readable.
-    ;; Prefer values in 1-999; penalize values < 1 or >= 1000.
-    ;; Tiebreaker: prefer shorter numeric representation.
-    (when (seq candidates)
-      (let [score (fn [{:keys [abs-conv unit-label]}]
-                    (let [range-penalty
-                          (cond
-                            (and (>= abs-conv 1.0) (< abs-conv 1000.0)) 0.0
-                            (< abs-conv 1.0) (Math/log10 (/ 1.0 abs-conv))
-                            :else (Math/log10 (/ abs-conv 999.0)))
-                          ;; Tiebreaker: prefer shorter numeric representation
-                          label-penalty (* 0.001 (count (str abs-conv)))]
-                      (+ range-penalty label-penalty)))
-            best (apply min-key score candidates)]
-        (dissoc best :abs-conv)))))
-
-(defn- auto-select-unit
-  "Given a dimension map and a value in SI base units, pick the best unit
-   and return {:value converted-value :unit-label \"days\"}."
-  [dim si-value]
-  (if-let [candidates (get auto-scale-units dim)]
-    (let [abs-val #?(:clj (.abs (bigdec si-value)) :cljs (js/Math.abs si-value))
-          [unit-key scale] (pick-best-unit candidates abs-val)
-          converted (normalize-number (safe-div si-value scale))]
-      {:value converted :unit-label (get unit-display-names unit-key (name unit-key))})
-    ;; Try compound unit decomposition (e.g. W/day)
-    (or (try-compound-unit dim si-value)
-        {:value (normalize-number si-value) :unit-label nil})))
-
-(defn- evaluate-qty-expr-auto
-  "Evaluate a quantity expression and auto-select the best output unit."
-  [{:keys [terms ops]}]
-  (let [first-spec (unit-spec (:unit (first terms)))
-        result (reduce
-                (fn [{:keys [value dim]} [op term]]
-                  (let [spec     (unit-spec (:unit term))
-                        term-val (* (coerce-to-decimal (:value term)) (:scale spec))]
-                    (case op
-                      :* {:value (* value term-val)
-                          :dim   (merge-dims dim (:dim spec))}
-                      :/ {:value (safe-div value term-val)
-                          :dim   (merge-dims dim (scale-dim (:dim spec) -1))})))
-                {:value (* (coerce-to-decimal (:value (first terms))) (:scale first-spec))
-                 :dim   (:dim first-spec)}
-                (map vector ops (rest terms)))]
-    (auto-select-unit (:dim result) (:value result))))
-
-(defn convert-request [{:keys [op quantity to] :as request}]
-  (cond
-    (error? request)
-    request
-
-    (not= op :convert)
-    {:error :unsupported-operation
-     :op op}
-
-    (and (:qty-expr quantity) (= to :auto))
-    (evaluate-qty-expr-auto quantity)
-
-    (:qty-expr quantity)
-    (evaluate-qty-expr quantity to)
-
-    (vector? quantity)
-    (convert-mixed quantity to)
-
-    (map? quantity)
-    (convert-one quantity to)
-
-    :else
-    {:error :invalid-request
-     :request request}))

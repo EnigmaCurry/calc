@@ -1,6 +1,7 @@
 (ns calc.invariant-test
   (:require [clojure.test :refer [deftest is testing]]
-            [calc.core :as u]
+            [calc.units :as u]
+            [calc.eval :as ev]
             [calc.parser :as p]))
 
 ;; ---------------------------------------------------------------------------
@@ -11,13 +12,13 @@
   (testing "converting any unit to itself returns the original value"
     (doseq [[unit-key metadata] u/unit-defs
             :when (not (:temperature metadata))]
-      (is (== 42 (u/convert-scalar 42 unit-key unit-key))
+      (is (== 42 (ev/convert-scalar 42 unit-key unit-key))
           (str unit-key " -> " unit-key " should be identity")))))
 
 (deftest identity-temperature-test
   (testing "converting a temperature unit to itself returns the original value"
     (doseq [unit [:degF :degC :K]]
-      (is (== 100 (u/convert-temperature 100 unit unit))
+      (is (== 100 (ev/convert-temperature 100 unit unit))
           (str unit " -> " unit " should be identity")))))
 
 ;; ---------------------------------------------------------------------------
@@ -53,11 +54,11 @@
   (testing "converting A->B->A returns original value (within tolerance)"
     (doseq [[a b] round-trip-pairs]
       (let [original 123.456
-            there (u/convert-scalar original a b)
-            back  (u/convert-scalar there b a)]
-        (is (not (u/error? there))
+            there (ev/convert-scalar original a b)
+            back  (ev/convert-scalar there b a)]
+        (is (not (ev/error? there))
             (str a " -> " b " failed: " (pr-str there)))
-        (when-not (u/error? there)
+        (when-not (ev/error? there)
           (is (< (abs (- (double back) (double original))) 0.001)
               (str a " -> " b " -> " a ": expected " original
                    " but got " back)))))))
@@ -66,8 +67,8 @@
   (testing "temperature round-trips preserve value"
     (doseq [[a b] [[:degF :degC] [:degC :K] [:degF :K]]]
       (let [original 72.0
-            there (u/convert-temperature original a b)
-            back  (u/convert-temperature there b a)]
+            there (ev/convert-temperature original a b)
+            back  (ev/convert-temperature there b a)]
         (is (< (abs (- (double back) (double original))) 0.001)
             (str a " -> " b " -> " a ": expected " original
                  " but got " back))))))
@@ -80,7 +81,6 @@
   (testing "compatible? is symmetric: compatible?(A,B) == compatible?(B,A)"
     (let [units (keys u/unit-defs)
           non-temp (remove #(:temperature (get u/unit-defs %)) units)
-          ;; Test a sample of pairs rather than O(n^2) full cross product
           sample-pairs (take 200 (for [a non-temp
                                        b non-temp
                                        :when (not= a b)]
@@ -124,13 +124,13 @@
 
 (deftest incompatible-conversion-returns-error-map
   (testing "converting incompatible units returns an error map, not an exception"
-    (let [result (u/convert-scalar 1 :ft :s)]
+    (let [result (ev/convert-scalar 1 :ft :s)]
       (is (map? result))
       (is (= :incompatible-dimensions (:error result))))))
 
 (deftest temperature-incompatible-returns-error-map
   (testing "converting temperature to non-temperature returns error map"
-    (let [result (u/convert-temperature 100 :degF :ft)]
+    (let [result (ev/convert-temperature 100 :degF :ft)]
       (is (map? result))
       (is (= :incompatible-dimensions (:error result))))))
 
@@ -142,6 +142,6 @@
 
 (deftest unsupported-op-returns-error-map
   (testing "convert-request with unsupported op returns error"
-    (let [result (u/convert-request {:op :something-else :quantity {:value 1 :unit :ft} :to :m})]
-      (is (map? result))
+    (let [result (ev/convert-request {:op :something-else :quantity {:value 1 :unit :ft} :to :m})]
+      (is (not (:ok? result)))
       (is (= :unsupported-operation (:error result))))))

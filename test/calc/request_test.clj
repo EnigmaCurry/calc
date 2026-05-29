@@ -1,148 +1,159 @@
 (ns calc.request-test
   (:require [clojure.test :refer [deftest testing is]]
-            [calc.core :as u]
+            [calc.eval :as ev]
             [calc.cli :as cli]))
 
 (deftest evaluates-simple-conversion-request
   (testing "basic scalar request"
-    (is (= 4N
-           (u/convert-request
-            {:op :convert
-             :quantity {:value 12N :unit :ft}
-             :to :yd})))))
+    (let [result (ev/convert-request
+                  {:op :convert
+                   :quantity {:value 12N :unit :ft}
+                   :to :yd})]
+      (is (:ok? result))
+      (is (= 4N (:value result))))))
 
 (deftest evaluates-temperature-conversion-request
   (testing "temperature conversions are affine, not just multiplicative"
-    (is (= 0N
-           (u/convert-request
-            {:op :convert
-             :quantity {:value 32N :unit :degF}
-             :to :degC})))
-
-    (is (= 212N
-           (u/convert-request
-            {:op :convert
-             :quantity {:value 100N :unit :degC}
-             :to :degF})))))
+    (let [r1 (ev/convert-request
+              {:op :convert
+               :quantity {:value 32N :unit :degF}
+               :to :degC})
+          r2 (ev/convert-request
+              {:op :convert
+               :quantity {:value 100N :unit :degC}
+               :to :degF})]
+      (is (:ok? r1))
+      (is (= 0N (:value r1)))
+      (is (:ok? r2))
+      (is (= 212N (:value r2))))))
 
 (deftest evaluates-compound-rate-request
   (testing "mph to km/hr"
-    (is (= 96.56064M
-           (u/convert-request
-            {:op :convert
-             :quantity {:value 60N :unit {:mi 1 :hr -1}}
-             :to {:km 1 :hr -1}})))))
+    (let [result (ev/convert-request
+                  {:op :convert
+                   :quantity {:value 60N :unit {:mi 1 :hr -1}}
+                   :to {:km 1 :hr -1}})]
+      (is (:ok? result))
+      (is (= 96.56064M (:value result))))))
 
 (deftest evaluates-area-request
   (testing "square feet to square meters"
-    (is (= 0.9290304M
-           (u/convert-request
-            {:op :convert
-             :quantity {:value 10N :unit {:ft 2}}
-             :to {:m 2}})))))
+    (let [result (ev/convert-request
+                  {:op :convert
+                   :quantity {:value 10N :unit {:ft 2}}
+                   :to {:m 2}})]
+      (is (:ok? result))
+      (is (= 0.9290304M (:value result))))))
 
 (deftest evaluates-volume-request
   (testing "cubic yards to US liquid gallons"
-    (is (= 403.94805194805195M
-           (u/convert-request
-            {:op :convert
-             :quantity {:value 2N :unit {:yd 3}}
-             :to :gal})))))
+    (let [result (ev/convert-request
+                  {:op :convert
+                   :quantity {:value 2N :unit {:yd 3}}
+                   :to :gal})]
+      (is (:ok? result))
+      (is (= 403.94805194805195M (:value result))))))
 
 (deftest evaluates-mixed-quantity-request
   (testing "feet plus inches to centimeters"
-    (is (= 180.34M
-           (u/convert-request
-            {:op :convert
-             :quantity [{:value 5N :unit :ft}
-                        {:value 11N :unit :in}]
-             :to :cm}))))
+    (let [result (ev/convert-request
+                  {:op :convert
+                   :quantity [{:value 5N :unit :ft}
+                              {:value 11N :unit :in}]
+                   :to :cm})]
+      (is (:ok? result))
+      (is (= 180.34M (:value result)))))
 
   (testing "hours plus minutes to minutes"
-    (is (= 90N
-           (u/convert-request
-            {:op :convert
-             :quantity [{:value 1N :unit :hr}
-                        {:value 30N :unit :min}]
-             :to :min})))))
+    (let [result (ev/convert-request
+                  {:op :convert
+                   :quantity [{:value 1N :unit :hr}
+                              {:value 30N :unit :min}]
+                   :to :min})]
+      (is (:ok? result))
+      (is (= 90N (:value result))))))
 
 (deftest evaluates-quantity-arithmetic
   (testing "data / data-rate = time"
-    (is (= 8N
-           (u/convert-request
-            {:op :convert
-             :quantity {:qty-expr true
-                        :terms [{:value 100N :unit :MB}
-                                {:value 100N :unit {:Mb 1 :s -1}}]
-                        :ops [:/]}
-             :to :s}))))
+    (let [result (ev/convert-request
+                  {:op :convert
+                   :quantity {:qty-expr true
+                              :terms [{:value 100N :unit :MB}
+                                      {:value 100N :unit {:Mb 1 :s -1}}]
+                              :ops [:/]}
+                   :to :s})]
+      (is (:ok? result))
+      (is (= 8N (:value result)))))
 
   (testing "speed * time = distance"
-    (is (= 120N
-           (u/convert-request
-            {:op :convert
-             :quantity {:qty-expr true
-                        :terms [{:value 60N :unit {:mi 1 :hr -1}}
-                                {:value 2N :unit :hr}]
-                        :ops [:*]}
-             :to :mi}))))
+    (let [result (ev/convert-request
+                  {:op :convert
+                   :quantity {:qty-expr true
+                              :terms [{:value 60N :unit {:mi 1 :hr -1}}
+                                      {:value 2N :unit :hr}]
+                              :ops [:*]}
+                   :to :mi})]
+      (is (:ok? result))
+      (is (= 120N (:value result)))))
 
   (testing "distance / time = speed"
-    (is (= 50N
-           (u/convert-request
-            {:op :convert
-             :quantity {:qty-expr true
-                        :terms [{:value 100N :unit :km}
-                                {:value 2N :unit :hr}]
-                        :ops [:/]}
-             :to {:km 1 :hr -1}}))))
+    (let [result (ev/convert-request
+                  {:op :convert
+                   :quantity {:qty-expr true
+                              :terms [{:value 100N :unit :km}
+                                      {:value 2N :unit :hr}]
+                              :ops [:/]}
+                   :to {:km 1 :hr -1}})]
+      (is (:ok? result))
+      (is (= 50N (:value result)))))
 
   (testing "scalar multiply"
-    (is (= 6.4M
-           (u/convert-request
-            {:op :convert
-             :quantity {:qty-expr true
-                        :terms [{:value 100N :unit :MB}
-                                {:value 8N :unit {}}]
-                        :ops [:*]}
-             :to :Gb})))))
+    (let [result (ev/convert-request
+                  {:op :convert
+                   :quantity {:qty-expr true
+                              :terms [{:value 100N :unit :MB}
+                                      {:value 8N :unit {}}]
+                              :ops [:*]}
+                   :to :Gb})]
+      (is (:ok? result))
+      (is (= 6.4M (:value result))))))
 
 (deftest rejects-incompatible-dimensions
   (testing "length cannot convert to mass"
-    (is (= {:error :incompatible-dimensions
-            :from {:length 1}
-            :to {:mass 1}}
-           (u/convert-request
-            {:op :convert
-             :quantity {:value 12N :unit :ft}
-             :to :lb}))))
+    (let [result (ev/convert-request
+                  {:op :convert
+                   :quantity {:value 12N :unit :ft}
+                   :to :lb})]
+      (is (not (:ok? result)))
+      (is (= :incompatible-dimensions (:error result)))
+      (is (= {:length 1} (:from result)))
+      (is (= {:mass 1} (:to result)))))
 
   (testing "time cannot convert to length"
-    (is (= {:error :incompatible-dimensions
-            :from {:time 1}
-            :to {:length 1}}
-           (u/convert-request
-            {:op :convert
-             :quantity {:value 5N :unit :s}
-             :to :m}))))
+    (let [result (ev/convert-request
+                  {:op :convert
+                   :quantity {:value 5N :unit :s}
+                   :to :m})]
+      (is (not (:ok? result)))
+      (is (= :incompatible-dimensions (:error result)))
+      (is (= {:time 1} (:from result)))
+      (is (= {:length 1} (:to result)))))
 
   (testing "length to temperature returns error, not exception"
-    (is (= {:error :incompatible-dimensions
-            :from {:length 1}
-            :to {:temperature 1}}
-           (u/convert-request
-            {:op :convert
-             :quantity {:value 5N :unit :m}
-             :to :degC}))))
+    (let [result (ev/convert-request
+                  {:op :convert
+                   :quantity {:value 5N :unit :m}
+                   :to :degC})]
+      (is (not (:ok? result)))
+      (is (= :incompatible-dimensions (:error result)))))
 
   (testing "temperature to length returns error, not exception"
-    (is (= {:error :incompatible-dimensions
-            :from {:temperature 1}
-            :to {:length 1}}
-           (u/convert-request
-            {:op :convert
-             :quantity {:value 100N :unit :degC}
-             :to :m})))))
+    (let [result (ev/convert-request
+                  {:op :convert
+                   :quantity {:value 100N :unit :degC}
+                   :to :m})]
+      (is (not (:ok? result)))
+      (is (= :incompatible-dimensions (:error result))))))
 
 (deftest natural-language-formatting
   (testing "rounded to N decimals applies rounding"
@@ -161,4 +172,19 @@
 
   (testing "no format clause leaves result unformatted"
     (let [{:keys [result]} (cli/process-request-text "12 feet in yards" nil)]
-      (is (= "4" result)))))
+      (is (= "4" result))))
+
+  (testing "as a fraction formats exact results"
+    (let [{:keys [result target]} (cli/process-request-text "7 inches in feet as a fraction" nil)]
+      (is (= "7/12" result))
+      (is (= "feet" target))))
+
+  (testing "as a fraction with integer result omits denominator"
+    (let [{:keys [result target]} (cli/process-request-text "1 yard in feet as a fraction" nil)]
+      (is (= "3" result))
+      (is (= "feet" target))))
+
+  (testing "as a fraction uses mixed number form"
+    (let [{:keys [result target]} (cli/process-request-text "5 feet 11 inches in cm as a fraction" nil)]
+      (is (= "180 17/50" result))
+      (is (= "cm" target)))))

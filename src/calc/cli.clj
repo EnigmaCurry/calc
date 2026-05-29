@@ -1,5 +1,6 @@
 (ns calc.cli
-  (:require [calc.core :as u]
+  (:require [calc.units :as u]
+            [calc.eval :as ev]
             [calc.format :as fmt]
             [clojure.string :as str]
             [calc.parser :as parser])
@@ -119,27 +120,21 @@
 
 (defn process-request-text [input fmt-opts]
   (let [parsed (parser/parse-request input)
-        ;; Merge parsed natural-language format with CLI flag overrides
         effective-fmt (merge (:format parsed) fmt-opts)
-        result (u/convert-request parsed)]
-    (cond
-      (and (map? result) (contains? result :error))
+        result (ev/convert-request parsed)]
+    (if-not (:ok? result)
       {:error (format-error result)}
-
-      ;; Auto-scaled result (no target unit specified)
-      (and (map? result) (contains? result :unit-label))
-      {:result (str (fmt/format-number (:value result) effective-fmt)
-                    (when (:unit-label result)
-                      (str " " (:unit-label result))))
-       :from input
-       :target nil}
-
-      :else
-      (let [[display-input _] (parser/extract-format input)
-            {:keys [from target]} (parser/split-display-parts display-input)]
-        {:result (fmt/format-number result effective-fmt)
-         :from from
-         :target target}))))
+      (if (:unit-label result)
+        {:result (str (fmt/format-number (:value result) effective-fmt)
+                      (when (:unit-label result)
+                        (str " " (:unit-label result))))
+         :from input
+         :target nil}
+        (let [[display-input _] (parser/extract-format input)
+              {:keys [from target]} (parser/split-display-parts display-input)]
+          {:result (fmt/format-number (:value result) effective-fmt)
+           :from from
+           :target target})))))
 
 (defn usage []
   (str/join

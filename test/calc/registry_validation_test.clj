@@ -1,7 +1,7 @@
 (ns calc.registry-validation-test
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.string :as str]
-            [calc.core :as u]))
+            [calc.units :as u]))
 
 (deftest every-unit-has-name-and-short
   (testing "every unit has :name and :short fields"
@@ -33,10 +33,7 @@
 
 (deftest no-lowercase-alias-collisions
   (testing "lowercased aliases do not collide across different units (except intentional case-sensitive data units)"
-    (let [;; Data units are intentionally case-sensitive (B vs b, KB vs Kb, etc.)
-          ;; so we expect lowercase collisions within the data dimension.
-          ;; We check that collisions only happen within the same dimension.
-          alias-pairs (for [[unit-key {:keys [aliases]}] u/unit-defs
+    (let [alias-pairs (for [[unit-key {:keys [aliases]}] u/unit-defs
                             alias aliases]
                         [(str/lower-case alias) unit-key])
           grouped (group-by first alias-pairs)]
@@ -46,8 +43,6 @@
                               (when (:temperature (get u/unit-defs %))
                                 :temperature))
                          units)]
-          ;; If multiple units share a lowercased alias, they should be
-          ;; in the same dimension (e.g. KB and Kb are both {:data 1})
           (when (> (count units) 1)
             (is (apply = dims)
                 (str "lowercased alias \"" lc-alias "\" maps to units in different dimensions: "

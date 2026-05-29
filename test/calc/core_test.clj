@@ -1,6 +1,6 @@
 (ns calc.core-test
   (:require [clojure.test :refer [deftest is testing]]
-            [calc.core :as u]))
+            [calc.units :as u]))
 
 (deftest unit-lookup-test
   (testing "known units resolve to a spec with dimension and scale"

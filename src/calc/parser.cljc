@@ -1,8 +1,8 @@
 (ns calc.parser
   (:require [clojure.string :as str]
-            [calc.core :as core]))
+            [calc.units :as units]))
 
-(def unit-aliases core/unit-aliases)
+(def unit-aliases units/unit-aliases)
 
 (def special-unit-forms
   {"mph" {:mi 1 :hr -1}

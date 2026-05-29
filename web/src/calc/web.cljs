@@ -1,7 +1,8 @@
 (ns calc.web
   (:require [reagent.core :as r]
             [reagent.dom.client :as rdom]
-            [calc.core :as core]
+            [calc.units :as units]
+            [calc.eval :as ev]
             [calc.format :as fmt]
             [calc.parser :as parser]
             [clojure.string :as str]))
@@ -16,24 +17,19 @@
           ;; Then try as unit conversion
           (let [parsed (parser/parse-request input)
                 fmt (:format parsed)
-                result (core/convert-request parsed)
-                [display-input] (parser/extract-format input)
-                {:keys [from target]} (parser/split-display-parts display-input)]
-            (cond
-              (core/error? result)
+                result (ev/convert-request parsed)]
+            (if-not (:ok? result)
               {:error (fmt/format-error result)}
-
-              (:unit-label result)
-              {:from input
-               :result (str (fmt/format-number (:value result) fmt) " " (:unit-label result))}
-
-              (some? from)
-              {:from from
-               :target target
-               :result (fmt/format-number result fmt)}
-
-              :else
-              {:result (fmt/format-number result fmt)})))
+              (if (:unit-label result)
+                {:from input
+                 :result (str (fmt/format-number (:value result) fmt) " " (:unit-label result))}
+                (let [[display-input] (parser/extract-format input)
+                      {:keys [from target]} (parser/split-display-parts display-input)]
+                  (if (some? from)
+                    {:from from
+                     :target target
+                     :result (fmt/format-number (:value result) fmt)}
+                    {:result (fmt/format-number (:value result) fmt)}))))))
         (catch :default e
           {:error (if-let [data (.-data e)]
                     (fmt/format-error (js->clj data :keywordize-keys true))
@@ -80,7 +76,8 @@
     (apply-theme! new-theme)))
 
 (def examples
-  ["12 feet in yards"
+  ["100GB / 900Mbps"
+   "12 feet in yards"
    "how many inches are in 3 feet?"
    "5 feet 11 inches to cm"
    "100 fahrenheit to celsius"
@@ -89,10 +86,11 @@
    "3.5 kg to pounds"
    "2 cubic yards to gallons"
    "100 MB / 10 Mbps in seconds"
+   "7 inches in feet as a fraction"
    "2 + 2"
    "3 * (4 + 5)"])
 
-(def unit-groups core/unit-groups)
+(def unit-groups units/unit-groups)
 
 (defn help-page []
   [:div.help-page
@@ -188,12 +186,12 @@
      [:header
       [:h1 "calc"]
       [:div.input-wrapper
-       [:input {:type "text"
-                :value input
-                :placeholder "e.g. 100GB / 900Mbps"
-                :auto-focus true
-                :on-change #(swap! state assoc :input (.. % -target -value))
-                :on-key-down on-keydown}]
+       [:input (cond-> {:type "text"
+                        :value input
+                        :auto-focus true
+                        :on-change #(swap! state assoc :input (.. % -target -value))
+                        :on-key-down on-keydown}
+                 (empty? history) (assoc :placeholder "e.g. 100GB / 900Mbps"))]
        (when preview
          [:div.preview-dropdown
           (cond
