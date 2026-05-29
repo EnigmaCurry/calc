@@ -1,5 +1,25 @@
 (ns calc.eval
-  (:require [calc.units :as u]))
+  (:require [calc.units :as u]
+            [clojure.string :as str]))
+
+;; ============================================================================
+;; Helpers
+;; ============================================================================
+
+(defn- format-unit-label
+  "Format a unit keyword or exponent map as a short canonical string."
+  [unit]
+  (if (keyword? unit)
+    (get u/unit-short-names unit (name unit))
+    (let [pos (into {} (filter (fn [[_ v]] (pos? v))) unit)
+          neg (into {} (filter (fn [[_ v]] (neg? v))) unit)]
+      (str (str/join "\u00b7" (for [[k v] pos]
+                                (let [label (get u/unit-short-names k (name k))]
+                                  (if (= v 1) label (str label v)))))
+           (when (seq neg)
+             (str "/" (str/join "\u00b7" (for [[k v] neg]
+                                          (let [label (get u/unit-short-names k (name k))]
+                                            (if (= v -1) label (str label (- v))))))))))))
 
 ;; ============================================================================
 ;; Scalar conversion
@@ -262,8 +282,14 @@
           :unit-label (get u/unit-display-names unit-key (name unit-key))}
          ;; Compound unit (exponent map) — convert value to SI and auto-select
          (let [spec (u/unit-spec unit-key)
-               si-value (* (coerce-to-decimal (:value quantity)) (:scale spec))]
-           (auto-select-unit (:dim spec) si-value))))
+               si-value (* (coerce-to-decimal (:value quantity)) (:scale spec))
+               auto-result (auto-select-unit (:dim spec) si-value)]
+           (if (:unit-label auto-result)
+             auto-result
+             ;; No auto-scale match — return original value with label from input unit
+             {:value (u/normalize-number (:value quantity))
+              :unit-label (format-unit-label unit-key)
+              :ok? true}))))
 
      (vector? quantity)
      (convert-mixed quantity to)
