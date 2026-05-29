@@ -310,10 +310,12 @@
        [:button {:class (str "clear-input" (when (str/blank? input) " empty"))
                  :on-mouse-down (fn [e]
                                   (.preventDefault e)
-                                  (swap! state assoc :input "" :hist-index -1))
+                                  (swap! state assoc :input "" :hist-index -1)
+                                  (some-> (.-target e) .-parentElement (.querySelector "input") .blur))
                  :on-touch-start (fn [e]
                                    (.preventDefault e)
-                                   (swap! state assoc :input "" :hist-index -1))} "\u00d7"]]
+                                   (swap! state assoc :input "" :hist-index -1)
+                                   (some-> (.-target e) .-parentElement (.querySelector "input") .blur))} "\u00d7"]]
       [:button.menu-btn {:on-click #(swap! state update :menu-open not)}
        [:span.hamburger]
        [:span.hamburger]
