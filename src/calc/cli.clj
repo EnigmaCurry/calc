@@ -164,13 +164,17 @@
         {:error (format-error result)}
         (if (:unit-label result)
           {:result (str (fmt/format-number (:value result) effective-fmt)
-                        (when (:unit-label result)
-                          (str " " (:unit-label result))))
-           :from input
-           :target nil}
-          {:result (fmt/format-number (:value result) effective-fmt)
+                        " " (:unit-label result))
            :from (format-quantity-label (:quantity parsed))
-           :target (format-unit-label (:to parsed))})))))
+           :target nil}
+          (if (= :auto (:to parsed))
+            ;; Auto-scale couldn't find a better unit — display original quantity as-is
+            {:result (format-quantity-label (:quantity parsed))
+             :from nil
+             :target nil}
+            {:result (fmt/format-number (:value result) effective-fmt)
+             :from (format-quantity-label (:quantity parsed))
+             :target (format-unit-label (:to parsed))}))))))
 
 (defn usage []
   (str/join
