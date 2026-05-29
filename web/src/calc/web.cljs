@@ -352,12 +352,12 @@
          [:button.menu-item
           {:on-click (fn []
                       (swap! state assoc :page :calc :menu-open false))}
-          "History"]
+          "Home"]
          [:button.menu-item
           {:on-click (fn []
                       (clear-history!)
                       (swap! state assoc :menu-open false))}
-          "Clear Everything"]
+          "Clear History"]
          [:button.menu-item
           {:on-click (fn []
                       (toggle-theme!)
@@ -372,7 +372,7 @@
            :target "_blank"
            :rel "noopener"
            :on-click #(swap! state assoc :menu-open false)}
-          "GitHub"]]])
+          "Source Code"]]])
 
      [:main {:ref #(reset! log-ref %)}
       (when preview
