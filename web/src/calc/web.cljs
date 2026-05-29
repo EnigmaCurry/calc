@@ -258,6 +258,10 @@
                    :hist-index new-idx
                    :input (:input (nth history new-idx))))))
 
+      "Escape"
+      (do (.preventDefault e)
+          (swap! state assoc :input "" :hist-index -1))
+
       nil)))
 
 (defn example-chip [text]
@@ -295,19 +299,7 @@
                         :auto-focus true
                         :on-change #(swap! state assoc :input (.. % -target -value) :hist-index -1)
                         :on-key-down on-keydown}
-                 (empty? history) (assoc :placeholder "e.g. 100GB / 900Mbps"))]
-       (when preview
-         [:div.preview-dropdown
-          (cond
-            (:error preview)
-            [:span.preview-error (:error preview)]
-
-            (:target preview)
-            [:span.preview-result (str "= " (:result preview) " " (:target preview))]
-
-            :else
-            [:span.preview-result (str "= " (:result preview))])
-          [:button.convert {:on-click evaluate!} "="]])]
+                 (empty? history) (assoc :placeholder "e.g. 100GB / 900Mbps"))]]
       [:button.menu-btn {:on-click #(swap! state update :menu-open not)}
        [:span.hamburger]
        [:span.hamburger]
@@ -339,6 +331,18 @@
           "GitHub"]]])
 
      [:main {:ref #(reset! log-ref %)}
+      (when preview
+        [:div.preview-bar
+         (cond
+           (:error preview)
+           [:span.preview-error (:error preview)]
+
+           (:target preview)
+           [:span.preview-result (str "= " (:result preview) " " (:target preview))]
+
+           :else
+           [:span.preview-result (str "= " (:result preview))])
+         [:button.convert {:on-click evaluate!} "="]])
       (if (= :help (:page @state))
         [help-page]
         (if (seq history)
