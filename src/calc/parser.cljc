@@ -674,7 +674,8 @@
           (let [qty (try (parse-quantity without-approx)
                          #?(:clj (catch Exception _ nil)
                             :cljs (catch :default _ nil)))]
-            (if (and qty (:qty-expr qty))
+            (if (and qty (or (:qty-expr qty)
+                             (and (map? qty) (:unit qty) (not= {} (:unit qty)))))
               (cond-> {:op :convert :quantity qty :to :auto}
                 approx? (assoc :approx? true)
                 format (assoc :format format))

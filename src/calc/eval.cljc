@@ -240,6 +240,11 @@
      (:qty-expr quantity)
      (evaluate-qty-expr quantity to)
 
+     (and (map? quantity) (= to :auto))
+     (let [unit-key (:unit quantity)]
+       {:value (u/normalize-number (:value quantity))
+        :unit-label (get u/unit-display-names unit-key (name unit-key))})
+
      (vector? quantity)
      (convert-mixed quantity to)
 

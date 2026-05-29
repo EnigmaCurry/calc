@@ -188,3 +188,15 @@
     (let [{:keys [result target]} (cli/process-request-text "5 feet 11 inches in cm as a fraction" nil)]
       (is (= "180 17/50" result))
       (is (= "cm" target)))))
+
+(deftest scalar-math-preserves-unit
+  (testing "12 * 4 days = 48 days"
+    (let [{:keys [result]} (cli/process-request-text "12 * 4 days" nil)]
+      (is (= "48 days" result))))
+  (testing "3 + 2 hours = 5 hours"
+    (let [{:keys [result]} (cli/process-request-text "3 + 2 hours" nil)]
+      (is (= "5 hours" result))))
+  (testing "scalar math with explicit target still works"
+    (let [{:keys [result from target]} (cli/process-request-text "12 * 4 days in seconds" nil)]
+      (is (= "4147200" result))
+      (is (= "seconds" target)))))
