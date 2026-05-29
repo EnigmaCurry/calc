@@ -305,7 +305,9 @@
                         :auto-focus true
                         :on-change #(swap! state assoc :input (.. % -target -value) :hist-index -1)
                         :on-key-down on-keydown}
-                 (empty? history) (assoc :placeholder "e.g. 100GB / 900Mbps"))]]
+                 (empty? history) (assoc :placeholder "e.g. 100GB / 900Mbps"))]
+       (when-not (str/blank? input)
+         [:button.clear-input {:on-click #(swap! state assoc :input "" :hist-index -1)} "\u00d7"])]
       [:button.menu-btn {:on-click #(swap! state update :menu-open not)}
        [:span.hamburger]
        [:span.hamburger]
