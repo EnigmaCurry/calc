@@ -32,6 +32,10 @@ web-build:
 web-dev: web-build
     just _nix "cd web && npm ci && sed 's/main\.__HASH__\.js/main.js/g; s/__HASH__/dev/g' public/index.html.template > public/index.html && sed 's/main\.__HASH__\.js/main.js/g; s/__HASH__/dev/g' public/sw.js.template > public/sw.js && npx shadow-cljs watch app"
 
+# Remove build artifacts
+clean:
+    rm -rf web/node_modules web/.shadow-cljs web/public/js web/public/index.html web/public/sw.js web/public/calc.html
+
 # Run a conversion (e.g., just calc 5 miles to km)
 calc *ARGS:
     #!/usr/bin/env bash
