@@ -311,6 +311,10 @@
         [:nav.menu
          [:button.menu-item
           {:on-click (fn []
+                      (swap! state assoc :page :calc :menu-open false))}
+          "History"]
+         [:button.menu-item
+          {:on-click (fn []
                       (clear-history!)
                       (swap! state assoc :menu-open false))}
           "Clear Everything"]
