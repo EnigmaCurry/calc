@@ -81,6 +81,7 @@
                         :page :calc}))
 
 (defonce log-ref (atom nil))
+(defonce suppress-menu (atom false))
 
 (defn scroll-log-to-top []
   (when-let [el @log-ref]
@@ -310,6 +311,8 @@
        (let [clear-fn (fn [e]
                         (.preventDefault e)
                         (.stopPropagation e)
+                        (reset! suppress-menu true)
+                        (js/setTimeout #(reset! suppress-menu false) 300)
                         (swap! state assoc :input "" :hist-index -1)
                         (let [input-el (some-> (.-target e) .-parentElement (.querySelector "input"))]
                           (js/setTimeout #(when input-el (.blur input-el)) 100)))]
@@ -317,7 +320,7 @@
                    :on-mouse-down clear-fn
                    :on-touch-start clear-fn
                    :on-click (fn [e] (.stopPropagation e))} "\u00d7"])]
-      [:button.menu-btn {:on-click #(swap! state update :menu-open not)}
+      [:button.menu-btn {:on-click #(when-not @suppress-menu (swap! state update :menu-open not))}
        [:span.hamburger]
        [:span.hamburger]
        [:span.hamburger]]]
