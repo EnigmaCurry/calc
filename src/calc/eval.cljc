@@ -256,6 +256,32 @@
                   (u/safe-div (* (u/->bigdec percent) (u/->bigdec value)) (u/->bigdec 100)))]
       {:value result})))
 
+(defn- evaluate-root
+  "Compute the nth root of a value. Returns exact integer for perfect roots,
+   otherwise BigDecimal (JVM) or float (ClojureScript)."
+  [{:keys [degree value]}]
+  #?(:clj
+     (let [n (long degree)
+           v (u/->bigdec value)
+           neg? (neg? (double v))
+           abs-v (if neg? (.negate v) v)
+           approx (Math/pow (double abs-v) (/ 1.0 n))
+           candidate (Math/round approx)]
+       (if (and (pos? candidate)
+                (= (reduce *' (repeat n (bigint candidate)))
+                   (bigint abs-v)))
+         ;; Perfect root
+         (let [result (bigint candidate)]
+           {:value (u/normalize-number (if (and neg? (odd? n)) (- result) result))})
+         ;; Imperfect root — use decimal
+         (let [result (Math/pow (double v) (/ 1.0 n))]
+           {:value (u/normalize-number (bigdec result))})))
+     :cljs
+     (let [result (js/Math.pow value (/ 1.0 degree))]
+       (if (== result (js/Math.round result))
+         {:value (js/Math.round result)}
+         {:value result}))))
+
 (defn convert-request [{:keys [op quantity to] :as request}]
   (wrap-result
    (cond
@@ -264,6 +290,9 @@
 
      (= op :percentage)
      (evaluate-percentage request)
+
+     (= op :root)
+     (evaluate-root request)
 
      (not= op :convert)
      {:error :unsupported-operation

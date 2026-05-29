@@ -55,7 +55,8 @@
       (str/replace #"," "")
       (str/replace #"~\s*" "~ ")
       ;; 12ft -> 12 ft, 100kg -> 100 kg
-      (str/replace #"(\d)([A-Za-z])" "$1 $2")
+      ;; But preserve ordinals like 4th, 2nd, 3rd, 5th etc.
+      (str/replace #"(\d)(?!(?:st|nd|rd|th)\b)([A-Za-z])" "$1 $2")
       ;; Normalize % to percent
       (str/replace #"(\d)\s*%" "$1 percent")
       ;; Collapse whitespace around / between unit words: "meters / second" → "meters/second"
@@ -159,8 +160,11 @@
 (defn- whitespace? [ch]
   (boolean (re-matches #"\s" ch)))
 
+(defn- alpha? [ch]
+  (boolean (re-matches #"[A-Za-z_]" ch)))
+
 (defn- math-tokenize
-  "Tokenize a math expression into [:num v], [:op ch], [:lp], [:rp]."
+  "Tokenize a math expression into [:num v], [:op ch], [:lp], [:rp], [:fn name]."
   [s]
   (let [n (count s)]
     (loop [i 0, tokens []]
@@ -170,6 +174,17 @@
           (cond
             (whitespace? ch)
             (recur (inc i) tokens)
+
+            ;; Function names: sqrt, cbrt, root
+            (alpha? ch)
+            (let [end (loop [j (inc i)]
+                        (if (and (< j n) (alpha? (char-at s j)))
+                          (recur (inc j))
+                          j))
+                  word (str/lower-case (subs s i end))]
+              (if (#{"sqrt" "cbrt" "root"} word)
+                (recur end (conj tokens [:fn word]))
+                nil))
 
             (or (digit? ch) (= ch "."))
             (let [end (loop [j (inc i)]
@@ -187,11 +202,13 @@
             (= ch "(") (recur (inc i) (conj tokens [:lp]))
             (= ch ")") (recur (inc i) (conj tokens [:rp]))
 
+            (= ch ",") (recur (inc i) (conj tokens [:comma]))
+
             (#{"+" "*" "/" "^"} ch)
             (recur (inc i) (conj tokens [:op ch]))
 
             (= ch "-")
-            (if (or (empty? tokens) (#{:lp :op} (first (peek tokens))))
+            (if (or (empty? tokens) (#{:lp :op :comma} (first (peek tokens))))
               ;; Unary minus: absorb into next number
               (let [j   (inc i)
                     end (loop [k j]
@@ -211,10 +228,63 @@
 
             :else nil))))))
 
+(defn- math-nth-root
+  "Compute the nth root of x. Returns exact integer when possible, else decimal."
+  [x n]
+  #?(:clj
+     (let [xd (double x)]
+       (cond
+         (zero? xd) 0N
+         :else
+         (let [approx (Math/pow (Math/abs xd) (/ 1.0 (double n)))
+               candidate (Math/round approx)]
+           (if (and (pos? xd)
+                    (pos? candidate)
+                    (= (reduce *' (repeat (long n) (bigint candidate)))
+                       (bigint x)))
+             (bigint candidate)
+             (bigdec (Math/pow xd (/ 1.0 (double n))))))))
+     :cljs
+     (let [result (js/Math.pow x (/ 1.0 n))]
+       (if (== result (js/Math.round result))
+         (js/Math.round result)
+         result))))
+
 (defn- math-parse-factor [tokens pos]
   (when (< pos (count tokens))
     (case (first (nth tokens pos))
       :num [(second (nth tokens pos)) (inc pos)]
+      :fn  (let [fname (second (nth tokens pos))
+                 npos (inc pos)]
+             ;; Expect '(' after function name
+             (when (and (< npos (count tokens))
+                        (= :lp (first (nth tokens npos))))
+               (case fname
+                 ;; sqrt(expr)
+                 "sqrt"
+                 (when-let [[v p1] (math-parse-expr tokens (inc npos))]
+                   (when (and (< p1 (count tokens))
+                              (= :rp (first (nth tokens p1))))
+                     [(math-nth-root v 2) (inc p1)]))
+
+                 ;; cbrt(expr)
+                 "cbrt"
+                 (when-let [[v p1] (math-parse-expr tokens (inc npos))]
+                   (when (and (< p1 (count tokens))
+                              (= :rp (first (nth tokens p1))))
+                     [(math-nth-root v 3) (inc p1)]))
+
+                 ;; root(n, expr)
+                 "root"
+                 (when-let [[degree p1] (math-parse-expr tokens (inc npos))]
+                   (when (and (< p1 (count tokens))
+                              (= :comma (first (nth tokens p1))))
+                     (when-let [[v p2] (math-parse-expr tokens (inc p1))]
+                       (when (and (< p2 (count tokens))
+                                  (= :rp (first (nth tokens p2))))
+                         [(math-nth-root v degree) (inc p2)]))))
+
+                 nil)))
       :lp  (when-let [[v npos] (math-parse-expr tokens (inc pos))]
              (when (and (< npos (count tokens))
                         (= :rp (first (nth tokens npos))))
@@ -280,9 +350,10 @@
           v)))))
 
 (defn evaluate-math-exprs
-  "Replace parenthesised arithmetic expressions in `s` with their values."
+  "Replace parenthesised arithmetic expressions in `s` with their values.
+   Skips parentheses immediately preceded by function names (sqrt, cbrt, root)."
   [s]
-  (let [result (str/replace s #"\(([^()]+)\)"
+  (let [result (str/replace s #"(?<![A-Za-z])\(([^()]+)\)"
                             (fn [[match inner]]
                               (if-let [v (parse-math inner)]
                                 (str v)
@@ -742,15 +813,76 @@
          (when-let [[y _] (parse-percentage-number y-str)]
            {:op :percentage :type :percent-of :percent x :value y}))))))
 
+(def ^:private ordinal-to-int
+  {"2nd" 2 "3rd" 3 "4th" 4 "5th" 5 "6th" 6 "7th" 7 "8th" 8 "9th" 9 "10th" 10
+   "second" 2 "third" 3 "fourth" 4 "fifth" 5 "sixth" 6 "seventh" 7 "eighth" 8 "ninth" 9 "tenth" 10})
+
+(defn parse-root
+  "Try to parse a root expression. Returns a request map or nil.
+   Supports:
+     'square root of 144'          → {:op :root :degree 2 :value 144}
+     'cube root of 27'             → {:op :root :degree 3 :value 27}
+     'sqrt 144' / 'sqrt of 144'    → {:op :root :degree 2 :value 144}
+     'cbrt 27' / 'cbrt of 27'      → {:op :root :degree 3 :value 27}
+     '4th root of 16'              → {:op :root :degree 4 :value 16}
+     'what is the square root of 25' → {:op :root :degree 2 :value 25}
+     'fifth root of 32'            → {:op :root :degree 5 :value 32}"
+  [s]
+  (let [lower (str/lower-case s)]
+    (or
+     ;; "what is the Nth root of X" / "what is the square root of X"
+     (when-let [[_ deg-str val-str] (re-matches #"(?i)^(?:what\s+is\s+(?:the\s+)?)(.+?)\s+root\s+of\s+(.+)$" s)]
+       (let [deg-lower (str/lower-case (str/trim deg-str))]
+         (when-let [degree (case deg-lower
+                             "square" 2
+                             "sq" 2
+                             "cube" 3
+                             (or (get ordinal-to-int deg-lower)
+                                 (parse-number-token deg-lower)))]
+           (when-let [[value _] (parse-percentage-number val-str)]
+             {:op :root :degree (long degree) :value value}))))
+
+     ;; "square root of X"
+     (when-let [[_ val-str] (re-matches #"(?i)^square\s+root\s+of\s+(.+)$" s)]
+       (when-let [[value _] (parse-percentage-number val-str)]
+         {:op :root :degree 2 :value value}))
+
+     ;; "cube root of X"
+     (when-let [[_ val-str] (re-matches #"(?i)^cube\s+root\s+of\s+(.+)$" s)]
+       (when-let [[value _] (parse-percentage-number val-str)]
+         {:op :root :degree 3 :value value}))
+
+     ;; "Nth root of X" (ordinal or numeric)
+     (when-let [[_ deg-str val-str] (re-matches #"(?i)^(\S+)\s+root\s+of\s+(.+)$" s)]
+       (let [deg-lower (str/lower-case deg-str)]
+         (when-let [degree (or (get ordinal-to-int deg-lower)
+                               (parse-number-token deg-lower))]
+           (when-let [[value _] (parse-percentage-number val-str)]
+             {:op :root :degree (long degree) :value value}))))
+
+     ;; "sqrt X" / "sqrt of X"
+     (when-let [[_ val-str] (re-matches #"(?i)^sqrt\s+(?:of\s+)?(.+)$" s)]
+       (when-let [[value _] (parse-percentage-number val-str)]
+         {:op :root :degree 2 :value value}))
+
+     ;; "cbrt X" / "cbrt of X"
+     (when-let [[_ val-str] (re-matches #"(?i)^cbrt\s+(?:of\s+)?(.+)$" s)]
+       (when-let [[value _] (parse-percentage-number val-str)]
+         {:op :root :degree 3 :value value})))))
+
 (defn parse-request [phrase]
   (let [original phrase]
     (try
       (let [cleaned (evaluate-math-exprs (clean-phrase phrase))
             [without-format format] (extract-format cleaned)
             [without-approx approx?] (extract-approx without-format)
-            pct (parse-percentage without-approx)]
+            pct (parse-percentage without-approx)
+            root (when-not pct (parse-root without-approx))]
         (if pct
           (cond-> pct
+            format (assoc :format format))
+        (if root
+          (cond-> root
             format (assoc :format format))
           (let [pieces (split-request without-approx)]
         (if-not pieces
@@ -781,7 +913,7 @@
                                      :to (parse-unit-phrase to-str)}
                               approx? (assoc :approx? true)
                               format (assoc :format format))]
-                request)))))))
+                request))))))))
       #?(:clj (catch clojure.lang.ExceptionInfo ex
                 (or (parse-error original ex)
                     {:error :unparseable

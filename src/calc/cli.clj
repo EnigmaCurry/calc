@@ -168,6 +168,9 @@
             {:result (str (fmt/format-number (:value result) effective-fmt)
                           (:unit-label result))}
             {:result (fmt/format-number (:value result) effective-fmt)})
+        (if (= :root (:op parsed))
+          ;; Root result
+          {:result (fmt/format-number (:value result) effective-fmt)}
           (if (:unit-label result)
             {:result (str (fmt/format-number (:value result) effective-fmt)
                           " " (:unit-label result))
@@ -180,7 +183,7 @@
                :target nil}
               {:result (fmt/format-number (:value result) effective-fmt)
                :from (format-quantity-label (:quantity parsed))
-               :target (format-unit-label (:to parsed))})))))))
+               :target (format-unit-label (:to parsed))}))))))))
 
 (defn usage []
   (str/join
@@ -202,6 +205,14 @@
     "  calc 12 feet in yards"
     "  calc 2 cubic yards to gallons"
     "  calc -n 100GB / 900Mbps in days"
+    "  calc sqrt(144)                  # → 12"
+    "  calc square root of 144         # → 12"
+    "  calc cube root of 27            # → 3"
+    "  calc 4th root of 625            # → 5"
+    "  calc sqrt(2)                    # → 1.4142135623730951"
+    "  calc cbrt 64                    # → 4"
+    "  calc fifth root of 32           # → 2"
+    "  calc root(3, 125)               # → 5"
     "  calc --list"
     "  calc --list --kind length"]))
 
