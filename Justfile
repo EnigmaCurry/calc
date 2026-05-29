@@ -26,11 +26,11 @@ test:
 
 # Build the static ClojureScript web app (output: web/public/)
 web-build:
-    just _nix "cd web && npm ci && npx shadow-cljs release app"
+    just _nix "cd web && npm ci && npx shadow-cljs release app && bash cache-bust.sh"
 
 # Run the web app dev server with hot reload (http://localhost:8080)
 web-dev:
-    just _nix "cd web && npm ci && npx shadow-cljs watch app"
+    just _nix "cd web && npm ci && sed 's/main\.__HASH__\.js/main.js/g; s/__HASH__/dev/g' public/index.html.template > public/index.html && sed 's/main\.__HASH__\.js/main.js/g; s/__HASH__/dev/g' public/sw.js.template > public/sw.js && npx shadow-cljs watch app"
 
 # Run a conversion (e.g., just calc 5 miles to km)
 calc *ARGS:
