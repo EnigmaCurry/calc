@@ -409,6 +409,7 @@
      {:data 1}   (pick {:data 1}   [:B :KB :MB :GB :TB :PB])
      {:current 1} (pick {:current 1} [:mA :A])
      {:mass 1 :length 2 :time -3} (pick {:mass 1 :length 2 :time -3} [:mW :W :kW :MW :GW :TW])
+     {:mass 1 :length 2 :time -2} (pick {:mass 1 :length 2 :time -2} [:eV :J :cal :kcal :BTU :kWh])
      {:mass 1 :length 2 :time -3 :current -1} (pick {:mass 1 :length 2 :time -3 :current -1} [:V])}))
 
 (def ^:private unit-display-names
@@ -418,7 +419,77 @@
    :B "bytes" :KB "KB" :MB "MB" :GB "GB" :TB "TB" :PB "PB"
    :mA "mA" :A "amps"
    :mW "mW" :W "watts" :kW "kW" :MW "MW" :GW "GW" :TW "TW"
+   :eV "eV" :J "joules" :cal "cal" :kcal "kcal" :BTU "BTU" :kWh "kWh"
    :V "volts"})
+
+(def ^:private unit-short-names
+  "Abbreviated unit names for compound unit labels (e.g. W/day, mi/hr)."
+  {:s "s" :min "min" :hr "hr" :day "day" :week "wk" :yr "yr"
+   :mm "mm" :cm "cm" :m "m" :km "km" :mi "mi"
+   :g "g" :kg "kg" :lb "lb"
+   :B "B" :KB "KB" :MB "MB" :GB "GB" :TB "TB" :PB "PB"
+   :mA "mA" :A "A"
+   :mW "mW" :W "W" :kW "kW" :MW "MW" :GW "GW" :TW "TW"
+   :eV "eV" :J "J" :cal "cal" :kcal "kcal" :BTU "BTU" :kWh "kWh"
+   :V "V"})
+
+(defn- pick-best-unit
+  "From a sorted candidate list, pick the largest unit where |value/scale| >= 1."
+  [candidates abs-val]
+  (or (->> candidates
+           reverse
+           (filter (fn [[_ s]]
+                     (>= #?(:clj (double (safe-div abs-val s))
+                            :cljs (/ abs-val s))
+                         1.0)))
+           first)
+      (first candidates)))
+
+(defn- try-compound-unit
+  "Try to decompose `dim` into num-dim / denom-dim where both are in
+   auto-scale-units. Returns {:value ... :unit-label \"W/day\"} or nil."
+  [dim si-value]
+  (let [known-dims (keys auto-scale-units)
+        candidates
+        (for [num-dim   known-dims
+              :let [remainder (normalize-map
+                               (merge-with - dim num-dim))]
+              :when (seq remainder)
+              :when (every? neg? (vals remainder))
+              :let [denom-dim (normalize-map
+                               (into {} (map (fn [[k v]] [k (- v)]) remainder)))]
+              :when (get auto-scale-units denom-dim)
+              :let [num-cands   (get auto-scale-units num-dim)
+                    denom-cands (get auto-scale-units denom-dim)]
+              [denom-key denom-scale] denom-cands
+              :let [;; value in "num-SI / this-denom-unit" = si-value * denom-scale
+                    adjusted (* si-value denom-scale)
+                    abs-adj  #?(:clj (.abs (bigdec adjusted)) :cljs (js/Math.abs adjusted))
+                    [num-key num-scale] (pick-best-unit num-cands abs-adj)
+                    converted (normalize-number (safe-div adjusted num-scale))
+                    abs-conv #?(:clj (double (.abs (bigdec converted)))
+                                :cljs (js/Math.abs converted))
+      ]]
+          {:value     converted
+           :abs-conv  abs-conv
+           :unit-label (str (get unit-short-names num-key (name num-key))
+                            "/"
+                            (get unit-short-names denom-key (name denom-key)))})]
+    ;; Pick the candidate whose value is most naturally readable.
+    ;; Prefer values in 1-999; penalize values < 1 or >= 1000.
+    ;; Tiebreaker: prefer shorter unit labels (W/day over kW/years).
+    (when (seq candidates)
+      (let [score (fn [{:keys [abs-conv unit-label]}]
+                    (let [range-penalty
+                          (cond
+                            (and (>= abs-conv 1.0) (< abs-conv 1000.0)) 0.0
+                            (< abs-conv 1.0) (Math/log10 (/ 1.0 abs-conv))
+                            :else (Math/log10 (/ abs-conv 999.0)))
+                          ;; Tiebreaker: prefer shorter numeric representation
+                          label-penalty (* 0.001 (count (str abs-conv)))]
+                      (+ range-penalty label-penalty)))
+            best (apply min-key score candidates)]
+        (dissoc best :abs-conv)))))
 
 (defn- auto-select-unit
   "Given a dimension map and a value in SI base units, pick the best unit
@@ -426,20 +497,12 @@
   [dim si-value]
   (if-let [candidates (get auto-scale-units dim)]
     (let [abs-val #?(:clj (.abs (bigdec si-value)) :cljs (js/Math.abs si-value))
-          ;; Pick the largest unit where the result is >= 1
-          best (or (->> candidates
-                        reverse
-                        (filter (fn [[_ s]]
-                                  (>= #?(:clj (double (safe-div abs-val s))
-                                         :cljs (/ abs-val s))
-                                      1.0)))
-                        first)
-                   (first candidates))
-          [unit-key scale] best
+          [unit-key scale] (pick-best-unit candidates abs-val)
           converted (normalize-number (safe-div si-value scale))]
       {:value converted :unit-label (get unit-display-names unit-key (name unit-key))})
-    ;; Unknown dimension — just return the SI value
-    {:value (normalize-number si-value) :unit-label nil}))
+    ;; Try compound unit decomposition (e.g. W/day)
+    (or (try-compound-unit dim si-value)
+        {:value (normalize-number si-value) :unit-label nil})))
 
 (defn- evaluate-qty-expr-auto
   "Evaluate a quantity expression and auto-select the best output unit."
