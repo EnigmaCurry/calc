@@ -197,7 +197,7 @@
     :description "Angular measurements"
     :units [[:rad "radian"] [:deg "degree"]]}
    {:name "Speed"
-    :description "Rate of movement (dimensional: length \u00D7 time\u207B\u00B9)"
+    :description "Rate of movement (dimensional: length \u00D7 time\u207B\u00B9) \u2014 use compound units like mi/hr, km/hr, ft/s, m/s"
     :units [[:kn "knot"]]}])
 
 (defn help-page []
