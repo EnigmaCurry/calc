@@ -103,7 +103,8 @@
                         :error nil
                         :history (load-history)
                         :menu-open false
-                        :theme (load-theme)}))
+                        :theme (load-theme)
+                        :page :calc}))
 
 (defonce log-ref (atom nil))
 
@@ -129,6 +130,105 @@
    "100 MB / 10 Mbps in seconds"
    "2 + 2"
    "3 * (4 + 5)"])
+
+(def unit-groups
+  "Units organized by kind for the help page."
+  [{:name "Length"
+    :description "Distance and length measurements"
+    :units [[:m "meter"] [:km "kilometer"] [:cm "centimeter"] [:mm "millimeter"]
+            [:um "micrometer"] [:nm "nanometer"] [:ft "foot"] [:yd "yard"]
+            [:in "inch"] [:mi "mile"] [:nmi "nautical mile"] [:fathom "fathom"]
+            [:ly "light-year"] [:au "astronomical unit"] [:pc "parsec"]]}
+   {:name "Mass"
+    :description "Weight and mass measurements"
+    :units [[:kg "kilogram"] [:g "gram"] [:mg "milligram"] [:ug "microgram"]
+            [:lb "pound"] [:oz "ounce"] [:tonne "metric ton"] [:ton "short ton"]
+            [:stone "stone"] [:ct "carat"]]}
+   {:name "Time"
+    :description "Duration and time intervals"
+    :units [[:s "second"] [:min "minute"] [:hr "hour"] [:day "day"]
+            [:week "week"] [:yr "year"] [:century "century"] [:millennium "millennium"]]}
+   {:name "Temperature"
+    :description "Temperature scales"
+    :units [[:degC "celsius"] [:degF "fahrenheit"] [:K "kelvin"]]}
+   {:name "Volume"
+    :description "Capacity and volume (dimensional: length\u00B3)"
+    :units [[:l "liter"] [:ml "milliliter"] [:cc "cubic centimeter"]
+            [:gal "gallon"] [:floz "fluid ounce"] [:cup "cup"] [:pt "pint"]
+            [:qt "quart"] [:tbsp "tablespoon"] [:tsp "teaspoon"]]}
+   {:name "Area"
+    :description "Surface area (dimensional: length\u00B2)"
+    :units [[:acre "acre"] [:ha "hectare"]]}
+   {:name "Data (Bytes \u2014 Decimal/SI)"
+    :description "Digital storage using powers of 1000"
+    :units [[:bit "bit"] [:B "byte"] [:KB "kilobyte"] [:MB "megabyte"]
+            [:GB "gigabyte"] [:TB "terabyte"] [:PB "petabyte"] [:EB "exabyte"]]}
+   {:name "Data (Bytes \u2014 Binary/IEC)"
+    :description "Digital storage using powers of 1024"
+    :units [[:KiB "kibibyte"] [:MiB "mebibyte"] [:GiB "gibibyte"]
+            [:TiB "tebibyte"] [:PiB "pebibyte"] [:EiB "exbibyte"]]}
+   {:name "Data (Bits \u2014 Decimal)"
+    :description "Data transfer rates using powers of 1000"
+    :units [[:Kb "kilobit"] [:Mb "megabit"] [:Gb "gigabit"]
+            [:Tb "terabit"] [:Pb "petabit"] [:Eb "exabit"]]}
+   {:name "Force"
+    :description "Push or pull on an object (dimensional: mass \u00D7 length \u00D7 time\u207B\u00B2)"
+    :units [[:N "newton"]]}
+   {:name "Energy"
+    :description "Capacity to do work (dimensional: mass \u00D7 length\u00B2 \u00D7 time\u207B\u00B2)"
+    :units [[:J "joule"] [:cal "calorie"] [:kcal "kilocalorie"]
+            [:kWh "kilowatt-hour"] [:BTU "BTU"] [:eV "electronvolt"] [:Wh "watt-hour"]]}
+   {:name "Power"
+    :description "Rate of energy transfer (dimensional: mass \u00D7 length\u00B2 \u00D7 time\u207B\u00B3)"
+    :units [[:W "watt"] [:kW "kilowatt"]]}
+   {:name "Pressure"
+    :description "Force per unit area (dimensional: mass \u00D7 length\u207B\u00B9 \u00D7 time\u207B\u00B2)"
+    :units [[:Pa "pascal"] [:psi "psi"] [:bar "bar"] [:atm "atmosphere"]
+            [:mmHg "mmHg"] [:torr "torr"]]}
+   {:name "Frequency"
+    :description "Cycles per unit time (dimensional: time\u207B\u00B9)"
+    :units [[:Hz "hertz"] [:kHz "kilohertz"] [:MHz "megahertz"] [:GHz "gigahertz"]]}
+   {:name "Electrical"
+    :description "Voltage, current, resistance, capacitance, and inductance"
+    :units [[:V "volt"] [:A "ampere"] [:mA "milliampere"] [:ohm "ohm"]
+            [:F "farad"] [:uF "microfarad"] [:nF "nanofarad"] [:pF "picofarad"]
+            [:H "henry"]]}
+   {:name "Angle"
+    :description "Angular measurements"
+    :units [[:rad "radian"] [:deg "degree"]]}
+   {:name "Speed"
+    :description "Rate of movement (dimensional: length \u00D7 time\u207B\u00B9)"
+    :units [[:kn "knot"]]}])
+
+(defn help-page []
+  [:div.help-page
+   [:div.help-header
+    [:button.back-btn
+     {:on-click #(swap! state assoc :page :calc)}
+     "\u2190 Back"]
+    [:h2 "Available Units"]]
+   [:p.help-intro
+    "All conversions run 100% client-side in your browser \u2014 nothing is sent to a server. "
+    "Type natural English phrases like "
+    [:code "5 feet in meters"]
+    " or "
+    [:code "100 GB / 10 Mbps in minutes"]
+    ". You can also use compound units with "
+    [:code "/"]
+    " and "
+    [:code "*"]
+    " operators."]
+   (for [{:keys [name description units]} unit-groups]
+     ^{:key name}
+     [:div.unit-group
+      [:h3 name]
+      [:p.group-desc description]
+      [:div.unit-table
+       (for [[sym label] units]
+         ^{:key sym}
+         [:div.unit-row
+          [:span.unit-sym (name sym)]
+          [:span.unit-label label]])]])])
 
 (defn scroll-log-to-top []
   (when-let [el @log-ref]
@@ -158,6 +258,7 @@
                            :result (:result ev)
                            :error (:error ev)}]
                          h)))
+          (swap! state assoc :page :calc)
           (save-history! (:history @state))
           (js/setTimeout scroll-log-to-top 0))))))
 
@@ -230,34 +331,40 @@
                       (toggle-theme!)
                       (swap! state assoc :menu-open false))}
           (if (= theme "dark") "Light Mode" "Dark Mode")]
+         [:button.menu-item
+          {:on-click (fn []
+                      (swap! state assoc :page :help :menu-open false))}
+          "Help"]
          [:a.menu-item
           {:href "https://github.com/EnigmaCurry/calc"
            :target "_blank"
            :rel "noopener"
            :on-click #(swap! state assoc :menu-open false)}
-          "About"]]])
+          "GitHub"]]])
 
      [:main {:ref #(reset! log-ref %)}
-      (if (seq history)
-        [:div.log
-         (for [[idx {:keys [input from target result error]}] (map-indexed vector history)]
-           ^{:key idx}
-           [:div.log-entry
-            [:span.log-input (or from input)]
-            (cond
-              error
-              [:span.log-error (str " \u2192 " error)]
+      (if (= :help (:page @state))
+        [help-page]
+        (if (seq history)
+          [:div.log
+           (for [[idx {:keys [input from target result error]}] (map-indexed vector history)]
+             ^{:key idx}
+             [:div.log-entry
+              [:span.log-input (or from input)]
+              (cond
+                error
+                [:span.log-error (str " \u2192 " error)]
 
-              target
-              [:span.log-result (str " = " result " " target)]
+                target
+                [:span.log-result (str " = " result " " target)]
 
-              :else
-              [:span.log-result (str " = " result)])])]
-        [:div.examples
-         [:h3 "Try some examples"]
-         [:div.chips
-          (for [ex examples]
-            ^{:key ex} [example-chip ex])]])]]))
+                :else
+                [:span.log-result (str " = " result)])])]
+          [:div.examples
+           [:h3 "Try some examples"]
+           [:div.chips
+            (for [ex examples]
+              ^{:key ex} [example-chip ex])]]))]]))
 
 (defonce root (atom nil))
 

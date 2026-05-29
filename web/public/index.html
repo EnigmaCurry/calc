@@ -4,6 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>calc - Unit Conversion Calculator</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0d1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
   <style>
     :root {
       --bg: #0d1117;
@@ -277,6 +282,102 @@
       color: var(--accent);
     }
 
+    /* Help page */
+    .help-page {
+      max-width: 640px;
+      margin: 0 auto;
+      padding-bottom: 2rem;
+    }
+
+    .help-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .help-header h2 {
+      font-size: 1.3rem;
+      color: var(--accent);
+    }
+
+    .back-btn {
+      padding: 0.3rem 0.75rem;
+      font-size: 0.85rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .back-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .help-intro {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 1.5rem;
+    }
+
+    .help-intro code {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.1rem 0.35rem;
+      font-size: 0.85rem;
+      color: var(--text);
+      font-family: "SF Mono", "Fira Code", "Fira Mono", monospace;
+    }
+
+    .unit-group {
+      margin-bottom: 1.5rem;
+    }
+
+    .unit-group h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.25rem;
+    }
+
+    .group-desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+      font-style: italic;
+    }
+
+    .unit-table {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 0.25rem 1rem;
+    }
+
+    .unit-row {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+      padding: 0.2rem 0;
+    }
+
+    .unit-sym {
+      font-family: "SF Mono", "Fira Code", "Fira Mono", monospace;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent);
+      min-width: 4.5rem;
+    }
+
+    .unit-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
     @media (max-width: 480px) {
       header {
         gap: 0.5rem;
@@ -307,5 +408,10 @@
 <body>
   <div id="app"></div>
   <script src="js/main.js"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js");
+    }
+  </script>
 </body>
 </html>

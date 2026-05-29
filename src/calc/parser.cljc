@@ -80,9 +80,58 @@
    "gram" :g
    "grams" :g
 
+   "nmi" :nmi
+   "nautical mile" :nmi
+   "nautical miles" :nmi
+
+   "fathom" :fathom
+   "fathoms" :fathom
+
+   "au" :au
+   "AU" :au
+   "astronomical-unit" :au
+   "astronomical-units" :au
+
+   "ly" :ly
+   "pc" :pc
+   "parsec" :pc
+   "parsecs" :pc
+   "lightyear" :ly
+   "lightyears" :ly
+   "light-year" :ly
+   "light-years" :ly
+
+   "mg" :mg
+   "milligram" :mg
+   "milligrams" :mg
+
+   "ug" :ug
+   "μg" :ug
+   "mcg" :ug
+   "microgram" :ug
+   "micrograms" :ug
+
    "kg" :kg
    "kilogram" :kg
    "kilograms" :kg
+
+   "tonne" :tonne
+   "tonnes" :tonne
+   "metric ton" :tonne
+   "metric tons" :tonne
+
+   "ton" :ton
+   "tons" :ton
+   "short ton" :ton
+   "short tons" :ton
+
+   "stone" :stone
+   "stones" :stone
+   "st" :stone
+
+   "ct" :ct
+   "carat" :ct
+   "carats" :ct
 
    "h" :hr
    "hr" :hr
@@ -147,6 +196,10 @@
    "acre" :acre
    "acres" :acre
 
+   "ha" :ha
+   "hectare" :ha
+   "hectares" :ha
+
    "f" :degF
    "fahrenheit" :degF
 
@@ -168,11 +221,125 @@
    "watt" :W
    "watts" :W
 
+   "kw" :kW
+   "kilowatt" :kW
+   "kilowatts" :kW
+
    "pa" :Pa
    "pascal" :Pa
    "pascals" :Pa
 
    "psi" :psi
+
+   "bar" :bar
+   "bars" :bar
+
+   "atm" :atm
+   "atmosphere" :atm
+   "atmospheres" :atm
+
+   "mmhg" :mmHg
+   "mmHg" :mmHg
+
+   "torr" :torr
+
+   "cal" :cal
+   "calorie" :cal
+   "calories" :cal
+
+   "kcal" :kcal
+   "kilocalorie" :kcal
+   "kilocalories" :kcal
+
+   "kwh" :kWh
+   "kWh" :kWh
+   "kilowatt-hour" :kWh
+   "kilowatt-hours" :kWh
+
+   "btu" :BTU
+   "BTU" :BTU
+   "btus" :BTU
+
+   "ev" :eV
+   "eV" :eV
+   "electronvolt" :eV
+   "electronvolts" :eV
+
+   "wh" :Wh
+   "Wh" :Wh
+   "watt-hour" :Wh
+   "watt-hours" :Wh
+
+   "hz" :Hz
+   "Hz" :Hz
+   "hertz" :Hz
+
+   "khz" :kHz
+   "kHz" :kHz
+   "kilohertz" :kHz
+
+   "mhz" :MHz
+   "MHz" :MHz
+   "megahertz" :MHz
+
+   "ghz" :GHz
+   "GHz" :GHz
+   "gigahertz" :GHz
+
+   "v" :V
+   "volt" :V
+   "volts" :V
+
+   "amp" :A
+   "amps" :A
+   "ampere" :A
+   "amperes" :A
+
+   "ma" :mA
+   "milliamp" :mA
+   "milliamps" :mA
+   "milliampere" :mA
+   "milliamperes" :mA
+
+   "ohm" :ohm
+   "ohms" :ohm
+   "Ω" :ohm
+
+   "farad" :F
+   "farads" :F
+
+   "uf" :uF
+   "μF" :uF
+   "uF" :uF
+   "microfarad" :uF
+   "microfarads" :uF
+
+   "nf" :nF
+   "nF" :nF
+   "nanofarad" :nF
+   "nanofarads" :nF
+
+   "pf" :pF
+   "pF" :pF
+   "picofarad" :pF
+   "picofarads" :pF
+
+   "henry" :H
+   "henries" :H
+   "henrys" :H
+
+   "rad" :rad
+   "radian" :rad
+   "radians" :rad
+
+   "deg" :deg
+   "degree" :deg
+   "degrees" :deg
+
+   "knot" :kn
+   "knots" :kn
+   "kn" :kn
+   "kt" :kn
 
    ;; Bits
    "bit" :bit
@@ -646,8 +813,26 @@
     (first components)
     (apply merge-unit-maps (map #(unit-map % 1) components))))
 
+(def ^:private compound-prefixes
+  #{"nautical" "metric" "short" "fluid" "fl"})
+
+(defn- join-compound-tokens
+  "Join adjacent tokens where the first is a known compound prefix
+   (e.g. 'nautical' 'mile' → 'nautical mile')."
+  [tokens]
+  (loop [remaining (seq tokens) result []]
+    (if-not remaining
+      result
+      (let [t (first remaining)
+            nxt (second remaining)]
+        (if (and nxt (compound-prefixes (str/lower-case t)))
+          (recur (nnext remaining) (conj result (str t " " nxt)))
+          (recur (next remaining) (conj result t)))))))
+
 (defn parse-unit-product [tokens]
-  (let [tokens (remove #(#{"a" "an"} (str/lower-case %)) tokens)
+  (let [tokens (->> tokens
+                    (remove #(#{"a" "an"} (str/lower-case %)))
+                    join-compound-tokens)
         components (map parse-component-token tokens)]
     (simple-unit-result components)))
 

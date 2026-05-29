@@ -22,6 +22,7 @@
             packages = [
               pkgs.babashka
               pkgs.clojure
+              pkgs.jdk
               pkgs.just
             ];
           };

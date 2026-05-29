@@ -94,11 +94,22 @@
    :yd   {:dim {:length 1} :scale (->bigdec 0.9144)}
    :in   {:dim {:length 1} :scale (->bigdec 0.0254)}
    :mi   {:dim {:length 1} :scale (->bigdec 1609.344)}
+   :nmi  {:dim {:length 1} :scale (->bigdec 1852)}
+   :fathom {:dim {:length 1} :scale (->bigdec 1.8288)}
+   :ly   {:dim {:length 1} :scale (->bigdec 9460730472580800)}
+   :au   {:dim {:length 1} :scale (->bigdec 149597870700)}
+   :pc   {:dim {:length 1} :scale (->bigdec 30856775814671900)}
 
    :kg   {:dim {:mass 1} :scale (->bigdec 1)}
    :g    {:dim {:mass 1} :scale (->bigdec 0.001)}
+   :mg   {:dim {:mass 1} :scale (->bigdec 0.000001)}
+   :ug   {:dim {:mass 1} :scale (->bigdec 0.000000001)}
    :lb   {:dim {:mass 1} :scale (->bigdec 0.45359237)}
    :oz   {:dim {:mass 1} :scale (->bigdec 0.028349523125)}
+   :tonne {:dim {:mass 1} :scale (->bigdec 1000)}
+   :ton  {:dim {:mass 1} :scale (->bigdec 907.18474)}
+   :stone {:dim {:mass 1} :scale (->bigdec 6.35029318)}
+   :ct   {:dim {:mass 1} :scale (->bigdec 0.0002)}
 
    :s    {:dim {:time 1} :scale (->bigdec 1)}
    :min  {:dim {:time 1} :scale (->bigdec 60)}
@@ -123,7 +134,9 @@
    :tbsp {:dim {:length 3} :scale (->bigdec 0.00001478676478125)}
    :tsp  {:dim {:length 3} :scale (->bigdec 0.00000492892159375)}
 
+   ;; Area.
    :acre {:dim {:length 2} :scale (->bigdec 4046.8564224)}
+   :ha   {:dim {:length 2} :scale (->bigdec 10000)}
 
    ;; Data. Base is byte.
    :bit  {:dim {:data 1} :scale (->bigdec 0.125)}
@@ -157,8 +170,45 @@
    :N    {:dim {:mass 1 :length 1 :time -2} :scale (->bigdec 1)}
    :J    {:dim {:mass 1 :length 2 :time -2} :scale (->bigdec 1)}
    :W    {:dim {:mass 1 :length 2 :time -3} :scale (->bigdec 1)}
+   :kW   {:dim {:mass 1 :length 2 :time -3} :scale (->bigdec 1000)}
    :Pa   {:dim {:mass 1 :length -1 :time -2} :scale (->bigdec 1)}
-   :psi  {:dim {:mass 1 :length -1 :time -2} :scale (->bigdec 6894.757293168)}})
+   :psi  {:dim {:mass 1 :length -1 :time -2} :scale (->bigdec 6894.757293168)}
+   :bar  {:dim {:mass 1 :length -1 :time -2} :scale (->bigdec 100000)}
+   :atm  {:dim {:mass 1 :length -1 :time -2} :scale (->bigdec 101325)}
+   :mmHg {:dim {:mass 1 :length -1 :time -2} :scale (->bigdec 133.322387415)}
+   :torr {:dim {:mass 1 :length -1 :time -2} :scale (->bigdec 133.322368421)}
+
+   ;; Energy.
+   :cal  {:dim {:mass 1 :length 2 :time -2} :scale (->bigdec 4.184)}
+   :kcal {:dim {:mass 1 :length 2 :time -2} :scale (->bigdec 4184)}
+   :kWh  {:dim {:mass 1 :length 2 :time -2} :scale (->bigdec 3600000)}
+   :BTU  {:dim {:mass 1 :length 2 :time -2} :scale (->bigdec 1055.06)}
+   :eV   {:dim {:mass 1 :length 2 :time -2} :scale (->bigdec 1.602176634E-19)}
+
+   ;; Frequency. Base is Hz (1/s).
+   :Hz   {:dim {:time -1} :scale (->bigdec 1)}
+   :kHz  {:dim {:time -1} :scale (->bigdec 1000)}
+   :MHz  {:dim {:time -1} :scale (->bigdec 1000000)}
+   :GHz  {:dim {:time -1} :scale (->bigdec 1000000000)}
+
+   ;; Electrical.
+   :V    {:dim {:mass 1 :length 2 :time -3 :current -1} :scale (->bigdec 1)}
+   :A    {:dim {:current 1} :scale (->bigdec 1)}
+   :mA   {:dim {:current 1} :scale (->bigdec 0.001)}
+   :ohm  {:dim {:mass 1 :length 2 :time -3 :current -2} :scale (->bigdec 1)}
+   :F    {:dim {:current 2 :time 4 :mass -1 :length -2} :scale (->bigdec 1)}
+   :uF   {:dim {:current 2 :time 4 :mass -1 :length -2} :scale (->bigdec 0.000001)}
+   :nF   {:dim {:current 2 :time 4 :mass -1 :length -2} :scale (->bigdec 0.000000001)}
+   :pF   {:dim {:current 2 :time 4 :mass -1 :length -2} :scale (->bigdec 0.000000000001)}
+   :H    {:dim {:mass 1 :length 2 :time -2 :current -2} :scale (->bigdec 1)}
+   :Wh   {:dim {:mass 1 :length 2 :time -2} :scale (->bigdec 3600)}
+
+   ;; Angle.
+   :rad  {:dim {:angle 1} :scale (->bigdec 1)}
+   :deg  {:dim {:angle 1} :scale (->bigdec 0.01745329251994330)}
+
+   ;; Speed.
+   :kn   {:dim {:length 1 :time -1} :scale (->bigdec 0.51444444444444)}})
 
 (def temperature-units
   #{:degF :degC :K})

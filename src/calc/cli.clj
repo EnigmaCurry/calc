@@ -52,11 +52,32 @@
                           (when (seq names)
                             (str "  (" (str/join ", " names) ")"))))))))
 
+(def compound-categories
+  [["Velocity"   #{:mi :km :m :ft} #{:hr :s}]
+   ["Bitrate"    #{:bit :Kb :Mb :Gb :Tb :Pb :Eb} #{:s}]
+   ["Byte Rate"  #{:KB :MB :GB :TB :PB :EB} #{:s}]])
+
+(defn- classify-compound [[_ unit-map]]
+  (let [pos-keys (set (keys (into {} (filter (fn [[_ v]] (pos? v)) unit-map))))
+        neg-keys (set (keys (into {} (filter (fn [[_ v]] (neg? v)) unit-map))))]
+    (or (some (fn [[label num-set den-set]]
+                (when (and (every? num-set pos-keys)
+                           (every? den-set neg-keys))
+                  label))
+              compound-categories)
+        "Other")))
+
 (defn format-compound-section []
-  (str "Compound:\n"
-       (str/join "\n"
-                 (for [[alias-str _] (sort parser/special-unit-forms)]
-                   (str "  " alias-str)))))
+  (let [grouped (group-by classify-compound (sort parser/special-unit-forms))
+        order (concat (map first compound-categories) ["Other"])]
+    (str/join "\n\n"
+              (for [label order
+                    :let [entries (get grouped label)]
+                    :when (seq entries)]
+                (str label ":\n"
+                     (str/join "\n"
+                               (for [[alias-str _] (sort entries)]
+                                 (str "  " alias-str))))))))
 
 (defn list-units
   ([] (list-units nil))
