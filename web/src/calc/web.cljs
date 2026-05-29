@@ -20,16 +20,19 @@
                 result (ev/convert-request parsed)]
             (if-not (:ok? result)
               {:error (fmt/format-error result)}
-              (if (:unit-label result)
-                {:from input
-                 :result (str (fmt/format-number (:value result) effective-fmt) " " (:unit-label result))}
-                (let [[display-input] (parser/extract-format input)
-                      {:keys [from target]} (parser/split-display-parts display-input)]
-                  (if (some? from)
-                    {:from from
-                     :target target
-                     :result (fmt/format-number (:value result) effective-fmt)}
-                    {:result (fmt/format-number (:value result) effective-fmt)}))))))
+              (if (= :percentage (:op parsed))
+                {:result (str (fmt/format-number (:value result) effective-fmt)
+                              (:unit-label result))}
+                (if (:unit-label result)
+                  {:from input
+                   :result (str (fmt/format-number (:value result) effective-fmt) " " (:unit-label result))}
+                  (let [[display-input] (parser/extract-format input)
+                        {:keys [from target]} (parser/split-display-parts display-input)]
+                    (if (some? from)
+                      {:from from
+                       :target target
+                       :result (fmt/format-number (:value result) effective-fmt)}
+                      {:result (fmt/format-number (:value result) effective-fmt)})))))))
         (catch :default e
           {:error (if-let [data (.-data e)]
                     (fmt/format-error (js->clj data :keywordize-keys true))
@@ -109,6 +112,8 @@
    "2 cubic yards to gallons"
    "100 MB / 10 Mbps in seconds"
    "7 inches in feet as a fraction"
+   "10 is what percent of 100?"
+   "15% of 50"
    "2 + 2"
    "3 * (4 + 5)"])
 
@@ -149,7 +154,11 @@
     [:code "5 feet in meters"]
     " or "
     [:code "100 GB / 10 Mbps in minutes"]
-    ". You can also use compound units with "
+    ". You can also calculate percentages: "
+    [:code "15% of 50"]
+    " or "
+    [:code "10 is what percent of 100?"]
+    ". Compound units work with "
     [:code "/"]
     " and "
     [:code "*"]
