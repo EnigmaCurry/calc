@@ -4,7 +4,7 @@
             [calc.format :as fmt]
             [clojure.string :as str]
             [calc.parser :as parser])
-  (:import (org.jline.reader LineReaderBuilder EndOfFileException UserInterruptException LineReader History)
+  (:import (org.jline.reader LineReaderBuilder EndOfFileException UserInterruptException LineReader)
            (org.jline.terminal TerminalBuilder))
   (:gen-class))
 
@@ -238,12 +238,21 @@
           arg (second parts)]
       [cmd arg])))
 
+(def ^:private hist-path (str (System/getProperty "user.home") "/.calc_history"))
+
+(defn- clear-screen-and-history
+  "Delete the history file and clear the terminal screen."
+  []
+  (let [hf (java.io.File. hist-path)]
+    (when (.exists hf) (.delete hf)))
+  (print "\033[2J\033[H")
+  (flush))
+
 (defn repl
   "Launch an interactive REPL with JLine readline support."
   []
   (let [terminal (-> (TerminalBuilder/builder) (.system true) (.build))
-        reader   (-> (LineReaderBuilder/builder) (.terminal terminal) (.build))
-        hist-path (str (System/getProperty "user.home") "/.calc_history")]
+        reader   (-> (LineReaderBuilder/builder) (.terminal terminal) (.build))]
     (.setVariable reader LineReader/HISTORY_FILE hist-path)
     (println "calc — type '/help' for usage, Ctrl-D to exit")
     (loop [fmt-opts nil]
@@ -268,12 +277,7 @@
                       (do (println (repl-help)) fmt-opts)
 
                       ("clear" "reset")
-                      (do
-                        (.purge ^History (.getHistory reader))
-                        (print "\033[2J\033[H")
-                        (flush)
-                        (println "Screen and history cleared.")
-                        fmt-opts)
+                      (do (clear-screen-and-history) ::restart)
 
                       "p"
                       (if (str/blank? arg)
@@ -321,8 +325,10 @@
                       (catch Exception e
                         (println "Error:" (.getMessage e))))
                     fmt-opts))))]
-        (when-not (= ::exit next-opts)
-          (recur next-opts))))))
+        (cond
+          (= ::exit next-opts) nil
+          (= ::restart next-opts) (repl)
+          :else (recur next-opts))))))
 
 (defn process-stdin
   "Read lines from stdin and process each as a calc request."
