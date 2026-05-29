@@ -4,6 +4,8 @@
             [calc.format :as fmt]
             [clojure.string :as str]
             [calc.parser :as parser])
+  (:import (org.jline.reader LineReaderBuilder EndOfFileException UserInterruptException LineReader)
+           (org.jline.terminal TerminalBuilder))
   (:gen-class))
 
 (def dim-labels u/dim-categories)
@@ -202,6 +204,69 @@
           (recur (drop 2 remaining) (second remaining) result)
           (recur (rest remaining) value (conj result t)))))))
 
+(defn- tty?
+  "Return true if stdin appears to be an interactive terminal."
+  []
+  (let [terminal (-> (TerminalBuilder/builder) (.system true) (.build))
+        result (not= "dumb" (.getType terminal))]
+    (.close terminal)
+    result))
+
+(defn repl
+  "Launch an interactive REPL with JLine readline support."
+  []
+  (let [terminal (-> (TerminalBuilder/builder) (.system true) (.build))
+        reader   (-> (LineReaderBuilder/builder) (.terminal terminal) (.build))
+        hist-path (str (System/getProperty "user.home") "/.calc_history")]
+    (.setVariable reader LineReader/HISTORY_FILE hist-path)
+    (println "calc — type 'help' for usage, Ctrl-D to exit")
+    (loop []
+      (let [line (try (.readLine reader "calc> ")
+                      (catch EndOfFileException _ ::eof)
+                      (catch UserInterruptException _ ::interrupt))]
+        (cond
+          (= ::eof line) nil
+          (= ::interrupt line) (recur)
+          :else
+          (let [input (str/trim line)]
+            (when-not (str/blank? input)
+              (cond
+                (= "help" input)
+                (println (usage))
+
+                (#{"exit" "quit"} input)
+                nil
+
+                :else
+                (try
+                  (let [{:keys [error result from target]} (process-request-text input nil)]
+                    (if error
+                      (println error)
+                      (if (and from target)
+                        (println (str from " = " result " " target))
+                        (println result))))
+                  (catch Exception e
+                    (println "Error:" (.getMessage e))))))
+            (when-not (#{"exit" "quit"} input)
+              (recur))))))))
+
+(defn process-stdin
+  "Read lines from stdin and process each as a calc request."
+  []
+  (let [has-error (volatile! false)]
+    (doseq [line (line-seq (java.io.BufferedReader. (java.io.InputStreamReader. System/in)))
+            :let [input (str/trim line)]
+            :when (not (str/blank? input))]
+      (let [{:keys [error result from target]} (process-request-text input nil)]
+        (if error
+          (do (vreset! has-error true)
+              (binding [*out* *err*] (println error)))
+          (if (and from target)
+            (println (str from " = " result " " target))
+            (println result)))))
+    (when @has-error
+      (System/exit 1))))
+
 (defn -main [& args]
   (try
     (let [input (str/trim (str/join " " args))
@@ -218,7 +283,7 @@
           [fmt-opts tokens] (parse-format-opts tokens)
           input (str/trim (str/join " " tokens))]
       (cond
-        help?
+        (or help? (= "help" input))
         (println (usage))
 
         list?
@@ -228,10 +293,9 @@
         (println (list-units kind))
 
         (str/blank? input)
-        (do
-          (binding [*out* *err*]
-            (println (usage)))
-          (System/exit 1))
+        (if (tty?)
+          (repl)
+          (process-stdin))
 
         :else
         (let [parsed (parser/parse-request input)]
