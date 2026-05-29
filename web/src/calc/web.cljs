@@ -82,6 +82,10 @@
 
 (defonce log-ref (atom nil))
 
+(defn scroll-log-to-top []
+  (when-let [el @log-ref]
+    (set! (.-scrollTop el) 0)))
+
 (defn apply-theme! [theme]
   (let [root (.-documentElement js/document)]
     (.setAttribute root "data-theme" theme)))
@@ -164,10 +168,6 @@
     [:div.chips
      (for [ex examples]
        ^{:key ex} [example-chip ex])]]])
-
-(defn scroll-log-to-top []
-  (when-let [el @log-ref]
-    (set! (.-scrollTop el) 0)))
 
 (def clear-commands #{"clear" "/clear" "reset" "/reset"})
 
