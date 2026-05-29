@@ -130,6 +130,7 @@
                                    :result (:result ev)
                                    :error (:error ev)}]
                                  h)))
+                  (swap! state assoc :page :calc)
                   (save-history! (:history @state))
                   (js/setTimeout scroll-log-to-top 0)))}
    text])
