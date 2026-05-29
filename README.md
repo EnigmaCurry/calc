@@ -28,7 +28,11 @@ nix develop
 ### With Babashka (fast startup)
 
 ```bash
-bb -e "(require '[calc.cli :as cli]) (cli/-main \"12 feet in yards\")"
+bb -e "$(cat <<'EOF'
+(require '[calc.cli :as cli])
+(cli/-main "12 feet in yards")
+EOF
+)"
 # 12 feet = 4 yards
 ```
 
