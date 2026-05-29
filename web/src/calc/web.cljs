@@ -218,10 +218,10 @@
     " and "
     [:code "*"]
     " operators."]
-   (for [{:keys [name description units]} unit-groups]
-     ^{:key name}
+   (for [{group-name :name :keys [description units]} unit-groups]
+     ^{:key group-name}
      [:div.unit-group
-      [:h3 name]
+      [:h3 group-name]
       [:p.group-desc description]
       [:div.unit-table
        (for [[sym label] units]
