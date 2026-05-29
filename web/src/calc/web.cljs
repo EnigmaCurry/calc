@@ -307,18 +307,16 @@
                         :on-change #(swap! state assoc :input (.. % -target -value) :hist-index -1)
                         :on-key-down on-keydown}
                  (empty? history) (assoc :placeholder "e.g. 100GB / 900Mbps"))]
-       [:button {:class (str "clear-input" (when (str/blank? input) " empty"))
-                 :on-mouse-down (fn [e]
-                                  (.preventDefault e)
-                                  (.stopPropagation e)
-                                  (swap! state assoc :input "" :hist-index -1)
-                                  (some-> (.-target e) .-parentElement (.querySelector "input") .blur))
-                 :on-touch-start (fn [e]
-                                   (.preventDefault e)
-                                   (.stopPropagation e)
-                                   (swap! state assoc :input "" :hist-index -1)
-                                   (some-> (.-target e) .-parentElement (.querySelector "input") .blur))
-                 :on-click (fn [e] (.stopPropagation e))} "\u00d7"]]
+       (let [clear-fn (fn [e]
+                        (.preventDefault e)
+                        (.stopPropagation e)
+                        (swap! state assoc :input "" :hist-index -1)
+                        (let [input-el (some-> (.-target e) .-parentElement (.querySelector "input"))]
+                          (js/setTimeout #(when input-el (.blur input-el)) 100)))]
+         [:button {:class (str "clear-input" (when (str/blank? input) " empty"))
+                   :on-mouse-down clear-fn
+                   :on-touch-start clear-fn
+                   :on-click (fn [e] (.stopPropagation e))} "\u00d7"])]
       [:button.menu-btn {:on-click #(swap! state update :menu-open not)}
        [:span.hamburger]
        [:span.hamburger]
