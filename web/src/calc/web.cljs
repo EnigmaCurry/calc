@@ -376,7 +376,10 @@
               {:on-click (fn []
                            (when input
                              (.writeText js/navigator.clipboard input)
-                             (swap! state assoc :input input)))}
+                             (swap! state assoc :input input)
+                             (when-let [el (.querySelector js/document ".input-wrapper input")]
+                               (.focus el)
+                               (js/setTimeout #(set! (.-selectionStart el) (count input)) 0))))}
               [:span.log-input (or from input)]
               (cond
                 error
