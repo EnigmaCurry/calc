@@ -221,9 +221,25 @@
    "watt" :W
    "watts" :W
 
+   "mw" :mW
+   "milliwatt" :mW
+   "milliwatts" :mW
+
    "kw" :kW
    "kilowatt" :kW
    "kilowatts" :kW
+
+   "MW" :MW
+   "megawatt" :MW
+   "megawatts" :MW
+
+   "GW" :GW
+   "gigawatt" :GW
+   "gigawatts" :GW
+
+   "TW" :TW
+   "terawatt" :TW
+   "terawatts" :TW
 
    "pa" :Pa
    "pascal" :Pa

@@ -170,7 +170,11 @@
    :N    {:dim {:mass 1 :length 1 :time -2} :scale (->bigdec 1)}
    :J    {:dim {:mass 1 :length 2 :time -2} :scale (->bigdec 1)}
    :W    {:dim {:mass 1 :length 2 :time -3} :scale (->bigdec 1)}
+   :mW   {:dim {:mass 1 :length 2 :time -3} :scale (->bigdec 0.001)}
    :kW   {:dim {:mass 1 :length 2 :time -3} :scale (->bigdec 1000)}
+   :MW   {:dim {:mass 1 :length 2 :time -3} :scale (->bigdec 1000000)}
+   :GW   {:dim {:mass 1 :length 2 :time -3} :scale (->bigdec 1000000000)}
+   :TW   {:dim {:mass 1 :length 2 :time -3} :scale (->bigdec 1000000000000)}
    :Pa   {:dim {:mass 1 :length -1 :time -2} :scale (->bigdec 1)}
    :psi  {:dim {:mass 1 :length -1 :time -2} :scale (->bigdec 6894.757293168)}
    :bar  {:dim {:mass 1 :length -1 :time -2} :scale (->bigdec 100000)}
@@ -402,13 +406,19 @@
     {{:time 1}   (pick {:time 1}   [:s :min :hr :day :week :yr])
      {:length 1} (pick {:length 1} [:mm :cm :m :km :mi])
      {:mass 1}   (pick {:mass 1}   [:g :kg :lb])
-     {:data 1}   (pick {:data 1}   [:B :KB :MB :GB :TB :PB])}))
+     {:data 1}   (pick {:data 1}   [:B :KB :MB :GB :TB :PB])
+     {:current 1} (pick {:current 1} [:mA :A])
+     {:mass 1 :length 2 :time -3} (pick {:mass 1 :length 2 :time -3} [:mW :W :kW :MW :GW :TW])
+     {:mass 1 :length 2 :time -3 :current -1} (pick {:mass 1 :length 2 :time -3 :current -1} [:V])}))
 
 (def ^:private unit-display-names
   {:s "seconds" :min "minutes" :hr "hours" :day "days" :week "weeks" :yr "years"
    :mm "mm" :cm "cm" :m "meters" :km "km" :mi "miles"
    :g "grams" :kg "kg" :lb "pounds"
-   :B "bytes" :KB "KB" :MB "MB" :GB "GB" :TB "TB" :PB "PB"})
+   :B "bytes" :KB "KB" :MB "MB" :GB "GB" :TB "TB" :PB "PB"
+   :mA "mA" :A "amps"
+   :mW "mW" :W "watts" :kW "kW" :MW "MW" :GW "GW" :TW "TW"
+   :V "volts"})
 
 (defn- auto-select-unit
   "Given a dimension map and a value in SI base units, pick the best unit
