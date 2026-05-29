@@ -121,22 +121,24 @@
   (str "Error: " (fmt/format-error err)))
 
 (defn process-request-text [input fmt-opts]
-  (let [parsed (parser/parse-request input)
-        effective-fmt (merge (:format parsed) fmt-opts)
-        result (ev/convert-request parsed)]
-    (if-not (:ok? result)
-      {:error (format-error result)}
-      (if (:unit-label result)
-        {:result (str (fmt/format-number (:value result) effective-fmt)
-                      (when (:unit-label result)
-                        (str " " (:unit-label result))))
-         :from input
-         :target nil}
-        (let [[display-input _] (parser/extract-format input)
-              {:keys [from target]} (parser/split-display-parts display-input)]
-          {:result (fmt/format-number (:value result) effective-fmt)
-           :from from
-           :target target})))))
+  (if-let [math-result (parser/parse-math input)]
+    {:result (fmt/format-number math-result fmt-opts)}
+    (let [parsed (parser/parse-request input)
+          effective-fmt (merge (:format parsed) fmt-opts)
+          result (ev/convert-request parsed)]
+      (if-not (:ok? result)
+        {:error (format-error result)}
+        (if (:unit-label result)
+          {:result (str (fmt/format-number (:value result) effective-fmt)
+                        (when (:unit-label result)
+                          (str " " (:unit-label result))))
+           :from input
+           :target nil}
+          (let [[display-input _] (parser/extract-format input)
+                {:keys [from target]} (parser/split-display-parts display-input)]
+            {:result (fmt/format-number (:value result) effective-fmt)
+             :from from
+             :target target}))))))
 
 (defn usage []
   (str/join
@@ -298,29 +300,31 @@
           (process-stdin))
 
         :else
-        (let [parsed (parser/parse-request input)]
-          (when (and numeric? (= :auto (:to parsed)))
-            (binding [*out* *err*]
-              (println "Error: --numeric requires an explicit target unit (e.g., \"in days\")"))
-            (System/exit 1))
-          (if numeric?
-            (let [effective-fmt (merge (:format parsed) fmt-opts)
-                  result (ev/convert-request parsed)]
-              (if-not (:ok? result)
-                (do
-                  (binding [*out* *err*]
-                    (println (format-error result)))
-                  (System/exit 1))
-                (println (fmt/format-number (:value result) effective-fmt))))
-            (let [{:keys [error result from target]} (process-request-text input fmt-opts)]
-              (if error
-                (do
-                  (binding [*out* *err*]
-                    (println error))
-                  (System/exit 1))
-                (if (and from target)
-                  (println (str from " = " result " " target))
-                  (println result))))))))
+        (if-let [math-result (parser/parse-math input)]
+          (println (fmt/format-number math-result fmt-opts))
+          (let [parsed (parser/parse-request input)]
+            (when (and numeric? (= :auto (:to parsed)))
+              (binding [*out* *err*]
+                (println "Error: --numeric requires an explicit target unit (e.g., \"in days\")"))
+              (System/exit 1))
+            (if numeric?
+              (let [effective-fmt (merge (:format parsed) fmt-opts)
+                    result (ev/convert-request parsed)]
+                (if-not (:ok? result)
+                  (do
+                    (binding [*out* *err*]
+                      (println (format-error result)))
+                    (System/exit 1))
+                  (println (fmt/format-number (:value result) effective-fmt))))
+              (let [{:keys [error result from target]} (process-request-text input fmt-opts)]
+                (if error
+                  (do
+                    (binding [*out* *err*]
+                      (println error))
+                    (System/exit 1))
+                  (if (and from target)
+                    (println (str from " = " result " " target))
+                    (println result)))))))))
     (catch Exception e
       (binding [*out* *err*]
         (println "Error:" (.getMessage e)))
