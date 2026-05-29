@@ -7,29 +7,29 @@
             [calc.parser :as parser]
             [clojure.string :as str]))
 
-(defn evaluate [input]
+(defn evaluate [input fmt-opts]
   (let [input (str/trim input)]
     (when-not (str/blank? input)
       (try
         ;; First try as pure math expression
         (if-let [math-result (parser/parse-math input)]
-          {:result (fmt/format-number math-result)}
+          {:result (fmt/format-number math-result fmt-opts)}
           ;; Then try as unit conversion
           (let [parsed (parser/parse-request input)
-                fmt (:format parsed)
+                effective-fmt (merge (:format parsed) fmt-opts)
                 result (ev/convert-request parsed)]
             (if-not (:ok? result)
               {:error (fmt/format-error result)}
               (if (:unit-label result)
                 {:from input
-                 :result (str (fmt/format-number (:value result) fmt) " " (:unit-label result))}
+                 :result (str (fmt/format-number (:value result) effective-fmt) " " (:unit-label result))}
                 (let [[display-input] (parser/extract-format input)
                       {:keys [from target]} (parser/split-display-parts display-input)]
                   (if (some? from)
                     {:from from
                      :target target
-                     :result (fmt/format-number (:value result) fmt)}
-                    {:result (fmt/format-number (:value result) fmt)}))))))
+                     :result (fmt/format-number (:value result) effective-fmt)}
+                    {:result (fmt/format-number (:value result) effective-fmt)}))))))
         (catch :default e
           {:error (if-let [data (.-data e)]
                     (fmt/format-error (js->clj data :keywordize-keys true))
@@ -55,10 +55,25 @@
         "light"
         "dark")))
 
+(defn load-fmt-opts []
+  (try
+    (when-let [raw (.getItem js/localStorage "calc-fmt-opts")]
+      (js->clj (js/JSON.parse raw) :keywordize-keys true))
+    (catch :default _ nil)))
+
+(defn save-fmt-opts! [opts]
+  (try
+    (if opts
+      (.setItem js/localStorage "calc-fmt-opts"
+                (js/JSON.stringify (clj->js opts)))
+      (.removeItem js/localStorage "calc-fmt-opts"))
+    (catch :default _ nil)))
+
 (defonce state (r/atom {:input ""
                         :result nil
                         :error nil
                         :history (load-history)
+                        :fmt-opts (load-fmt-opts)
                         :menu-open false
                         :theme (load-theme)
                         :page :calc}))
@@ -129,15 +144,73 @@
 (def clear-commands #{"clear" "/clear" "reset" "/reset"})
 
 (defn clear-history! []
-  (swap! state assoc :input "" :result nil :error nil :history [])
-  (save-history! []))
+  (swap! state assoc :input "" :result nil :error nil :history [] :fmt-opts nil)
+  (save-history! [])
+  (save-fmt-opts! nil))
+
+(defn- parse-slash-command
+  "Parse a slash command. Returns {:cmd name :arg value} or nil."
+  [input]
+  (when (str/starts-with? input "/")
+    (let [parts (str/split (subs input 1) #"\s+" 2)]
+      {:cmd (first parts) :arg (second parts)})))
+
+(defn- handle-slash-command
+  "Handle a slash command. Returns a history entry map to display, or nil for clear."
+  [{:keys [cmd arg]}]
+  (case cmd
+    "help"
+    (do (swap! state assoc :page :help) {:input "/help" :result "Showing help page"})
+
+    "p"
+    (if (str/blank? arg)
+      (do (swap! state update :fmt-opts dissoc :round)
+          (save-fmt-opts! (:fmt-opts @state))
+          {:input "/p" :result "Precision cleared"})
+      (let [n (js/parseInt arg 10)]
+        (if (js/isNaN n)
+          {:input (str "/p " arg) :error "/p requires a number"}
+          (do (swap! state assoc :fmt-opts (-> (or (:fmt-opts @state) {})
+                                               (dissoc :sig-figs)
+                                               (assoc :round n)))
+              (save-fmt-opts! (:fmt-opts @state))
+              {:input (str "/p " n) :result (str "Precision set to " n " decimal places")}))))
+
+    "s"
+    (if (str/blank? arg)
+      (do (swap! state update :fmt-opts dissoc :sig-figs)
+          (save-fmt-opts! (:fmt-opts @state))
+          {:input "/s" :result "Sig-figs cleared"})
+      (let [n (js/parseInt arg 10)]
+        (if (js/isNaN n)
+          {:input (str "/s " arg) :error "/s requires a number"}
+          (do (swap! state assoc :fmt-opts (-> (or (:fmt-opts @state) {})
+                                               (dissoc :round)
+                                               (assoc :sig-figs n)))
+              (save-fmt-opts! (:fmt-opts @state))
+              {:input (str "/s " n) :result (str "Sig-figs set to " n)}))))
+
+    ;; unknown
+    {:input (str "/" cmd) :error (str "Unknown command: /" cmd)}))
 
 (defn evaluate! []
   (let [input (str/trim (:input @state))]
     (when-not (str/blank? input)
-      (if (clear-commands (str/lower-case input))
+      (cond
+        (clear-commands (str/lower-case input))
         (clear-history!)
-        (let [ev (evaluate input)]
+
+        (and (str/starts-with? input "/")
+             (not (clear-commands (str/lower-case input))))
+        (let [parsed (parse-slash-command input)
+              entry (handle-slash-command parsed)]
+          (swap! state assoc :input "" :result (:result entry) :error (:error entry))
+          (swap! state update :history (fn [h] (into [entry] h)))
+          (save-history! (:history @state))
+          (js/setTimeout scroll-log-to-top 0))
+
+        :else
+        (let [ev (evaluate input (:fmt-opts @state))]
           (swap! state assoc
                  :result (:result ev)
                  :error (:error ev)
@@ -162,7 +235,7 @@
   [:button.example
    {:on-click (fn []
                 (swap! state assoc :input text)
-                (let [ev (evaluate text)]
+                (let [ev (evaluate text (:fmt-opts @state))]
                   (swap! state assoc
                          :result (:result ev)
                          :error (:error ev)
@@ -180,8 +253,10 @@
    text])
 
 (defn app []
-  (let [{:keys [input history menu-open theme]} @state
-        preview (when-not (str/blank? input) (evaluate input))]
+  (let [{:keys [input history menu-open theme fmt-opts]} @state
+        preview (when (and (not (str/blank? input))
+                           (not (str/starts-with? (str/trim input) "/")))
+                  (evaluate input fmt-opts))]
     [:<>
      [:header
       [:h1 "calc"]
