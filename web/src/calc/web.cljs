@@ -176,7 +176,11 @@
     [:code "/"]
     " and "
     [:code "*"]
-    " operators."]
+    " operators, e.g. "
+    [:code "60 mph in ft/s"]
+    " or "
+    [:code "1 ft*ft in sq yards"]
+    "."]
    [:div.unit-group
     [:h3 "Commands"]
     [:div.unit-table

@@ -376,6 +376,11 @@
          (unit-map (parse-component-token num) 1)
          (unit-map (parse-component-token den) -1)))
 
+      (str/includes? raw "*")
+      (let [parts (str/split raw #"\*")]
+        (apply merge-unit-maps
+               (map #(unit-map (parse-component-token %) 1) parts)))
+
       (re-matches #"(?i).+\^-?\d+" raw)
       (let [[base exp] (str/split raw #"\^")]
         (unit-map (normalize-unit-token base)
@@ -428,10 +433,10 @@
       (empty? tokens)
       (throw (ex-info "Missing unit" {:error :missing-unit}))
 
-      (#{"square"} (first lower-tokens))
+      (#{"square" "sq"} (first lower-tokens))
       (unit-map (parse-unit-phrase (str/join " " (rest tokens))) 2)
 
-      (#{"cubic"} (first lower-tokens))
+      (#{"cubic" "cu"} (first lower-tokens))
       (unit-map (parse-unit-phrase (str/join " " (rest tokens))) 3)
 
       (some #{"per"} lower-tokens)

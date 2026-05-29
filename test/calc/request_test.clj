@@ -262,3 +262,24 @@
       (is (:ok? result))
       (is (= 12N (:value result)))
       (is (= "feet" (:unit-label result))))))
+
+(deftest compound-unit-syntax
+  (testing "ft*ft parsed as square feet and converts to sq yards"
+    (let [{:keys [result target]} (cli/process-request-text "1 ft*ft in sq yd" nil)]
+      (is (some? result))
+      (is (= "yd2" target))))
+
+  (testing "60 mph in ft/s"
+    (let [{:keys [result target]} (cli/process-request-text "60 mph in ft/s" nil)]
+      (is (= "88" result))
+      (is (= "ft/s" target))))
+
+  (testing "m*m parsed as square meters"
+    (let [{:keys [result target]} (cli/process-request-text "9 m*m in sq ft" nil)]
+      (is (some? result))
+      (is (= "ft2" target))))
+
+  (testing "sq ft as alias for square feet"
+    (let [{:keys [result target]} (cli/process-request-text "1 sq ft in sq m" nil)]
+      (is (some? result))
+      (is (= "m2" target)))))
