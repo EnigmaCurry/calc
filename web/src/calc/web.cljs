@@ -293,7 +293,8 @@
 
 (defn app []
   (let [{:keys [input history menu-open theme fmt-opts]} @state
-        preview (when (and (not (str/blank? input))
+        typing? (not (str/blank? input))
+        preview (when (and typing?
                            (not (str/starts-with? (str/trim input) "/")))
                   (evaluate input fmt-opts))]
     [:<>
@@ -363,7 +364,7 @@
           [:div.log
            (for [[idx {:keys [input from target result error]}] (map-indexed vector history)]
              ^{:key idx}
-             [:div.log-entry
+             [(if (and (zero? idx) (not typing?)) :div.log-entry.latest :div.log-entry)
               {:on-click (fn []
                            (when input
                              (.writeText js/navigator.clipboard input)
