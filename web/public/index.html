@@ -112,15 +112,26 @@
       background: var(--surface);
       border-bottom: 1px solid var(--border);
       border-radius: 0;
-      padding: 0.5rem 0.75rem;
+      padding: 0.5rem 3.5rem 0.5rem 1rem;
       margin: -1rem -1rem 0.5rem -1rem;
       display: flex;
       align-items: center;
-      justify-content: space-between;
       gap: 0.75rem;
       z-index: 5;
       font-family: "SF Mono", "Fira Code", "Fira Mono", monospace;
       font-size: 0.95rem;
+    }
+
+    .preview-spacer {
+      flex-shrink: 0;
+      font-size: 1.4rem;
+      font-weight: 700;
+      visibility: hidden;
+    }
+
+    .preview-answer {
+      flex: 1;
+      min-width: 0;
     }
 
     .preview-result {

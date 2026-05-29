@@ -345,15 +345,17 @@
      [:main {:ref #(reset! log-ref %)}
       (when preview
         [:div.preview-bar
-         (cond
-           (:error preview)
-           [:span.preview-error (:error preview)]
+         [:span.preview-spacer {:aria-hidden "true"} "calc"]
+         [:span.preview-answer
+          (cond
+            (:error preview)
+            [:span.preview-error (:error preview)]
 
-           (:target preview)
-           [:span.preview-result (str "= " (:result preview) " " (:target preview))]
+            (:target preview)
+            [:span.preview-result (str "= " (:result preview) " " (:target preview))]
 
-           :else
-           [:span.preview-result (str "= " (:result preview))])
+            :else
+            [:span.preview-result (str "= " (:result preview))])]
          [:button.convert {:on-click evaluate!} "="]])
       (if (= :help (:page @state))
         [help-page]
