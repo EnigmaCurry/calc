@@ -149,17 +149,30 @@
      "\u2190 Back"]
     [:h2 "Help"]]
    [:p.help-intro
+    [:strong "calc"] " is a unit conversion calculator that understands natural English. "
+    "It supports dimensional analysis across length, weight, volume, temperature, speed, time, data, and more. "
     "All conversions run 100% client-side in your browser \u2014 nothing is sent to a server. "
-    "This app is a PWA (Progressive Web App) \u2014 you can install it to your device from your browser menu and use it offline. "
-    "Type natural English phrases like "
+    "This app is a PWA (Progressive Web App) \u2014 you can install it to your device from your browser menu and use it offline."]
+   [:p.help-intro
+    "Type natural phrases like "
     [:code "5 feet in meters"]
-    " or "
+    ", "
+    [:code "100 fahrenheit to celsius"]
+    ", or "
     [:code "100 GB / 10 Mbps in minutes"]
-    ". You can also calculate percentages: "
+    ". Mixed quantities work too: "
+    [:code "5 feet 11 inches to cm"]
+    ". You can calculate percentages ("
     [:code "15% of 50"]
-    " or "
+    ", "
     [:code "10 is what percent of 100?"]
-    ". Compound units work with "
+    "), do basic math ("
+    [:code "3 * (4 + 5)"]
+    "), and control output formatting ("
+    [:code "7 inches in feet as a fraction"]
+    ", "
+    [:code "pi rounded to 5 decimals"]
+    "). Compound units work with "
     [:code "/"]
     " and "
     [:code "*"]
