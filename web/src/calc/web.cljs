@@ -150,6 +150,7 @@
     [:h2 "Available Units"]]
    [:p.help-intro
     "All conversions run 100% client-side in your browser \u2014 nothing is sent to a server. "
+    "This app is a PWA (Progressive Web App) \u2014 you can install it to your device from your browser menu and use it offline. "
     "Type natural English phrases like "
     [:code "5 feet in meters"]
     " or "
