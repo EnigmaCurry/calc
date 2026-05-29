@@ -214,6 +214,30 @@
     (.close terminal)
     result))
 
+(defn- repl-help []
+  (str/join
+   "\n"
+   ["REPL commands:"
+    "  /help             Show this help"
+    "  /p N              Set precision to N decimal places"
+    "  /s N              Set significant figures to N"
+    "  /p                Clear precision setting"
+    "  /s                Clear sig-figs setting"
+    "  /clear            Clear screen and history"
+    "  /reset            Clear screen and history"
+    "  /quit, /exit      Exit the REPL"
+    ""
+    "Type any calculation expression at the prompt."]))
+
+(defn- parse-slash-command
+  "Parse a slash command from trimmed input. Returns [cmd arg] or nil if not a slash command."
+  [input]
+  (when (str/starts-with? input "/")
+    (let [parts (str/split (subs input 1) #"\s+" 2)
+          cmd (first parts)
+          arg (second parts)]
+      [cmd arg])))
+
 (defn repl
   "Launch an interactive REPL with JLine readline support."
   []
@@ -221,36 +245,84 @@
         reader   (-> (LineReaderBuilder/builder) (.terminal terminal) (.build))
         hist-path (str (System/getProperty "user.home") "/.calc_history")]
     (.setVariable reader LineReader/HISTORY_FILE hist-path)
-    (println "calc — type 'help' for usage, Ctrl-D to exit")
-    (loop []
+    (println "calc — type '/help' for usage, Ctrl-D to exit")
+    (loop [fmt-opts nil]
       (let [line (try (.readLine reader "calc> ")
                       (catch EndOfFileException _ ::eof)
-                      (catch UserInterruptException _ ::interrupt))]
-        (cond
-          (= ::eof line) nil
-          (= ::interrupt line) (recur)
-          :else
-          (let [input (str/trim line)]
-            (when-not (str/blank? input)
-              (cond
-                (= "help" input)
-                (println (usage))
+                      (catch UserInterruptException _ ::interrupt))
+            next-opts
+            (cond
+              (= ::eof line) ::exit
+              (= ::interrupt line) fmt-opts
+              :else
+              (let [input (str/trim line)]
+                (cond
+                  (str/blank? input) fmt-opts
 
-                (#{"exit" "quit"} input)
-                nil
+                  (#{"exit" "quit"} input) ::exit
 
-                :else
-                (try
-                  (let [{:keys [error result from target]} (process-request-text input nil)]
-                    (if error
-                      (println error)
-                      (if (and from target)
-                        (println (str from " = " result " " target))
-                        (println result))))
-                  (catch Exception e
-                    (println "Error:" (.getMessage e))))))
-            (when-not (#{"exit" "quit"} input)
-              (recur))))))))
+                  (str/starts-with? input "/")
+                  (let [[cmd arg] (parse-slash-command input)]
+                    (case cmd
+                      "help"
+                      (do (println (repl-help)) fmt-opts)
+
+                      ("clear" "reset")
+                      (do
+                        (.purge (.getHistory reader))
+                        (print "\033[2J\033[H")
+                        (flush)
+                        (println "Screen and history cleared.")
+                        fmt-opts)
+
+                      "p"
+                      (if (str/blank? arg)
+                        (do (println "Precision cleared.")
+                            (dissoc (or fmt-opts {}) :round))
+                        (try
+                          (let [n (Long/parseLong (str/trim arg))]
+                            (println (str "Precision set to " n " decimal places."))
+                            (-> (or fmt-opts {}) (dissoc :sig-figs) (assoc :round n)))
+                          (catch NumberFormatException _
+                            (println "Error: /p requires a number")
+                            fmt-opts)))
+
+                      "s"
+                      (if (str/blank? arg)
+                        (do (println "Sig-figs cleared.")
+                            (dissoc (or fmt-opts {}) :sig-figs))
+                        (try
+                          (let [n (Long/parseLong (str/trim arg))]
+                            (println (str "Sig-figs set to " n "."))
+                            (-> (or fmt-opts {}) (dissoc :round) (assoc :sig-figs n)))
+                          (catch NumberFormatException _
+                            (println "Error: /s requires a number")
+                            fmt-opts)))
+
+                      ("quit" "exit")
+                      ::exit
+
+                      ;; unknown slash command
+                      (do (println (str "Unknown command: /" cmd))
+                          fmt-opts)))
+
+                  (= "help" input)
+                  (do (println (repl-help)) fmt-opts)
+
+                  :else
+                  (do
+                    (try
+                      (let [{:keys [error result from target]} (process-request-text input fmt-opts)]
+                        (if error
+                          (println error)
+                          (if (and from target)
+                            (println (str from " = " result " " target))
+                            (println result))))
+                      (catch Exception e
+                        (println "Error:" (.getMessage e))))
+                    fmt-opts))))]
+        (when-not (= ::exit next-opts)
+          (recur next-opts))))))
 
 (defn process-stdin
   "Read lines from stdin and process each as a calc request."
