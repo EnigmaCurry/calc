@@ -45,6 +45,8 @@
       (str/replace #"~\s*" "~ ")
       ;; 12ft -> 12 ft, 100kg -> 100 kg
       (str/replace #"(\d)([A-Za-z])" "$1 $2")
+      ;; Normalize % to percent
+      (str/replace #"(\d)\s*%" "$1 percent")
       ;; Collapse whitespace around / between unit words: "meters / second" → "meters/second"
       (str/replace #"([A-Za-z])\s*/\s*([A-Za-z])" "$1/$2")
       ;; Collapse whitespace around / between digits: "21349 /234234" → "21349/234234"
@@ -675,13 +677,54 @@
    (when-let [[_ lhs _ rhs] (re-matches #"(?i)^(?:(?:how much is|what is|convert)\s+)?(.+?)\s+(in|to)\s+(.+?)$" input)]
      {:from (str/trim lhs) :target (str/trim rhs)})))
 
+(defn- parse-percentage-number
+  "Parse a number from the start of a string, returning [value remaining-str] or nil."
+  [s]
+  (let [s (str/trim s)
+        tokens (->> (str/split s #"\s+") (remove str/blank?) vec)]
+    (when-let [[value j] (parse-number-at tokens 0)]
+      [value (str/trim (str/join " " (subvec tokens j)))])))
+
+(defn parse-percentage
+  "Try to parse a percentage expression. Returns a request map or nil.
+   Supports:
+     'X is what percent of Y'  → {:op :percentage :type :what-percent :value X :total Y}
+     'what percent of Y is X'  → same
+     'what percentage of Y is X' → same
+     'X percent of Y'          → {:op :percentage :type :percent-of :percent X :value Y}
+     'X% of Y'                 → same (% normalized to 'percent' by clean-phrase)"
+  [s]
+  (let [lower (str/lower-case s)]
+    (or
+     ;; "X is what percent of Y" / "X is what percentage of Y"
+     (when-let [[_ x-str y-str] (re-matches #"(?i)^(.+?)\s+is\s+what\s+percent(?:age)?\s+of\s+(.+)$" s)]
+       (when-let [[x _] (parse-percentage-number x-str)]
+         (when-let [[y _] (parse-percentage-number y-str)]
+           {:op :percentage :type :what-percent :value x :total y})))
+
+     ;; "what percent of Y is X" / "what percentage of Y is X"
+     (when-let [[_ y-str x-str] (re-matches #"(?i)^what\s+percent(?:age)?\s+of\s+(.+?)\s+is\s+(.+)$" s)]
+       (when-let [[x _] (parse-percentage-number x-str)]
+         (when-let [[y _] (parse-percentage-number y-str)]
+           {:op :percentage :type :what-percent :value x :total y})))
+
+     ;; "X percent of Y"
+     (when-let [[_ x-str y-str] (re-matches #"(?i)^(.+?)\s+percent\s+of\s+(.+)$" s)]
+       (when-let [[x _] (parse-percentage-number x-str)]
+         (when-let [[y _] (parse-percentage-number y-str)]
+           {:op :percentage :type :percent-of :percent x :value y}))))))
+
 (defn parse-request [phrase]
   (let [original phrase]
     (try
       (let [cleaned (evaluate-math-exprs (clean-phrase phrase))
             [without-format format] (extract-format cleaned)
             [without-approx approx?] (extract-approx without-format)
-            pieces (split-request without-approx)]
+            pct (parse-percentage without-approx)]
+        (if pct
+          (cond-> pct
+            format (assoc :format format))
+          (let [pieces (split-request without-approx)]
         (if-not pieces
           ;; No "in"/"to" target — try as a standalone quantity expression
           (let [qty (try (parse-quantity without-approx)
@@ -710,7 +753,7 @@
                                      :to (parse-unit-phrase to-str)}
                               approx? (assoc :approx? true)
                               format (assoc :format format))]
-                request)))))
+                request)))))))
       #?(:clj (catch clojure.lang.ExceptionInfo ex
                 (or (parse-error original ex)
                     {:error :unparseable

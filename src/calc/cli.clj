@@ -162,19 +162,25 @@
           result (ev/convert-request parsed)]
       (if-not (:ok? result)
         {:error (format-error result)}
-        (if (:unit-label result)
-          {:result (str (fmt/format-number (:value result) effective-fmt)
-                        " " (:unit-label result))
-           :from (format-quantity-label (:quantity parsed))
-           :target nil}
-          (if (= :auto (:to parsed))
-            ;; Auto-scale couldn't find a better unit — display original quantity as-is
-            {:result (format-quantity-label (:quantity parsed))
-             :from nil
-             :target nil}
-            {:result (fmt/format-number (:value result) effective-fmt)
+        (if (= :percentage (:op parsed))
+          ;; Percentage result
+          (if (:unit-label result)
+            {:result (str (fmt/format-number (:value result) effective-fmt)
+                          (:unit-label result))}
+            {:result (fmt/format-number (:value result) effective-fmt)})
+          (if (:unit-label result)
+            {:result (str (fmt/format-number (:value result) effective-fmt)
+                          " " (:unit-label result))
              :from (format-quantity-label (:quantity parsed))
-             :target (format-unit-label (:to parsed))}))))))
+             :target nil}
+            (if (= :auto (:to parsed))
+              ;; Auto-scale couldn't find a better unit — display original quantity as-is
+              {:result (format-quantity-label (:quantity parsed))
+               :from nil
+               :target nil}
+              {:result (fmt/format-number (:value result) effective-fmt)
+               :from (format-quantity-label (:quantity parsed))
+               :target (format-unit-label (:to parsed))})))))))
 
 (defn usage []
   (str/join

@@ -1,5 +1,6 @@
 (ns calc.request-test
   (:require [clojure.test :refer [deftest testing is]]
+            [clojure.string :as str]
             [calc.eval :as ev]
             [calc.cli :as cli]))
 
@@ -117,6 +118,31 @@
                    :to :Gb})]
       (is (:ok? result))
       (is (= 6.4M (:value result))))))
+
+(deftest evaluates-percentage-expressions
+  (testing "what percent: 10 is what percent of 100 = 10%"
+    (let [{:keys [result]} (cli/process-request-text "10 is what percent of 100" nil)]
+      (is (= "10%" result))))
+
+  (testing "what percent: 1 is what percent of 3"
+    (let [{:keys [result]} (cli/process-request-text "1 is what percent of 3" nil)]
+      (is (str/starts-with? result "33.3333"))))
+
+  (testing "percent of: 15 percent of 50 = 7.5"
+    (let [{:keys [result]} (cli/process-request-text "15 percent of 50" nil)]
+      (is (= "7.5" result))))
+
+  (testing "percent of: 50 percent of 200 = 100"
+    (let [{:keys [result]} (cli/process-request-text "50 percent of 200" nil)]
+      (is (= "100" result))))
+
+  (testing "percent sign syntax: 15% of 50 = 7.5"
+    (let [{:keys [result]} (cli/process-request-text "15% of 50" nil)]
+      (is (= "7.5" result))))
+
+  (testing "reversed form: what percent of 100 is 25 = 25%"
+    (let [{:keys [result]} (cli/process-request-text "what percent of 100 is 25" nil)]
+      (is (= "25%" result)))))
 
 (deftest rejects-incompatible-dimensions
   (testing "length cannot convert to mass"

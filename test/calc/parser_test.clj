@@ -556,6 +556,40 @@
        :quantity {:value 1/2 :unit :cup}
        :to :tbsp})))
 
+(deftest parses-percentage-expressions
+  (testing "'X is what percent of Y' form"
+    (are [phrase expected] (= expected (parser/parse-request phrase))
+
+      "10 is what percent of 100"
+      {:op :percentage :type :what-percent :value 10N :total 100N}
+
+      "25 is what percent of 200?"
+      {:op :percentage :type :what-percent :value 25N :total 200N}
+
+      "1 is what percentage of 3"
+      {:op :percentage :type :what-percent :value 1N :total 3N}))
+
+  (testing "'what percent of Y is X' form"
+    (are [phrase expected] (= expected (parser/parse-request phrase))
+
+      "what percent of 100 is 25"
+      {:op :percentage :type :what-percent :value 25N :total 100N}
+
+      "what percentage of 200 is 50"
+      {:op :percentage :type :what-percent :value 50N :total 200N}))
+
+  (testing "'X percent of Y' form"
+    (are [phrase expected] (= expected (parser/parse-request phrase))
+
+      "15 percent of 50"
+      {:op :percentage :type :percent-of :percent 15N :value 50N}
+
+      "50 percent of 200"
+      {:op :percentage :type :percent-of :percent 50N :value 200N}
+
+      "15% of 50"
+      {:op :percentage :type :percent-of :percent 15N :value 50N})))
+
 (deftest parses-slash-unit-separator
   (testing "'/' works like 'per' in unit phrases"
     (are [phrase expected] (= expected (parser/parse-request phrase))

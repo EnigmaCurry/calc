@@ -224,11 +224,26 @@
     :else
     {:ok? true :value result}))
 
+(defn- evaluate-percentage [{:keys [type value total percent] :as _request}]
+  (case type
+    :what-percent
+    (let [result (u/normalize-number
+                  (u/safe-div (* (u/->bigdec value) (u/->bigdec 100)) (u/->bigdec total)))]
+      {:value result :unit-label "%"})
+
+    :percent-of
+    (let [result (u/normalize-number
+                  (u/safe-div (* (u/->bigdec percent) (u/->bigdec value)) (u/->bigdec 100)))]
+      {:value result})))
+
 (defn convert-request [{:keys [op quantity to] :as request}]
   (wrap-result
    (cond
      (error? request)
      request
+
+     (= op :percentage)
+     (evaluate-percentage request)
 
      (not= op :convert)
      {:error :unsupported-operation
