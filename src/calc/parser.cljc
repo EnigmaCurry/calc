@@ -57,7 +57,8 @@
       ;; 12ft -> 12 ft, 100kg -> 100 kg
       ;; But preserve ordinals like 4th, 2nd, 3rd, 5th etc.
       (str/replace #"(\d)(?!(?:st|nd|rd|th)\b)([A-Za-z])" "$1 $2")
-      ;; Normalize % to percent
+      ;; Normalize % between two numbers to mod (modulo), standalone % to percent
+      (str/replace #"(\d)\s*%\s*(\d)" "$1 mod $2")
       (str/replace #"(\d)\s*%" "$1 percent")
       ;; Collapse whitespace around / between unit words: "meters / second" → "meters/second"
       (str/replace #"([A-Za-z])\s*/\s*([A-Za-z])" "$1/$2")
@@ -204,7 +205,7 @@
 
             (= ch ",") (recur (inc i) (conj tokens [:comma]))
 
-            (#{"+" "*" "/" "^"} ch)
+            (#{"+" "*" "/" "^" "%"} ch)
             (recur (inc i) (conj tokens [:op ch]))
 
             (= ch "-")
@@ -321,10 +322,14 @@
     (loop [acc v0, p p0]
       (if (and (< p (count tokens))
                (= :op (first (nth tokens p)))
-               (#{"*" "/"} (second (nth tokens p))))
+               (#{"*" "/" "%"} (second (nth tokens p))))
         (let [op (second (nth tokens p))]
           (if-let [[v2 p2] (math-parse-power tokens (inc p))]
-            (recur (if (= "*" op) (* acc v2) (math-div acc v2)) p2)
+            (recur (case op
+                     "*" (* acc v2)
+                     "/" (math-div acc v2)
+                     "%" (mod acc v2))
+                   p2)
             [acc p]))
         [acc p]))))
 
@@ -377,7 +382,7 @@
             (when-let [v (parse-math (str/join " " parts))]
               [v j])))
         ;; Expecting an operator (+, -, *)
-        (if (and tok (= 1 (count tok)) (#{"+" "-" "*" "^"} tok))
+        (if (and tok (= 1 (count tok)) (#{"+" "-" "*" "^" "%"} tok))
           (recur (inc j) (conj parts tok))
           (when (>= (count parts) 3)
             (when-let [v (parse-math (str/join " " parts))]
@@ -870,6 +875,19 @@
        (when-let [[value _] (parse-percentage-number val-str)]
          {:op :root :degree 3 :value value})))))
 
+(defn parse-modulo
+  "Try to parse a modulo expression. Returns a request map or nil.
+   Supports:
+     'X mod Y'     → {:op :modulo :dividend X :divisor Y}
+     'X modulo Y'  → same
+     'what is X mod Y' → same"
+  [s]
+  (or
+   (when-let [[_ x-str y-str] (re-matches #"(?i)^(?:what\s+is\s+)?(.+?)\s+mod(?:ulo)?\s+(.+)$" s)]
+     (when-let [[x _] (parse-percentage-number x-str)]
+       (when-let [[y _] (parse-percentage-number y-str)]
+         {:op :modulo :dividend x :divisor y})))))
+
 (defn parse-request [phrase]
   (let [original phrase]
     (try
@@ -877,12 +895,16 @@
             [without-format format] (extract-format cleaned)
             [without-approx approx?] (extract-approx without-format)
             pct (parse-percentage without-approx)
-            root (when-not pct (parse-root without-approx))]
+            root (when-not pct (parse-root without-approx))
+            modulo (when-not (or pct root) (parse-modulo without-approx))]
         (if pct
           (cond-> pct
             format (assoc :format format))
         (if root
           (cond-> root
+            format (assoc :format format))
+        (if modulo
+          (cond-> modulo
             format (assoc :format format))
           (let [pieces (split-request without-approx)]
         (if-not pieces
@@ -913,7 +935,7 @@
                                      :to (parse-unit-phrase to-str)}
                               approx? (assoc :approx? true)
                               format (assoc :format format))]
-                request))))))))
+                request)))))))))
       #?(:clj (catch clojure.lang.ExceptionInfo ex
                 (or (parse-error original ex)
                     {:error :unparseable

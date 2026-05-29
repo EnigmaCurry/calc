@@ -173,6 +173,9 @@
         (= :root (:op parsed))
         {:result (fmt/format-number (:value result) effective-fmt)}
 
+        (= :modulo (:op parsed))
+        {:result (fmt/format-number (:value result) effective-fmt)}
+
         (:unit-label result)
         {:result (str (fmt/format-number (:value result) effective-fmt)
                       " " (:unit-label result))
@@ -217,6 +220,8 @@
     "  calc cbrt 64                    # → 4"
     "  calc fifth root of 32           # → 2"
     "  calc root(3, 125)               # → 5"
+    "  calc 10 % 4                     # → 2 (modulo)"
+    "  calc 10 mod 3                   # → 1 (modulo)"
     "  calc --list"
     "  calc --list --kind length"]))
 
@@ -299,6 +304,8 @@
     "  fifth root of 32              → 2"
     "  root(3, 125)                  → 5"
     "  2 * sqrt(25)                  → 10"
+    "  10 % 4                          → 2 (modulo)"
+    "  10 mod 3                        → 1 (modulo)"
     "  100 MB / 100 Mbps in seconds  → 8 s"]))
 
 (defn- parse-slash-command

@@ -282,6 +282,10 @@
          {:value (js/Math.round result)}
          {:value result}))))
 
+(defn- evaluate-modulo [{:keys [dividend divisor]}]
+  (let [result (u/normalize-number (mod (u/->bigdec dividend) (u/->bigdec divisor)))]
+    {:value result}))
+
 (defn convert-request [{:keys [op quantity to] :as request}]
   (wrap-result
    (cond
@@ -293,6 +297,9 @@
 
      (= op :root)
      (evaluate-root request)
+
+     (= op :modulo)
+     (evaluate-modulo request)
 
      (not= op :convert)
      {:error :unsupported-operation
