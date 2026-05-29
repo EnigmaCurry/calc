@@ -227,8 +227,9 @@
     "It supports dimensional analysis across length, weight, volume, temperature, speed, time, data, and more. "
     "This page is a static HTML/JS PWA (Progressive Web App) - all calculations are performed client-side in your browser. "
     "You can install this page from your browser menu to your desktop / home screen and run it offline as an app. "
-    "You can also " [:a {:href "/calc.html" :download "calc.html"} "download calc.html"]
-    " \u2014 a single self-contained file you can run from anywhere."]
+    "You can also download a single self-contained file you can run from anywhere."]
+   [:div {:style {:text-align "center" :margin-bottom "1.5rem"}}
+    [:a.download-btn {:href "/calc.html" :download "calc.html"} "Download"]]
    (for [[group-name entries] help-example-groups]
      ^{:key group-name}
      [:div.unit-group
