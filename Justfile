@@ -1,5 +1,9 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
+# Run a command via nix develop if available, otherwise directly
+_nix *CMD:
+    @if command -v nix &>/dev/null; then nix develop --command bash -c "{{CMD}}"; else bash -c "{{CMD}}"; fi
+
 # Show available commands
 help:
     just --list
@@ -18,17 +22,16 @@ _test-clj:
 
 # Run tests in both Babashka and Clojure JVM
 test:
-    nix develop --command bash -c "bb test && clojure -M:test"
+    just _nix "bb test && clojure -M:test"
 
 # Build the static ClojureScript web app (output: web/public/)
 web-build:
-    nix develop --command bash -c "cd web && npm ci && npx shadow-cljs release app"
+    just _nix "cd web && npm ci && npx shadow-cljs release app"
 
 # Run the web app dev server with hot reload (http://localhost:8080)
 web-dev:
-    nix develop --command bash -c "cd web && npm ci && npx shadow-cljs watch app"
+    just _nix "cd web && npm ci && npx shadow-cljs watch app"
 
 # Run a conversion (e.g., just calc 5 miles to km)
 calc *ARGS:
-    @nix develop --command bb calc {{ARGS}}
-
+    @just _nix "bb calc {{ARGS}}"
