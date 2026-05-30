@@ -176,6 +176,14 @@
         (= :modulo (:op parsed))
         {:result (fmt/format-number (:value result) effective-fmt)}
 
+        ;; Mixed output (e.g., "feet and inches")
+        (:mixed result)
+        {:result (str/join " "
+                           (for [{:keys [value unit-label]} (:mixed result)]
+                             (str (fmt/format-number value effective-fmt) " " unit-label)))
+         :from (format-quantity-label (:quantity parsed))
+         :target nil}
+
         (:unit-label result)
         {:result (str (fmt/format-number (:value result) effective-fmt)
                       " " (:unit-label result))

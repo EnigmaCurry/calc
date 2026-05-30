@@ -230,11 +230,16 @@
 (defn- wrap-result
   "Wrap an internal result into a uniform envelope.
    Success: {:ok? true :value N} or {:ok? true :value N :unit-label \"days\"}
+            or {:ok? true :mixed [{:value N :unit-label \"ft\"} ...]}
    Error:   {:ok? false :error :kind ...}"
   [result]
   (cond
     (error? result)
     (assoc result :ok? false)
+
+    ;; Mixed output result
+    (and (map? result) (contains? result :mixed))
+    (assoc result :ok? true)
 
     ;; Auto-scaled result from evaluate-qty-expr-auto / auto-select-unit
     (and (map? result) (contains? result :value))
@@ -286,6 +291,54 @@
   (let [result (u/normalize-number (mod (u/->bigdec dividend) (u/->bigdec divisor)))]
     {:value result}))
 
+(defn- convert-to-mixed-units
+  "Convert a single value+unit to a vector of mixed output units.
+   E.g., 180 cm → [{:value 5 :unit-label \"ft\"} {:value 10.866... :unit-label \"in\"}]
+   The last unit gets the fractional remainder."
+  [value from-unit to-units]
+  (let [;; First convert to the first target unit to get the total
+        first-to (first to-units)]
+    (if (temperature-request? from-unit first-to)
+      ;; Temperature doesn't support mixed output
+      {:error :incompatible-dimensions
+       :from (:dim (u/unit-spec from-unit))
+       :to "mixed units"}
+      (let [;; Check all target units are compatible
+            from-dim (:dim (u/unit-spec from-unit))
+            _ (doseq [tu to-units]
+                (when (not= from-dim (:dim (u/unit-spec tu)))
+                  (throw (ex-info "Incompatible mixed target units"
+                                  {:error :incompatible-dimensions
+                                   :from from-dim
+                                   :to (:dim (u/unit-spec tu))}))))
+            ;; Convert source to SI base value
+            from-spec (u/unit-spec from-unit)
+            si-value (* (coerce-to-decimal value) (:scale from-spec))
+            ;; Cascade through target units largest-to-smallest
+            results (loop [remaining-si si-value
+                           units to-units
+                           acc []]
+                      (if (= 1 (count units))
+                        ;; Last unit gets the remainder
+                        (let [u (first units)
+                              spec (u/unit-spec u)
+                              converted (u/normalize-number
+                                         (u/safe-div remaining-si (:scale spec)))]
+                          (conj acc {:value converted
+                                     :unit-label (format-unit-label u)}))
+                        (let [u (first units)
+                              spec (u/unit-spec u)
+                              converted (u/safe-div remaining-si (:scale spec))
+                              whole #?(:clj (bigint (long (Math/floor (double converted))))
+                                       :cljs (js/Math.floor converted))
+                              used (* (coerce-to-decimal whole) (:scale spec))
+                              leftover (- remaining-si used)]
+                          (recur leftover
+                                 (rest units)
+                                 (conj acc {:value (u/normalize-number whole)
+                                            :unit-label (format-unit-label u)})))))]
+        {:mixed results}))))
+
 (defn convert-request [{:keys [op quantity to] :as request}]
   (wrap-result
    (cond
@@ -304,6 +357,31 @@
      (not= op :convert)
      {:error :unsupported-operation
       :op op}
+
+     ;; Mixed output target (e.g., "feet and inches")
+     (vector? to)
+     (cond
+       (vector? quantity)
+       ;; Mixed input → mixed output: sum inputs first
+       (let [first-to (first to)
+             summed (convert-mixed quantity first-to)]
+         (if (error? summed)
+           summed
+           (convert-to-mixed-units summed first-to to)))
+
+       (:qty-expr quantity)
+       ;; Quantity expression → mixed output
+       (let [first-to (first to)
+             result (evaluate-qty-expr quantity first-to)]
+         (if (error? result)
+           result
+           (convert-to-mixed-units result first-to to)))
+
+       (map? quantity)
+       (convert-to-mixed-units (:value quantity) (:unit quantity) to)
+
+       :else
+       {:error :invalid-request :request request})
 
      (and (:qty-expr quantity) (= to :auto))
      (evaluate-qty-expr-auto quantity)

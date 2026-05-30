@@ -557,6 +557,46 @@
       (empty? tokens)
       (throw (ex-info "Missing unit" {:error :missing-unit}))
 
+      ;; Mixed output target: "feet and inches", "hours, minutes, and seconds"
+      ;; Commas are stripped by clean-phrase, so "hours, minutes, and seconds"
+      ;; becomes "hours minutes and seconds". We split on "and" first, then
+      ;; expand multi-token groups into individual units (unless they form a
+      ;; known compound like "nautical miles").
+      (some #{"and"} lower-tokens)
+      (let [;; Split on "and" into groups of tokens
+            groups (loop [remaining tokens, current [], groups []]
+                     (if (empty? remaining)
+                       (if (seq current)
+                         (conj groups current)
+                         groups)
+                       (if (= "and" (str/lower-case (first remaining)))
+                         (recur (rest remaining)
+                                []
+                                (if (seq current)
+                                  (conj groups current)
+                                  groups))
+                         (recur (rest remaining)
+                                (conj current (first remaining))
+                                groups))))
+            ;; Expand multi-token groups: try as compound unit first,
+            ;; if it produces a multi-dimensional result, split into individual tokens
+            units (reduce
+                   (fn [acc group]
+                     (if (= 1 (count group))
+                       (conj acc (first group))
+                       ;; Multi-token group — check if it's a compound unit
+                       (let [joined (str/join " " group)]
+                         (if (try (normalize-unit-token joined) true
+                                  #?(:clj (catch Exception _ false)
+                                     :cljs (catch :default _ false)))
+                           (conj acc joined)
+                           (into acc group)))))
+                   []
+                   groups)]
+        (if (>= (count units) 2)
+          (mapv #(parse-unit-phrase %) units)
+          (parse-unit-product tokens)))
+
       (#{"square" "sq" "squared"} (first lower-tokens))
       (unit-map (parse-unit-phrase (str/join " " (rest tokens))) 2)
 

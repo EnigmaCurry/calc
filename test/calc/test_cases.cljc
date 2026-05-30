@@ -74,6 +74,46 @@
     :result "2834"
     :target "g"}
 
+   {:group "Mixed output"
+    :input "180cm in feet and inches"
+    :result "5 ft 10.8661"}
+
+   {:group "Mixed output"
+    :input "90 minutes in hours and minutes"
+    :result "1 hr 30 min"}
+
+   {:group "Mixed output"
+    :input "10000 seconds in hours and minutes and seconds"
+    :result "2 hr 46 min 40 s"}
+
+   {:group "Mixed output"
+    :input "10000 seconds in hours, minutes, and seconds"
+    :result "2 hr 46 min 40 s"}
+
+   {:group "Mixed output"
+    :input "200 lb in stone and pounds"
+    :result "14 st 4 lb"}
+
+   {:group "Mixed output"
+    :input "1 mile in yards and feet"
+    :result "1760 yd 0 ft"}
+
+   {:group "Mixed output"
+    :input "convert 100 inches to feet and inches"
+    :result "8 ft 4 in"}
+
+   {:group "Mixed output"
+    :input "how many feet and inches are in 2 meters"
+    :result "6 ft 6.7"}
+
+   {:group "Mixed output"
+    :input "3.5 hours in hours and minutes"
+    :result "3 hr 30 min"}
+
+   {:group "Mixed output"
+    :input "1.5 km in km and meters"
+    :result "1 km 500 m"}
+
    {:group "Area and volume"
     :input "10 square feet in square meters"
     :result "0.9290304"

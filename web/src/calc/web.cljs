@@ -66,6 +66,13 @@
               (= :modulo (:op parsed))
               {:result (fmt/format-number (:value result) effective-fmt)}
 
+              ;; Mixed output (e.g., "feet and inches")
+              (:mixed result)
+              {:from input
+               :result (str/join " "
+                                 (for [{:keys [value unit-label]} (:mixed result)]
+                                   (str (fmt/format-number value effective-fmt) " " unit-label)))}
+
               (:unit-label result)
               {:from input
                :result (str (fmt/format-number (:value result) effective-fmt) " " (:unit-label result))}

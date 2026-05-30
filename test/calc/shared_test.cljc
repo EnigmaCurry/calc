@@ -24,6 +24,11 @@
               (not (:ok? result))
               {:error (fmt/format-error result)}
 
+              (:mixed result)
+              {:result (str/join " "
+                                 (for [{:keys [value unit-label]} (:mixed result)]
+                                   (str (fmt/format-number value effective-fmt) " " unit-label)))}
+
               (:unit-label result)
               {:result (fmt/format-number (:value result) effective-fmt)
                :target (:unit-label result)}
