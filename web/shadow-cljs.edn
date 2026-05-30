@@ -1,4 +1,4 @@
-{:source-paths ["src" "../src" "test"]
+{:source-paths ["src" "../src" "test" "../test"]
  :dependencies [[reagent "1.2.0"]]
  :builds
  {:app {:target :browser
@@ -9,7 +9,8 @@
                   :compiler-options {:optimizations :advanced}}
         :devtools {:http-root "public"
                    :http-port 8080}}
-  :test {:target :browser-test
-         :test-dir "public/test"
-         :devtools {:http-port 8081}}}
+  :test {:target :node-test
+         :output-to "out/node-test.js"
+         :ns-regexp "calc.shared-test"
+         :autorun true}}
 }
