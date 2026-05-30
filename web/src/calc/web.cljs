@@ -71,9 +71,10 @@
                :result (str (fmt/format-number (:value result) effective-fmt) " " (:unit-label result))}
 
               :else
-              (let [from (format-quantity-label (:quantity parsed))
+              (let [display (parser/split-display-parts input)
+                    from (or (:from display) (format-quantity-label (:quantity parsed)))
                     target (when (not= :auto (:to parsed))
-                             (format-unit-label (:to parsed)))]
+                             (or (:target display) (format-unit-label (:to parsed))))]
                 (if target
                   {:from from
                    :target target
