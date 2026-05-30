@@ -647,3 +647,32 @@
                        :ops [:*]}
             :to :Gb}
            (parser/parse-request "100 MB * 8 in Gb")))))
+
+(deftest parses-scientific-notation
+  (testing "integer scientific notation"
+    (is (= 1.0E+10M (parser/parse-number-token "10E9")))
+    (is (= 1E+3M (parser/parse-number-token "1e3"))))
+
+  (testing "decimal scientific notation"
+    (is (= 3.5E+6M (parser/parse-number-token "3.5e6")))
+    (is (= 3.5E-12M (parser/parse-number-token "3.5e-12")))
+    (is (= 1.5E+3M (parser/parse-number-token "1.5E+3"))))
+
+  (testing "scientific notation in conversion phrases"
+    (is (= {:op :convert
+            :quantity {:value 1.0E+10M :unit :B}
+            :to :GB}
+           (parser/parse-request "10E9 bytes in GB")))
+
+    (is (= {:op :convert
+            :quantity {:value 3.5E+6M :unit :m}
+            :to :km}
+           (parser/parse-request "3.5e6 meters to km"))))
+
+  (testing "scientific notation recognized as numeric token"
+    (is (true? (parser/numeric-token? "10E9")))
+    (is (true? (parser/numeric-token? "3.5e-12")))
+    (is (true? (parser/numeric-token? "1e+3"))))
+
+  (testing "scientific notation in math expressions"
+    (is (= 2.0E+9M (parser/parse-math "1e9 + 1e9")))))

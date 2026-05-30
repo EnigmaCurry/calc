@@ -188,7 +188,8 @@
    "root(3, 125)"
    "2 * sqrt(25)"
    "2 + 2"
-   "3 * (4 + 5)"])
+   "3 * (4 + 5)"
+   "10e9 bytes in GB"])
 
 (def unit-groups units/unit-groups)
 
@@ -220,7 +221,8 @@
      ["5 miles to km" "8.04672 km"]
      ["100 fahrenheit to celsius" "37.7778 \u00b0C"]
      ["how many inches are in 3 feet?" "36 in"]
-     ["3.5 kg to pounds" "7.71618 lb"]]]
+     ["3.5 kg to pounds" "7.71618 lb"]
+     ["10e9 bytes in GB" "10 GB"]]]
    ["Mixed Quantities"
     [["5 feet 11 inches to cm" "180.34 cm"]
      ["1 hour 30 minutes in seconds" "5400 s"]

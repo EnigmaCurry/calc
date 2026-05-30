@@ -56,7 +56,8 @@
       (str/replace #"~\s*" "~ ")
       ;; 12ft -> 12 ft, 100kg -> 100 kg
       ;; But preserve ordinals like 4th, 2nd, 3rd, 5th etc.
-      (str/replace #"(\d)(?!(?:st|nd|rd|th)\b)([A-Za-z])" "$1 $2")
+      ;; And preserve scientific notation like 10E9, 3.5e-12
+      (str/replace #"(\d)(?!(?:st|nd|rd|th)\b)(?![eE][+-]?\d)([A-Za-z])" "$1 $2")
       ;; Normalize % between two numbers to mod (modulo), standalone % to percent
       (str/replace #"(\d)\s*%\s*(\d)" "$1 mod $2")
       (str/replace #"(\d)\s*%" "$1 percent")
@@ -128,12 +129,20 @@
   (boolean
    (or (re-matches #"\d+" s)
        (re-matches #"\d+\.\d+" s)
-       (re-matches #"\d+/\d+" s))))
+       (re-matches #"\d+/\d+" s)
+       (re-matches #"(?i)\d+(?:\.\d+)?[eE][+-]?\d+" s))))
+
+(defn parse-sci-token [s]
+  #?(:clj (bigdec s)
+     :cljs (js/parseFloat s)))
 
 (defn parse-number-token [s]
   (cond
     (re-matches #"\d+/\d+" s)
     (parse-ratio-token s)
+
+    (re-matches #"(?i)\d+(?:\.\d+)?[eE][+-]?\d+" s)
+    (parse-sci-token s)
 
     (re-matches #"\d+\.\d+" s)
     (parse-decimal-token s)
@@ -194,9 +203,25 @@
                                    (or (digit? c) (= c "."))))
                           (recur (inc j))
                           j))
+                  ;; Consume scientific notation suffix: e/E followed by optional +/- and digits
+                  end (if (and (< end n)
+                              (#{"e" "E"} (char-at s end)))
+                        (let [after-e (inc end)
+                              after-sign (if (and (< after-e n)
+                                                  (#{"+" "-"} (char-at s after-e)))
+                                           (inc after-e)
+                                           after-e)
+                              digit-end (loop [k after-sign]
+                                          (if (and (< k n) (digit? (char-at s k)))
+                                            (recur (inc k))
+                                            k))]
+                          (if (> digit-end after-sign)
+                            digit-end
+                            end))
+                        end)
                   ns (subs s i end)
-                  v  (if (str/includes? ns ".")
-                       (parse-decimal-token ns)
+                  v  (if (or (str/includes? ns ".") (re-find #"[eE]" ns))
+                       (parse-sci-token ns)
                        (parse-integer ns))]
               (recur end (conj tokens [:num v])))
 
