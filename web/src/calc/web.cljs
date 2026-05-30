@@ -181,6 +181,7 @@
    "2 cups in tablespoons"
    "3 feet in inches"
    "5 feet 11 inches to cm"
+   "180cm in feet and inches"
    "10 is what percent of 250?"
    "100 fahrenheit to celsius"
    "60 mph in ft/s"
@@ -235,6 +236,11 @@
     [["5 feet 11 inches to cm" "180.34 cm"]
      ["1 hour 30 minutes in seconds" "5400 s"]
      ["6 lb 4 oz in grams" "2834.9523 g"]]]
+   ["Mixed Output"
+    [["180cm in feet and inches" "5 ft 10.866... in"]
+     ["90 minutes in hours and minutes" "1 hr 30 min"]
+     ["10000 seconds in hours, minutes, and seconds" "2 hr 46 min 40 s"]
+     ["200 lb in stone and pounds" "14 st 4 lb"]]]
    ["Area & Volume"
     [["10 square feet in square meters" "0.9290304 m\u00b2"]
      ["2 cubic yards to gallons" "403.948 gal"]
