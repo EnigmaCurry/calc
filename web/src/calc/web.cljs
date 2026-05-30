@@ -63,6 +63,9 @@
               (= :root (:op parsed))
               {:result (fmt/format-number (:value result) effective-fmt)}
 
+              (= :modulo (:op parsed))
+              {:result (fmt/format-number (:value result) effective-fmt)}
+
               (:unit-label result)
               {:from input
                :result (str (fmt/format-number (:value result) effective-fmt) " " (:unit-label result))}
