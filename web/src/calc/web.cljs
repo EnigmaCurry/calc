@@ -7,7 +7,7 @@
             [calc.parser :as parser]
             [clojure.string :as str]))
 
-(defn- format-unit-label
+(defn format-unit-label
   "Format an exponent-map unit like {:ft 2} as 'ft²'."
   [unit]
   (cond
@@ -28,7 +28,7 @@
 
     :else (str unit)))
 
-(defn- format-quantity-label
+(defn format-quantity-label
   "Build a canonical display string like '2 m/s' from a parsed quantity."
   [quantity]
   (cond
@@ -328,7 +328,7 @@
   (save-history! [])
   (save-fmt-opts! nil))
 
-(defn- parse-slash-command
+(defn parse-slash-command
   "Parse a slash command. Returns {:cmd name :arg value} or nil."
   [input]
   (when (str/starts-with? input "/")

@@ -6,7 +6,7 @@
 ;; Helpers
 ;; ============================================================================
 
-(defn- format-unit-label
+(defn format-unit-label
   "Format a unit keyword or exponent map as a short canonical string."
   [unit]
   (if (keyword? unit)

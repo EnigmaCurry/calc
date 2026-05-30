@@ -32,6 +32,10 @@ web-build:
 web-dev:
     just _nix "cd web && npm ci && bash gen-dev-html.sh && npx shadow-cljs watch app"
 
+# Run ClojureScript browser tests (http://localhost:8081)
+web-test:
+    just _nix "cd web && npm ci && npx shadow-cljs watch test"
+
 # Remove build artifacts
 clean:
     rm -rf web/node_modules web/.shadow-cljs web/public/js web/public/index.html web/public/sw.js web/public/calc.html

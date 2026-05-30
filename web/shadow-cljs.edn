@@ -1,4 +1,4 @@
-{:source-paths ["src" "../src"]
+{:source-paths ["src" "../src" "test"]
  :dependencies [[reagent "1.2.0"]]
  :builds
  {:app {:target :browser
@@ -8,5 +8,8 @@
         :release {:output-dir "public/js"
                   :compiler-options {:optimizations :advanced}}
         :devtools {:http-root "public"
-                   :http-port 8080}}}
+                   :http-port 8080}}
+  :test {:target :browser-test
+         :test-dir "public/test"
+         :devtools {:http-port 8081}}}
 }
