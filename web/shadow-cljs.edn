@@ -11,6 +11,6 @@
                    :http-port 8080}}
   :test {:target :node-test
          :output-to "out/node-test.js"
-         :ns-regexp "calc.shared-test"
+         :ns-regexp "calc\\.(?!web[-_]).*[-_]test"
          :autorun true}}
 }

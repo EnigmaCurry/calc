@@ -20,20 +20,17 @@
 
 (deftest simple-conversion-test
   (testing "feet to yards"
-    (is (= 4N
-           (ev/convert-scalar 12 :ft :yd))))
+    (is (== 4 (ev/convert-scalar 12 :ft :yd))))
 
   (testing "hours to minutes"
-    (is (= 60N
-           (ev/convert-scalar 1 :hr :min)))))
+    (is (== 60 (ev/convert-scalar 1 :hr :min)))))
 
 (deftest compound-conversion-test
   (testing "miles per hour to feet per second"
     (is (== 88 (ev/convert-scalar 60 [:/ :mi :hr] [:/ :ft :s]))))
 
   (testing "square yards to square feet"
-    (is (= 9N
-           (ev/convert-scalar 1 [:* :yd :yd] [:* :ft :ft])))))
+    (is (== 9 (ev/convert-scalar 1 [:* :yd :yd] [:* :ft :ft])))))
 
 (deftest invalid-conversion-test
   (testing "incompatible conversions return error"
@@ -42,44 +39,35 @@
 
 (deftest length-conversion-test
   (testing "feet to yards"
-    (is (= 4N
-           (ev/convert-scalar 12 :ft :yd))))
+    (is (== 4 (ev/convert-scalar 12 :ft :yd))))
 
   (testing "miles to feet"
-    (is (= 5280N
-           (ev/convert-scalar 1 :mi :ft)))))
+    (is (== 5280 (ev/convert-scalar 1 :mi :ft)))))
 
 (deftest mass-conversion-test
   (testing "kilograms to grams"
-    (is (= 1000N
-           (ev/convert-scalar 1 :kg :g))))
+    (is (== 1000 (ev/convert-scalar 1 :kg :g))))
 
   (testing "pounds to ounces"
-    (is (= 16N
-           (ev/convert-scalar 1 :lb :oz)))))
+    (is (== 16 (ev/convert-scalar 1 :lb :oz)))))
 
 (deftest time-conversion-test
   (testing "hours to minutes"
-    (is (= 60N
-           (ev/convert-scalar 1 :hr :min))))
+    (is (== 60 (ev/convert-scalar 1 :hr :min))))
 
   (testing "days to hours"
-    (is (= 24N
-           (ev/convert-scalar 1 :day :hr)))))
+    (is (== 24 (ev/convert-scalar 1 :day :hr)))))
 
 (deftest area-conversion-test
   (testing "square yards to square feet"
-    (is (= 9N
-           (ev/convert-scalar 1 [:* :yd :yd] [:* :ft :ft])))))
+    (is (== 9 (ev/convert-scalar 1 [:* :yd :yd] [:* :ft :ft])))))
 
 (deftest volume-conversion-test
   (testing "liters to milliliters"
-    (is (= 1000N
-           (ev/convert-scalar 1 :l :ml))))
+    (is (== 1000 (ev/convert-scalar 1 :l :ml))))
 
   (testing "milliliters to liters"
-    (is (= 0.001M
-           (ev/convert-scalar 1 :ml :l)))))
+    (is (== 0.001 (ev/convert-scalar 1 :ml :l)))))
 
 (deftest speed-conversion-test
   (testing "miles per hour to feet per second"

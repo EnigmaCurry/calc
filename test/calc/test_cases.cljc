@@ -69,6 +69,11 @@
     :result "90"
     :target "min"}
 
+   {:group "Mixed quantities"
+    :input "6 lb 4 oz in grams"
+    :result "2834"
+    :target "g"}
+
    {:group "Area and volume"
     :input "10 square feet in square meters"
     :result "0.9290304"
@@ -79,10 +84,20 @@
     :result "403.948"
     :target "gal"}
 
+   {:group "Area and volume"
+    :input "100 sqft in sqm"
+    :result "9.290304"
+    :target "m"}
+
    {:group "Data units"
     :input "1 GB in MB"
     :result "1000"
     :target "MB"}
+
+   {:group "Data units"
+    :input "1 GiB in MiB"
+    :result "1024"
+    :target "MiB"}
 
    {:group "Natural language"
     :input "how many inches are in 3 feet?"
@@ -97,7 +112,22 @@
    {:group "Natural language"
     :input "what is 5 kg in pounds?"
     :result "11.023"
-    :target "lb"}])
+    :target "lb"}
+
+   {:group "Natural language"
+    :input "how many cups are in a gallon?"
+    :result "16"
+    :target "cup"}
+
+   {:group "Compound unit syntax"
+    :input "60 mph in ft/s"
+    :result "88"
+    :target "ft/s"}
+
+   {:group "Compound unit syntax"
+    :input "100 sqft in sqm"
+    :result "9.290304"
+    :target "m"}])
 
 (def math-cases
   [{:group "Arithmetic"
@@ -108,9 +138,29 @@
     :input "3 * (4 + 5)"
     :result "27"}
 
+   {:group "Arithmetic"
+    :input "10 - 3"
+    :result "7"}
+
+   {:group "Arithmetic"
+    :input "2^10"
+    :result "1024"}
+
    {:group "Roots"
     :input "sqrt(144)"
     :result "12"}
+
+   {:group "Roots"
+    :input "sqrt(25)"
+    :result "5"}
+
+   {:group "Roots"
+    :input "2 * sqrt(25)"
+    :result "10"}
+
+   {:group "Roots"
+    :input "sqrt(9) + sqrt(16)"
+    :result "7"}
 
    {:group "Roots"
     :input "cube root of 27"
@@ -121,8 +171,52 @@
     :result "5"}
 
    {:group "Roots"
+    :input "fifth root of 32"
+    :result "2"}
+
+   {:group "Roots"
     :input "square root of 2"
-    :result "1.4142"}])
+    :result "1.4142"}
+
+   {:group "Roots"
+    :input "root(3, 125)"
+    :result "5"}
+
+   {:group "Roots"
+    :input "square root of 2.25"
+    :result "1.5"}
+
+   {:group "Roots"
+    :input "square root of 1000000"
+    :result "1000"}
+
+   {:group "Roots"
+    :input "cube root of 1000000"
+    :result "100"}
+
+   {:group "Root formatting"
+    :input "square root of 2 rounded to 4 decimals"
+    :result "1.4142"}
+
+   {:group "Root formatting"
+    :input "cube root of 2 with 5 sig figs"
+    :result "1.2599"}
+
+   {:group "Modulo"
+    :input "10 mod 4"
+    :result "2"}
+
+   {:group "Modulo"
+    :input "10 mod 3"
+    :result "1"}
+
+   {:group "Modulo"
+    :input "15 modulo 4"
+    :result "3"}
+
+   {:group "Modulo"
+    :input "9 mod 3"
+    :result "0"}])
 
 (def percentage-cases
   [{:group "Percentages"
@@ -135,6 +229,14 @@
 
    {:group "Percentages"
     :input "10 is what percent of 100?"
+    :result "10"}
+
+   {:group "Percentages"
+    :input "what percent of 100 is 25"
+    :result "25"}
+
+   {:group "Percentages"
+    :input "what is 10 percent of 100"
     :result "10"}])
 
 (def formatting-cases
@@ -160,6 +262,10 @@
 
    {:group "Errors"
     :input "12 blorps in meters"
+    :error true}
+
+   {:group "Errors"
+    :input "12 feet in kilograms"
     :error true}])
 
 (def all-cases

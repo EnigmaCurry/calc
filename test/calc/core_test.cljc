@@ -11,7 +11,7 @@
 
   (testing "unknown units throw"
     (is (thrown-with-msg?
-         clojure.lang.ExceptionInfo
+         #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
          #"Unknown unit"
          (u/unit-spec :wat)))))
 
@@ -34,12 +34,12 @@
 (deftest invalid-unit-expression-test
   (testing "invalid expression form throws"
     (is (thrown-with-msg?
-         clojure.lang.ExceptionInfo
+         #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
          #"Invalid unit form"
          (u/unit-spec [:+ :ft :s]))))
 
   (testing "unknown unit keyword throws"
     (is (thrown-with-msg?
-         clojure.lang.ExceptionInfo
+         #?(:clj clojure.lang.ExceptionInfo :cljs ExceptionInfo)
          #"Unknown unit"
          (u/unit-spec :bogus)))))
