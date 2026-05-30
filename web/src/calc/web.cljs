@@ -618,36 +618,37 @@
       (case (:page @state)
         :help [help-page]
         :settings [settings-page]
-        (if (seq history)
-          [:div.log
-           (for [[idx {:keys [input from target result error]}] (map-indexed vector history)]
-             ^{:key idx}
-             [(if (and (zero? idx) (not typing?)) :div.log-entry.latest :div.log-entry)
-              {:on-click (fn []
-                           (when input
-                             (.writeText js/navigator.clipboard input)
-                             (swap! state assoc :input input)
-                             (when-let [el (.querySelector js/document ".input-wrapper input")]
-                               (.focus el)
-                               (js/requestAnimationFrame
-                                (fn []
-                                  (let [len (count input)]
-                                    (.setSelectionRange el len len)))))))}
-              [:span.log-input (or from input)]
-              (cond
-                error
-                [:span.log-error (str " \u2192 " error)]
+        [:<>
+         (when (seq history)
+           [:div.log
+            (for [[idx {:keys [input from target result error]}] (map-indexed vector history)]
+              ^{:key idx}
+              [(if (and (zero? idx) (not typing?)) :div.log-entry.latest :div.log-entry)
+               {:on-click (fn []
+                            (when input
+                              (.writeText js/navigator.clipboard input)
+                              (swap! state assoc :input input)
+                              (when-let [el (.querySelector js/document ".input-wrapper input")]
+                                (.focus el)
+                                (js/requestAnimationFrame
+                                 (fn []
+                                   (let [len (count input)]
+                                     (.setSelectionRange el len len)))))))}
+               [:span.log-input (or from input)]
+               (cond
+                 error
+                 [:span.log-error (str " \u2192 " error)]
 
-                target
-                [:span.log-result (str " = " result " " target)]
+                 target
+                 [:span.log-result (str " = " result " " target)]
 
-                :else
-                [:span.log-result (str " = " result)])])]
-          [:div.examples
-           [:h3 "Try some examples"]
-           [:div.chips
-            (for [ex examples]
-              ^{:key ex} [example-chip ex])]]))]]))
+                 :else
+                 [:span.log-result (str " = " result)])])])
+         [:div.examples
+          [:h3 "Try some examples"]
+          [:div.chips
+           (for [ex examples]
+             ^{:key ex} [example-chip ex])]]])]]))
 
 (defonce root (atom nil))
 
