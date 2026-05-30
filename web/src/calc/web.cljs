@@ -643,16 +643,16 @@
                                  (fn []
                                    (let [len (count input)]
                                      (.setSelectionRange el len len)))))))}
-               [:span.log-input (or from input)]
+               [:span.log-input (str (or from input) " ")]
                (cond
                  error
-                 [:span.log-error (str " \u2192 " error)]
+                 [:span.log-error (str "\u2192 " error)]
 
                  target
-                 [:span.log-result (str " = " result " " target)]
+                 [:span.log-result (str "= " result " " target)]
 
                  :else
-                 [:span.log-result (str " = " result)])
+                 [:span.log-result (str "= " result)])
                [:button.log-delete
                 {:on-click (fn [e]
                              (.stopPropagation e)
