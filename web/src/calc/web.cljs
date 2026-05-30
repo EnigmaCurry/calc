@@ -639,11 +639,11 @@
                               (swap! state assoc :input input)
                               (when-let [el (.querySelector js/document ".input-wrapper input")]
                                 (.focus el)
-                                (js/requestAnimationFrame
+                                (js/setTimeout
                                  (fn []
                                    (let [len (count input)]
-                                     (.setSelectionRange el len len)))))))}
-               [:span.log-input (or from input)]
+                                     (.setSelectionRange el len len)))
+                                 0))))}               [:span.log-input (or from input)]
                (cond
                  error
                  [:span.log-error (str "\u2192 " error)]
