@@ -6,19 +6,20 @@
 
 (defn test-file? [path]
   (and (fs/regular-file? path)
-       (str/ends-with? (str path) "_test.clj")))
+       (re-find #"_test\.cljc?$" (str path))))
 
 (defn path->namespace [path]
   (-> path
       str
       (str/replace #"^test/" "")
-      (str/replace #"\.clj$" "")
+      (str/replace #"\.cljc?$" "")
       (str/replace #"/" ".")
       (str/replace #"_" "-")
       symbol))
 
 (def test-namespaces
-  (->> (fs/glob test-dir "**/*_test.clj")
+  (->> (concat (fs/glob test-dir "**/*_test.clj")
+               (fs/glob test-dir "**/*_test.cljc"))
        (filter test-file?)
        (map path->namespace)
        sort
