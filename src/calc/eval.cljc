@@ -329,6 +329,46 @@
          {:value (js/Math.round result)}
          {:value result}))))
 
+(defn- deg->rad [x]
+  #?(:clj  (* (double x) (/ Math/PI 180.0))
+     :cljs (* x (/ Math/PI 180))))
+
+(defn- rad->deg [x]
+  #?(:clj  (* x (/ 180.0 Math/PI))
+     :cljs (* x (/ 180 Math/PI))))
+
+(def ^:private forward-trig-fns
+  {:sin #(Math/sin %) :cos #(Math/cos %) :tan #(Math/tan %)})
+
+(def ^:private inverse-trig-fns
+  {:asin #(Math/asin %) :acos #(Math/acos %) :atan #(Math/atan %)})
+
+(defn- evaluate-trig
+  "Evaluate a trig function. For forward trig (sin/cos/tan), input is in the
+   given angle-mode and output is a dimensionless number. For inverse trig
+   (asin/acos/atan), input is dimensionless and output is in the given angle-mode."
+  [{:keys [fn value angle-mode]}]
+  (let [v (double value)]
+    (if-let [f (get forward-trig-fns fn)]
+      ;; Forward trig: convert input to radians, compute, return bare number
+      (let [rad (if (= angle-mode :rad) v (deg->rad v))
+            result (f rad)
+            ;; Clean up near-zero results from floating point
+            result (if (< (Math/abs result) 1e-14) 0.0 result)]
+        {:value (u/normalize-number #?(:clj (bigdec result) :cljs result))})
+      ;; Inverse trig: compute in radians, convert output to requested mode
+      (let [f (get inverse-trig-fns fn)
+            rad-result (f v)
+            result (if (= angle-mode :rad)
+                     rad-result
+                     (rad->deg rad-result))
+            ;; Clean up near-zero/near-integer results
+            result (if (< (Math/abs (- result (Math/round result))) 1e-10)
+                     (double (Math/round result))
+                     result)]
+        {:value (u/normalize-number #?(:clj (bigdec result) :cljs result))
+         :unit-label (if (= angle-mode :rad) "rad" "°")}))))
+
 (defn- evaluate-modulo [{:keys [dividend divisor]}]
   (let [result (u/normalize-number (mod (u/->bigdec dividend) (u/->bigdec divisor)))]
     {:value result}))
@@ -498,6 +538,9 @@
 
      (= op :modulo)
      (evaluate-modulo request)
+
+     (= op :trig)
+     (evaluate-trig request)
 
      (= op :tip)
      (evaluate-tip request)

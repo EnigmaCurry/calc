@@ -189,6 +189,9 @@
 
     :modulo (format-number (:value result) fmt-opts)
 
+    :trig (str (format-number (:value result) fmt-opts)
+               (when (:unit-label result) (:unit-label result)))
+
     :tip (let [money-opts (assoc fmt-opts :round 2)
                rows (:rows result)
                fmt-money (fn [v] (format-number v money-opts))
