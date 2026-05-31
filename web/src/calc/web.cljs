@@ -294,22 +294,8 @@
   [:button.example
    {:on-click (fn []
                 (swap! state assoc :input text)
-                (let [ev (evaluate text (effective-fmt-opts))]
-                  (swap! state assoc
-                         :result (:result ev)
-                         :error (:error ev)
-                         :input "")
-                  (swap! state update :history
-                         (fn [h]
-                           (into [{:input text
-                                   :from (:from ev)
-                                   :target (:target ev)
-                                   :result (:result ev)
-                                   :error (:error ev)}]
-                                 h)))
-                  (swap! state assoc :page :calc)
-                  (save-history! (:history @state))
-                  (js/setTimeout scroll-log-to-top 0)))}
+                (when-let [el (.querySelector js/document ".input-wrapper input")]
+                  (.focus el)))}
    text])
 
 (def help-example-groups
@@ -474,29 +460,31 @@
                  :on-change (fn [_] (toggle-theme!))}]
         "Dark mode"]]
       (let [pending (or (:zoom-pending @state) (:zoom @state))]
-        [:div.setting-row
-         [:label.setting-label (str "Zoom: " (.toFixed (js/Number pending) 1))]
-         [:input {:type "range"
-                  :min 0.8 :max 3.0 :step 0.1
-                  :value pending
-                  :style {:width "100%"}
-                  :on-change (fn [e]
-                               (let [v (js/parseFloat (.. e -target -value))]
-                                 (swap! state assoc :zoom-pending v)))}]
-         [:button.back-btn
-          {:on-click (fn []
-                       (let [v (or (:zoom-pending @state) (:zoom @state))]
-                         (swap! state assoc :zoom v :zoom-pending nil)
-                         (save-zoom! v)
-                         (apply-zoom! v)))}
-          "Apply"]
-         [:button.back-btn
-          {:on-click (fn []
-                       (let [d (default-zoom)]
-                         (swap! state assoc :zoom d :zoom-pending nil)
-                         (save-zoom! nil)
-                         (apply-zoom! d)))}
-          "Reset"]])]
+        [:<>
+         [:div.setting-row
+          [:label.setting-label (str "Zoom: " (.toFixed (js/Number pending) 1))]
+          [:input {:type "range"
+                   :min 0.8 :max 3.0 :step 0.1
+                   :value pending
+                   :style {:width "100%"}
+                   :on-change (fn [e]
+                                (let [v (js/parseFloat (.. e -target -value))]
+                                  (swap! state assoc :zoom-pending v)))}]]
+         [:div.setting-row
+          [:button.back-btn
+           {:on-click (fn []
+                        (let [v (or (:zoom-pending @state) (:zoom @state))]
+                          (swap! state assoc :zoom v :zoom-pending nil)
+                          (save-zoom! v)
+                          (apply-zoom! v)))}
+           "Apply"]
+          [:button.back-btn
+           {:on-click (fn []
+                        (let [d (default-zoom)]
+                          (swap! state assoc :zoom d :zoom-pending nil)
+                          (save-zoom! nil)
+                          (apply-zoom! d)))}
+           "Reset"]]])]
      [:div.settings-section
       [:h3 "History"]
       [:div.setting-row
@@ -562,7 +550,7 @@
                  (let [new-opts (assoc defaults :sig-figs n)]
                    (swap! state assoc :default-fmt-opts new-opts)
                    (save-default-fmt-opts! new-opts)))))}])]]
-     (let [prec (or (:precision-pending @state) (:precision @state))
+     (let [prec (:precision @state)
            benchmarking? (:benchmarking @state)]
        [:div.settings-section
         [:h3 "Arithmetic Precision"]
@@ -579,15 +567,10 @@
            (fn [e]
              (let [n (js/parseInt (.. e -target -value) 10)]
                (when (and (not (js/isNaN n)) (>= n 34))
-                 (swap! state assoc :precision-pending n))))}]]
+                 (swap! state assoc :precision n)
+                 (apply-precision! n)
+                 (save-precision! n))))}]]
         [:div.setting-row
-         [:button.back-btn
-          {:on-click (fn []
-                       (let [v (or (:precision-pending @state) (:precision @state))]
-                         (apply-precision! v)
-                         (save-precision! v)
-                         (swap! state assoc :precision v :precision-pending nil)))}
-          "Apply"]
          [:button.back-btn
           {:disabled benchmarking?
            :on-click (fn []
@@ -599,7 +582,6 @@
                             (save-precision! result)
                             (swap! state assoc
                                    :precision result
-                                   :precision-pending nil
                                    :benchmarking false)))
                         50))}
           (if benchmarking? "Running..." "Auto")]
@@ -607,7 +589,7 @@
           {:on-click (fn []
                        (apply-precision! m/default-precision)
                        (save-precision! nil)
-                       (swap! state assoc :precision m/default-precision :precision-pending nil))}
+                       (swap! state assoc :precision m/default-precision))}
           "Reset"]]])]))
 
 (def clear-commands #{"clear" "/clear" "reset" "/reset"})
