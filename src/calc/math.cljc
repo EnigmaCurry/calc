@@ -16,7 +16,7 @@
 #?(:clj (def ^:private math-context MathContext/DECIMAL128))
 #?(:clj (def ^:private output-scale 14))
 
-(def default-precision 200)
+(def default-precision 10000)
 
 #?(:cljs
    (do
