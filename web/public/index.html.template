@@ -330,9 +330,14 @@
 
     pre.log-result {
       white-space: pre;
-      font-family: monospace;
       margin: 0;
+      font-family: inherit;
       font-size: inherit;
+      width: 100%;
+    }
+
+    .log-entry:has(pre.log-result) {
+      flex-wrap: wrap;
     }
 
     .log-error {
