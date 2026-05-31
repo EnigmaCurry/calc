@@ -28,4 +28,10 @@
 (doseq [ns-sym test-namespaces]
   (require ns-sym))
 
-(apply t/run-tests test-namespaces)
+(let [summary (with-redefs [t/report (let [orig-report t/report]
+                                       (fn [m]
+                                         (when-not (= :begin-test-ns (:type m))
+                                           (orig-report m))))]
+                (apply t/run-tests test-namespaces))]
+  (when (pos? (+ (:fail summary 0) (:error summary 0)))
+    (System/exit 1)))
