@@ -191,7 +191,9 @@
          :target nil}
 
         (= :auto (:to parsed))
-        {:result (format-quantity-label (:quantity parsed))
+        {:result (if (:value result)
+                   (fmt/format-number (:value result) effective-fmt)
+                   (format-quantity-label (:quantity parsed)))
          :from nil
          :target nil}
 

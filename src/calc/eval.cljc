@@ -215,6 +215,20 @@
     (or (try-compound-unit dim si-value)
         {:value (u/normalize-number si-value) :unit-label nil})))
 
+(defn- expr-unit-label
+  "Build a human-readable unit label from expression terms and ops.
+   E.g., [{:unit :V} {:unit :W}] [:*] → \"volts·watts\""
+  [terms ops]
+  (let [op-sym {:* "·" :/ "/"}
+        first-label (get u/unit-display-names (:unit (first terms))
+                         (name (:unit (first terms))))]
+    (reduce (fn [s [op term]]
+              (let [label (get u/unit-display-names (:unit term)
+                               (name (:unit term)))]
+                (str s (get op-sym op "?") label)))
+            first-label
+            (map vector ops (rest terms)))))
+
 (defn- evaluate-qty-expr-auto
   "Evaluate a quantity expression and auto-select the best output unit."
   [{:keys [terms ops]}]
@@ -241,7 +255,10 @@
                 (map vector ops (rest terms)))]
     (if (:error result)
       result
-      (auto-select-unit (:dim result) (:value result)))))
+      (let [auto (auto-select-unit (:dim result) (:value result))]
+        (if (:unit-label auto)
+          auto
+          (assoc auto :unit-label (expr-unit-label terms ops)))))))
 
 ;; ============================================================================
 ;; Request dispatch
