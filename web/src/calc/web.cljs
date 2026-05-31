@@ -8,13 +8,6 @@
             [calc.parser :as parser]
             [clojure.string :as str]))
 
-(defn wrap-continuation
-  "Prefix continuation lines with ↪ for visual indication."
-  [s]
-  (let [lines (str/split (str s) #"\n")]
-    (str/join "\n" (cons (first lines)
-                         (map #(str "↪ " %) (rest lines))))))
-
 (defn format-unit-label
   "Format an exponent-map unit like {:ft 2} as 'ft²'."
   [unit]
@@ -799,7 +792,7 @@
             [:span.preview-error (:error preview)]
 
             (and (:result preview) (str/includes? (str (:result preview)) "\n"))
-            [:pre.preview-result (wrap-continuation (:result preview))]
+            [:pre.preview-result (:result preview)]
 
             (:target preview)
             [:span.preview-result (str "= " (:result preview) " " (:target preview))]
@@ -867,7 +860,7 @@
                      [:span.log-error (str "\u2192 " error)]
 
                      (and result (str/includes? (str result) "\n"))
-                     [:pre.log-result (wrap-continuation result)]
+                     [:pre.log-result result]
 
                      target
                      [:span.log-result (str "= " result " " target)]
