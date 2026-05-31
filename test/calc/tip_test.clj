@@ -129,8 +129,7 @@
       (is (= 5.40M (:tip exact))))))
 
 (deftest evaluates-round-tip-table
-  (testing "round-tip returns 4-row table"
-    ;; $85: 15%, 20%, round tip ($20), round total ($110)
+  (testing "$85: 15%, 20%, round tip, round total (all different totals)"
     (let [r (ev/convert-request {:op :tip :bill 85N :round-tip true})
           rows (:rows r)]
       (is (:ok? r))
@@ -141,35 +140,46 @@
       ;; 20% row
       (is (= "20%" (:label (nth rows 1))))
       (is (= 17N (:tip (nth rows 1))))
-      ;; Round tip row
-      (is (= "Round tip" (:label (nth rows 2))))
+      ;; Round tip row (includes percent in label)
+      (is (re-find #"Round tip" (:label (nth rows 2))))
       (is (= 20N (:tip (nth rows 2))))
       (is (= 105N (:total (nth rows 2))))
       ;; Round total row
-      (is (= "Round total" (:label (nth rows 3))))
+      (is (re-find #"Round total" (:label (nth rows 3))))
       (is (= 25N (:tip (nth rows 3))))
       (is (= 110N (:total (nth rows 3))))))
 
-  (testing "$50 round-tip: all rounding options converge"
+  (testing "$50: round options deduped with 20% row (same total $60)"
     (let [r (ev/convert-request {:op :tip :bill 50N :round-tip true})
           rows (:rows r)]
-      (is (= 10N (:tip (nth rows 2))))   ;; round tip = $10
-      (is (= 10N (:tip (nth rows 3))))   ;; round total = $60, tip = $10
-      (is (= 60N (:total (nth rows 3)))))))
+      ;; Only 15% and 20% — round tip/total both give $60, same as 20%
+      (is (= 2 (count rows)))
+      (is (= "15%" (:label (first rows))))
+      (is (= "20%" (:label (second rows))))
+      (is (= 60N (:total (second rows))))))
+
+  (testing "$120: round tip and round total converge, deduped to one"
+    (let [r (ev/convert-request {:op :tip :bill 120N :round-tip true})
+          rows (:rows r)]
+      ;; 15%, 20%, and one round row ($150)
+      (is (= 3 (count rows)))
+      (is (re-find #"Round tip" (:label (nth rows 2))))
+      (is (= 30N (:tip (nth rows 2))))
+      (is (= 150N (:total (nth rows 2)))))))
 
 ;; ==========================================================================
 ;; End-to-end CLI tests
 ;; ==========================================================================
 
 (deftest end-to-end-tip-explicit
-  (testing "explicit percent shows exact + round total"
+  (testing "explicit percent shows exact + round tip"
     (let [{:keys [result]} (cli/process-request-text "tip $85 18%" nil)]
       (is (re-find #"Bill: \$85" result))
       (is (re-find #"18%" result))
-      (is (re-find #"Round total" result)))))
+      (is (re-find #"Round tip" result)))))
 
 (deftest end-to-end-round-tip
-  (testing "no explicit percent shows 4-row table"
+  (testing "$85 shows 15%, 20%, round tip, round total"
     (let [{:keys [result]} (cli/process-request-text "tip $85" nil)]
       (is (re-find #"Bill: \$85" result))
       (is (re-find #"15%" result))

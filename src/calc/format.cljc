@@ -150,11 +150,10 @@
 
     :tip (let [rows (:rows result)
                bill-str (str "$" (format-number (:bill result) fmt-opts))
-               fmt-row (fn [{:keys [label tip total percent]}]
-                         (str "  " label ": "
+               fmt-row (fn [{:keys [label tip total]}]
+                         (str label ": "
                               "Tip $" (format-number tip fmt-opts)
-                              " (" (format-number percent fmt-opts) "%) "
-                              "→ Total $" (format-number total fmt-opts)))]
+                              " -> Total $" (format-number total fmt-opts)))]
            (str "Bill: " bill-str "\n"
                 (str/join "\n" (map fmt-row rows))))
 
