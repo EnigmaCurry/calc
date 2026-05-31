@@ -427,24 +427,30 @@
                  :checked (= theme "dark")
                  :on-change (fn [_] (toggle-theme!))}]
         "Dark mode"]]
-      [:div.setting-row
-       [:label.setting-label (str "Zoom: " (.toFixed (js/Number (:zoom @state)) 1))]
-       [:input {:type "range"
-                :min 0.5 :max 3.0 :step 0.1
-                :value (:zoom @state)
-                :style {:width "100%"}
-                :on-change (fn [e]
-                             (let [v (js/parseFloat (.. e -target -value))]
-                               (swap! state assoc :zoom v)
-                               (save-zoom! v)
-                               (apply-zoom! v)))}]
-       [:button.back-btn
-        {:on-click (fn []
-                     (let [d (default-zoom)]
-                       (swap! state assoc :zoom d)
-                       (save-zoom! nil)
-                       (apply-zoom! d)))}
-        "Reset"]]]
+      (let [pending (or (:zoom-pending @state) (:zoom @state))]
+        [:div.setting-row
+         [:label.setting-label (str "Zoom: " (.toFixed (js/Number pending) 1))]
+         [:input {:type "range"
+                  :min 0.8 :max 3.0 :step 0.1
+                  :value pending
+                  :style {:width "100%"}
+                  :on-change (fn [e]
+                               (let [v (js/parseFloat (.. e -target -value))]
+                                 (swap! state assoc :zoom-pending v)))}]
+         [:button.back-btn
+          {:on-click (fn []
+                       (let [v (or (:zoom-pending @state) (:zoom @state))]
+                         (swap! state assoc :zoom v :zoom-pending nil)
+                         (save-zoom! v)
+                         (apply-zoom! v)))}
+          "Apply"]
+         [:button.back-btn
+          {:on-click (fn []
+                       (let [d (default-zoom)]
+                         (swap! state assoc :zoom d :zoom-pending nil)
+                         (save-zoom! nil)
+                         (apply-zoom! d)))}
+          "Reset"]])]
      [:div.settings-section
       [:h3 "History"]
       [:div.setting-row
