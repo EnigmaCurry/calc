@@ -47,6 +47,25 @@
     (is (= {:op :tip :percent 15N :bill 50N}
            (parser/parse-request "tip 15 percent on $50")))))
 
+(deftest parses-tip-for-form
+  (testing "'tip for Y' works like 'tip on Y'"
+    (is (= {:op :tip :percent 20N :bill 50N}
+           (parser/parse-request "tip for 50")))
+    (is (= {:op :tip :percent 20N :bill 50N}
+           (parser/parse-request "tip for $50"))))
+
+  (testing "'tip for Y at X%' works like 'tip on Y at X%'"
+    (is (= {:op :tip :percent 15N :bill 50N}
+           (parser/parse-request "tip for $50 at 15 percent"))))
+
+  (testing "'X percent tip for Y' works like 'X percent tip on Y'"
+    (is (= {:op :tip :percent 20N :bill 50N}
+           (parser/parse-request "20 percent tip for 50"))))
+
+  (testing "'tip X percent for Y' works like 'tip X percent on Y'"
+    (is (= {:op :tip :percent 15N :bill 50N}
+           (parser/parse-request "tip 15 percent for $50")))))
+
 (deftest parses-tip-default-percent
   (testing "'tip on Y' defaults to 20%"
     (is (= {:op :tip :percent 20N :bill 50N}

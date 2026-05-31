@@ -995,25 +995,25 @@
   [s]
   (or
    ;; "X% tip on Y" / "X percent tip on Y"
-   (when-let [[_ pct-str bill-str] (re-matches #"(?i)^(.+?)\s+percent\s+tip\s+on\s+(.+)$" s)]
+   (when-let [[_ pct-str bill-str] (re-matches #"(?i)^(.+?)\s+percent\s+tip\s+(?:on|for)\s+(.+)$" s)]
      (when-let [[pct _] (parse-percentage-number (strip-dollar pct-str))]
        (when-let [[bill _] (parse-percentage-number (strip-dollar bill-str))]
          {:op :tip :percent pct :bill bill})))
 
    ;; "tip X% on Y" / "tip X percent on Y"
-   (when-let [[_ pct-str bill-str] (re-matches #"(?i)^(?:what\s+is\s+(?:the\s+)?)?tip\s+(.+?)\s+percent\s+on\s+(.+)$" s)]
+   (when-let [[_ pct-str bill-str] (re-matches #"(?i)^(?:what\s+is\s+(?:the\s+)?)?tip\s+(.+?)\s+percent\s+(?:on|for)\s+(.+)$" s)]
      (when-let [[pct _] (parse-percentage-number (strip-dollar pct-str))]
        (when-let [[bill _] (parse-percentage-number (strip-dollar bill-str))]
          {:op :tip :percent pct :bill bill})))
 
    ;; "tip on Y at X%" / "what is the tip on Y at X%"
-   (when-let [[_ bill-str pct-str] (re-matches #"(?i)^(?:what\s+is\s+(?:the\s+)?)?tip\s+on\s+(.+?)\s+at\s+(.+?)\s*percent$" s)]
+   (when-let [[_ bill-str pct-str] (re-matches #"(?i)^(?:what\s+is\s+(?:the\s+)?)?tip\s+(?:on|for)\s+(.+?)\s+at\s+(.+?)\s*percent$" s)]
      (when-let [[pct _] (parse-percentage-number (strip-dollar pct-str))]
        (when-let [[bill _] (parse-percentage-number (strip-dollar bill-str))]
          {:op :tip :percent pct :bill bill})))
 
    ;; "tip on Y" (default 20%)
-   (when-let [[_ bill-str] (re-matches #"(?i)^(?:what\s+is\s+(?:the\s+)?)?tip\s+on\s+(.+)$" s)]
+   (when-let [[_ bill-str] (re-matches #"(?i)^(?:what\s+is\s+(?:the\s+)?)?tip\s+(?:on|for)\s+(.+)$" s)]
      (when-let [[bill _] (parse-percentage-number (strip-dollar bill-str))]
        {:op :tip :percent 20N :bill bill}))
 
