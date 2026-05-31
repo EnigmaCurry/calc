@@ -409,8 +409,8 @@
   (testing "bare trig with operators (no parens)"
     (let [r (parser/math-value (parser/parse-math "cos 32 / sin 45"))]
       (is (some? r))
-      (is (th/approx== (/ (Math/cos (Math/toRadians 32))
-                          (Math/sin (Math/toRadians 45)))
+      (is (th/approx== (/ (Math/cos (* 32 (/ Math/PI 180)))
+                          (Math/sin (* 45 (/ Math/PI 180))))
                        r)))
 
     (let [r (parser/math-value (parser/parse-math "sin 30 + cos 60"))]
