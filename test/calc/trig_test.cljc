@@ -541,3 +541,76 @@
     (let [{:keys [result]} (th/evaluate "sin π" nil)]
       (is (some? result))
       (is (str/includes? result "= 0")))))
+
+;; ==========================================================================
+;; Standalone e (Euler's number) and phi (golden ratio) constant tests
+;; ==========================================================================
+
+(deftest parse-standalone-e
+  (testing "bare 'e' parses as math-expr"
+    (let [parsed (parser/parse-request "e")]
+      (is (= :math-expr (:op parsed)))
+      (is (th/approx== Math/E (:value parsed)))))
+
+  (testing "'e^2' parses as math-expr"
+    (let [parsed (parser/parse-request "e^2")]
+      (is (= :math-expr (:op parsed)))
+      (is (th/approx== (* Math/E Math/E) (:value parsed)))))
+
+  (testing "'2*e' parses as math-expr"
+    (let [parsed (parser/parse-request "2*e")]
+      (is (= :math-expr (:op parsed)))
+      (is (th/approx== (* 2 Math/E) (:value parsed))))))
+
+(deftest parse-standalone-phi
+  (testing "bare 'phi' parses as math-expr"
+    (let [parsed (parser/parse-request "phi")]
+      (is (= :math-expr (:op parsed)))
+      (is (th/approx== 1.6180339887498948 (:value parsed)))))
+
+  (testing "bare 'φ' (unicode) parses as math-expr"
+    (let [parsed (parser/parse-request "φ")]
+      (is (= :math-expr (:op parsed)))
+      (is (th/approx== 1.6180339887498948 (:value parsed)))))
+
+  (testing "'phi^2' parses as math-expr"
+    (let [parsed (parser/parse-request "phi^2")]
+      (is (= :math-expr (:op parsed)))
+      (is (th/approx== (* 1.6180339887498948 1.6180339887498948) (:value parsed))))))
+
+(deftest e2e-standalone-e
+  (testing "e returns its value"
+    (let [{:keys [result]} (th/evaluate "e" nil)]
+      (is (some? result))
+      (is (str/starts-with? result "2.718"))))
+
+  (testing "e^2 returns correct value"
+    (let [{:keys [result]} (th/evaluate "e^2" nil)]
+      (is (some? result))
+      (is (str/starts-with? result "7.389"))))
+
+  (testing "e*pi returns correct value"
+    (let [{:keys [result]} (th/evaluate "e*pi" nil)]
+      (is (some? result))
+      (is (str/starts-with? result "8.539")))))
+
+(deftest e2e-standalone-phi
+  (testing "phi returns its value"
+    (let [{:keys [result]} (th/evaluate "phi" nil)]
+      (is (some? result))
+      (is (str/starts-with? result "1.618"))))
+
+  (testing "φ (unicode) returns its value"
+    (let [{:keys [result]} (th/evaluate "φ" nil)]
+      (is (some? result))
+      (is (str/starts-with? result "1.618"))))
+
+  (testing "phi^2 = phi + 1 (golden ratio property)"
+    (let [{:keys [result]} (th/evaluate "phi^2" nil)]
+      (is (some? result))
+      (is (str/starts-with? result "2.618"))))
+
+  (testing "unit conversions still work (no e/phi interference)"
+    (let [{:keys [result]} (th/evaluate "10 meters in feet" nil)]
+      (is (some? result))
+      (is (str/starts-with? result "32.8")))))

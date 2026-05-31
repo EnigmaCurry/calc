@@ -7,6 +7,20 @@
   #?(:clj  (bigdec Math/PI)
      :cljs Math/PI))
 
+(def ^:private e-value
+  #?(:clj  (bigdec Math/E)
+     :cljs Math/E))
+
+(def ^:private phi-value
+  "The golden ratio φ = (1 + √5) / 2"
+  #?(:clj  (bigdec 1.6180339887498948482)
+     :cljs (/ (+ 1 (js/Math.sqrt 5)) 2)))
+
+(def ^:private math-constants
+  {"pi" pi-value "π" pi-value
+   "e" e-value
+   "phi" phi-value "φ" phi-value})
+
 (def unit-aliases units/unit-aliases)
 
 (def special-unit-forms
@@ -211,8 +225,8 @@
                 (#{"rad" "radians" "deg" "degrees"} word)
                 (recur end (conj tokens [:angle (if (#{"rad" "radians"} word) :rad :deg)]))
 
-                (= "pi" word)
-                (recur end (conj tokens [:num pi-value]))
+                (contains? math-constants word)
+                (recur end (conj tokens [:num (get math-constants word)]))
 
                 :else nil))
 
@@ -253,8 +267,8 @@
             (#{"+" "*" "/" "^" "%"} ch)
             (recur (inc i) (conj tokens [:op ch]))
 
-            (= ch "π")
-            (recur (inc i) (conj tokens [:num pi-value]))
+            (contains? math-constants ch)
+            (recur (inc i) (conj tokens [:num (get math-constants ch)]))
 
             (= ch "-")
             (if (or (empty? tokens) (#{:lp :op :comma} (first (peek tokens))))
@@ -586,9 +600,9 @@
       (and (some? t) (some? (math-value (parse-math t))))
       [(math-value (parse-math t)) (inc i)]
 
-      ;; Pi constant
-      (#{"pi" "π"} t)
-      [pi-value (inc i)]
+      ;; Math constants: pi, π, e, phi, φ
+      (contains? math-constants t)
+      [(get math-constants t) (inc i)]
 
       ;; Pi division as single token: "pi/4"
       (and t (re-matches #"(?i)(?:pi|π)/\d+(?:\.\d+)?" t))
@@ -1231,17 +1245,21 @@
        (when-let [[y _] (parse-percentage-number y-str)]
          {:op :modulo :dividend x :divisor y})))))
 
+(def ^:private constant-patterns
+  "Lowercase strings and Unicode chars that indicate a math constant is present."
+  #{"pi" "phi" "π" "φ"})
+
 (defn parse-standalone-math
   "Try to parse a standalone math/constant expression (no units).
-   Handles 'pi', 'π', '2*pi', 'pi/4', '(3+2)*pi', etc.
-   Only matches when the expression contains pi/π or operators — plain
+   Handles 'pi', 'π', 'e', 'phi', 'φ', '2*pi', 'pi/4', 'e^2', etc.
+   Only matches when the expression contains a named constant — plain
    numbers like '42' are not matched to avoid hijacking unit queries."
   [s]
   (let [lower (str/lower-case (str/trim s))]
-    (when (or (str/includes? lower "pi")
-              (str/includes? s "π"))
-      (let [;; Normalize π to pi for math-tokenize
-            normalized (str/replace s "π" "pi")]
+    (when (or (some #(str/includes? lower %) constant-patterns)
+              ;; 'e' is too short to substring-match; require exact or bounded
+              (re-find #"(?i)(?:^e$|(?<![a-z])e(?![a-z]))" lower))
+      (let [normalized (-> s (str/replace "π" "pi") (str/replace "φ" "phi"))]
         (when-let [result (parse-math normalized)]
           {:op :math-expr :value (math-value result)})))))
 
