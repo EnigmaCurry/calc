@@ -45,7 +45,7 @@
   "Convert to a native double/number."
   [x]
   #?(:clj (double x)
-     :cljs (if (instance? Decimal x) (.toNumber x) (js/Number x))))
+     :cljs (if (instance? Decimal x) (.toNumber ^js x) (js/Number x))))
 
 (defn dec->str
   "Convert a decimal to a plain string (no scientific notation)."
@@ -113,7 +113,7 @@
   "Integer quotient (truncated division)."
   [a b]
   #?(:clj (quot a b)
-     :cljs (.truncated (.dividedBy (->dec a) (->dec b)))))
+     :cljs (.truncated ^js (.dividedBy (->dec a) (->dec b)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Comparison
@@ -194,7 +194,7 @@
 
 (defn dlog10 [x]
   #?(:clj (Math/log10 (double x))
-     :cljs (let [r (.log (->dec x) 10)] (.toNumber r))))
+     :cljs (let [^js r (.log (->dec x) 10)] (.toNumber r))))
 
 ;; ---------------------------------------------------------------------------
 ;; Trig functions
@@ -202,27 +202,27 @@
 
 (defn dsin [x]
   #?(:clj (Math/sin (double x))
-     :cljs (let [r (.sin (->dec x))] (.toNumber r))))
+     :cljs (let [^js r (.sin (->dec x))] (.toNumber r))))
 
 (defn dcos [x]
   #?(:clj (Math/cos (double x))
-     :cljs (let [r (.cos (->dec x))] (.toNumber r))))
+     :cljs (let [^js r (.cos (->dec x))] (.toNumber r))))
 
 (defn dtan [x]
   #?(:clj (Math/tan (double x))
-     :cljs (let [r (.tan (->dec x))] (.toNumber r))))
+     :cljs (let [^js r (.tan (->dec x))] (.toNumber r))))
 
 (defn dasin [x]
   #?(:clj (Math/asin (double x))
-     :cljs (let [r (.asin (->dec x))] (.toNumber r))))
+     :cljs (let [^js r (.asin (->dec x))] (.toNumber r))))
 
 (defn dacos [x]
   #?(:clj (Math/acos (double x))
-     :cljs (let [r (.acos (->dec x))] (.toNumber r))))
+     :cljs (let [^js r (.acos (->dec x))] (.toNumber r))))
 
 (defn datan [x]
   #?(:clj (Math/atan (double x))
-     :cljs (let [r (.atan (->dec x))] (.toNumber r))))
+     :cljs (let [^js r (.atan (->dec x))] (.toNumber r))))
 
 ;; ---------------------------------------------------------------------------
 ;; Constants
@@ -230,11 +230,11 @@
 
 (def PI
   #?(:clj Math/PI
-     :cljs (let [r (.acos (->dec -1))] (.toNumber r))))
+     :cljs (let [^js r (.acos (->dec -1))] (.toNumber r))))
 
 (def E
   #?(:clj Math/E
-     :cljs (let [r (.exp (->dec 1))] (.toNumber r))))
+     :cljs (let [^js r (.exp (->dec 1))] (.toNumber r))))
 
 ;; ---------------------------------------------------------------------------
 ;; Normalization
@@ -264,8 +264,8 @@
        :else
        x)
      :cljs
-     (let [d (->dec x)]
+     (let [^js d (->dec x)]
        (if (.isInteger d)
          (.toNumber d)
-         (let [s (.toSignificantDigits d 12)]
+         (let [^js s (.toSignificantDigits d 12)]
            (.toNumber s))))))
