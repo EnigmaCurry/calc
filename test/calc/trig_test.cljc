@@ -371,3 +371,75 @@
     (let [{:keys [result]} (th/evaluate "cos pi/4" nil)]
       (is (some? result))
       (is (str/starts-with? result "0.707")))))
+
+;; ==========================================================================
+;; Math expression composition tests
+;; ==========================================================================
+
+(deftest trig-in-math-expressions
+  (testing "sin(45) in parenthesised form"
+    (are [expr expected] (th/approx== expected (parser/parse-math expr))
+      "sin(30)"    0.5
+      "sin(90)"    1.0
+      "cos(60)"    0.5
+      "cos(0)"     1.0
+      "tan(45)"    1.0))
+
+  (testing "trig composed with arithmetic"
+    (are [expr expected] (th/approx== expected (parser/parse-math expr))
+      "sin(45) + cos(60)"    1.2071067811865476
+      "sin(30) * 2"          1.0
+      "2 * cos(60)"          1.0
+      "sin(90) - cos(0)"     0.0
+      "tan(45) + 1"          2.0
+      "sin(30) ^ 2"          0.25))
+
+  (testing "inverse trig in math expressions (returns degrees)"
+    (are [expr expected] (th/approx== expected (parser/parse-math expr))
+      "asin(0.5)"      30.0
+      "acos(0.5)"      60.0
+      "atan(1)"        45.0
+      "arcsin(0.5)"    30.0
+      "arccos(0.5)"    60.0
+      "arctan(1)"      45.0))
+
+  (testing "trig composed with trig"
+    (are [expr expected] (th/approx== expected (parser/parse-math expr))
+      "sin(30) + cos(60)"    1.0
+      "sin(45) * sin(45)"    0.5
+      "asin(sin(30))"        30.0)))
+
+(deftest trig-bare-form-in-compound-expressions
+  (testing "bare trig with operators (no parens)"
+    (let [r (parser/parse-math "cos 32 / sin 45")]
+      (is (some? r))
+      (is (th/approx== (/ (Math/cos (Math/toRadians 32))
+                          (Math/sin (Math/toRadians 45)))
+                       r)))
+
+    (let [r (parser/parse-math "sin 30 + cos 60")]
+      (is (some? r))
+      (is (th/approx== 1.0 r)))
+
+    (let [r (parser/parse-math "tan 45 * 2")]
+      (is (some? r))
+      (is (th/approx== 2.0 r)))))
+
+(deftest e2e-trig-compound-expressions
+  (testing "cos 32 / sin 45"
+    (let [{:keys [result]} (th/evaluate "cos 32 / sin 45" nil)]
+      (is (some? result))
+      (is (str/starts-with? result "1.19"))))
+
+  (testing "sin(45) + cos(60)"
+    (let [{:keys [result]} (th/evaluate "sin(45) + cos(60)" nil)]
+      (is (some? result))
+      (is (str/starts-with? result "1.207"))))
+
+  (testing "sin 30 + cos 60"
+    (let [{:keys [result]} (th/evaluate "sin 30 + cos 60" nil)]
+      (is (= "1" result))))
+
+  (testing "2 * sin(30)"
+    (let [{:keys [result]} (th/evaluate "2 * sin(30)" nil)]
+      (is (= "1" result)))))

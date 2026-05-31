@@ -3,6 +3,10 @@
             [calc.units :as units]
             [calc.dice :as dice]))
 
+(def ^:private pi-value
+  #?(:clj  (bigdec Math/PI)
+     :cljs Math/PI))
+
 (def unit-aliases units/unit-aliases)
 
 (def special-unit-forms
@@ -191,14 +195,16 @@
             (whitespace? ch)
             (recur (inc i) tokens)
 
-            ;; Function names: sqrt, cbrt, root
+            ;; Function names and constants
             (alpha? ch)
             (let [end (loop [j (inc i)]
                         (if (and (< j n) (alpha? (char-at s j)))
                           (recur (inc j))
                           j))
                   word (str/lower-case (subs s i end))]
-              (if (#{"sqrt" "cbrt" "root"} word)
+              (if (#{"sqrt" "cbrt" "root"
+                     "sin" "cos" "tan" "asin" "acos" "atan"
+                     "arcsin" "arccos" "arctan"} word)
                 (recur end (conj tokens [:fn word]))
                 nil))
 
@@ -282,15 +288,42 @@
          (js/Math.round result)
          result))))
 
+(defn- math-deg->rad [x]
+  (* (double x) (/ Math/PI 180.0)))
+
+(def ^:private math-trig-fns
+  {"sin" #(Math/sin (math-deg->rad %))
+   "cos" #(Math/cos (math-deg->rad %))
+   "tan" #(Math/tan (math-deg->rad %))
+   "asin" #(* (/ 180.0 Math/PI) (Math/asin %))
+   "acos" #(* (/ 180.0 Math/PI) (Math/acos %))
+   "atan" #(* (/ 180.0 Math/PI) (Math/atan %))
+   "arcsin" #(* (/ 180.0 Math/PI) (Math/asin %))
+   "arccos" #(* (/ 180.0 Math/PI) (Math/acos %))
+   "arctan" #(* (/ 180.0 Math/PI) (Math/atan %))})
+
+(defn- math-trig-eval [fname v]
+  (let [f (get math-trig-fns fname)
+        result (f (double v))
+        ;; Clean up floating point noise
+        rounded (Math/round (* result 1e10))]
+    (if (< (Math/abs result) 1e-14)
+      #?(:clj 0N :cljs 0)
+      (if (< (Math/abs (- result (/ (double rounded) 1e10))) 1e-14)
+        #?(:clj (bigdec (/ (double rounded) 1e10)) :cljs (/ rounded 1e10))
+        #?(:clj (bigdec result) :cljs result)))))
+
 (defn- math-parse-factor [tokens pos]
   (when (< pos (count tokens))
     (case (first (nth tokens pos))
       :num [(second (nth tokens pos)) (inc pos)]
       :fn  (let [fname (second (nth tokens pos))
-                 npos (inc pos)]
-             ;; Expect '(' after function name
-             (when (and (< npos (count tokens))
-                        (= :lp (first (nth tokens npos))))
+                 npos (inc pos)
+                 has-paren (and (< npos (count tokens))
+                                (= :lp (first (nth tokens npos))))]
+             (cond
+               ;; Parenthesized form: fn(expr) or fn(expr, expr)
+               has-paren
                (case fname
                  ;; sqrt(expr)
                  "sqrt"
@@ -316,7 +349,22 @@
                                   (= :rp (first (nth tokens p2))))
                          [(math-nth-root v degree) (inc p2)]))))
 
-                 nil)))
+                 ;; Trig functions: sin(x), cos(x), etc. — degrees by default
+                 ("sin" "cos" "tan" "asin" "acos" "atan"
+                  "arcsin" "arccos" "arctan")
+                 (when-let [[v p1] (math-parse-expr tokens (inc npos))]
+                   (when (and (< p1 (count tokens))
+                              (= :rp (first (nth tokens p1))))
+                     [(math-trig-eval fname v) (inc p1)]))
+
+                 nil)
+
+               ;; Bare trig: sin 45, cos 60 (no parens, consume next factor)
+               (contains? math-trig-fns fname)
+               (when-let [[v p1] (math-parse-factor tokens npos)]
+                 [(math-trig-eval fname v) p1])
+
+               :else nil))
       :lp  (when-let [[v npos] (math-parse-expr tokens (inc pos))]
              (when (and (< npos (count tokens))
                         (= :rp (first (nth tokens npos))))
@@ -418,10 +466,6 @@
           (when (>= (count parts) 3)
             (when-let [v (parse-math (str/join " " parts))]
               [v j])))))))
-
-(def ^:private pi-value
-  #?(:clj  (bigdec Math/PI)
-     :cljs Math/PI))
 
 (def ordinal-fractions
   {"half"       #?(:clj 1/2 :cljs 0.5)
