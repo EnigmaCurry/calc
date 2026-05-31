@@ -696,6 +696,11 @@
                                                   (swap! state assoc :copied-idx idx)
                                                   (js/setTimeout #(swap! state assoc :copied-idx nil) 1200))
                                                 long-press-ms))))
+                    on-press-cancel (fn [_e]
+                                      (when-let [timer @press-timer]
+                                        (when (not= timer :fired)
+                                          (js/clearTimeout timer))
+                                        (reset! press-timer nil)))
                     on-press-end (fn [_e]
                                    (let [timer @press-timer]
                                      (when (and timer (not= timer :fired))
@@ -717,6 +722,8 @@
                   :on-mouse-up on-press-end
                   :on-touch-start on-press-start
                   :on-touch-end on-press-end
+                  :on-touch-move on-press-cancel
+                  :on-touch-cancel on-press-cancel
                   :on-click (fn [e] (.preventDefault e))}
                  [:span.log-input (or from input)]
                  (if copied?
