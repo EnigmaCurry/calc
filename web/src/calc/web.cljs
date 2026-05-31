@@ -8,6 +8,13 @@
             [calc.parser :as parser]
             [clojure.string :as str]))
 
+(defn multiline-result
+  "Render a multiline result as individual divs so wrap indicators work per-line."
+  [s css-class]
+  (let [lines (str/split (str s) #"\n")]
+    (into [:div {:class css-class}]
+          (map-indexed (fn [i line] [:div.result-line {:key i} line]) lines))))
+
 (defn format-unit-label
   "Format an exponent-map unit like {:ft 2} as 'ft²'."
   [unit]
@@ -792,7 +799,7 @@
             [:span.preview-error (:error preview)]
 
             (and (:result preview) (str/includes? (str (:result preview)) "\n"))
-            [:pre.preview-result (:result preview)]
+            [multiline-result (:result preview) "preview-result"]
 
             (:target preview)
             [:span.preview-result (str "= " (:result preview) " " (:target preview))]
@@ -860,7 +867,7 @@
                      [:span.log-error (str "\u2192 " error)]
 
                      (and result (str/includes? (str result) "\n"))
-                     [:pre.log-result result]
+                     [multiline-result result "log-result"]
 
                      target
                      [:span.log-result (str "= " result " " target)]
