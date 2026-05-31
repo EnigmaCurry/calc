@@ -146,15 +146,11 @@
       white-space: pre-line;
     }
 
-    pre.preview-result {
-      white-space: pre-wrap;
-      word-break: break-word;
+    div.preview-result {
       margin: 0;
       font-family: inherit;
       font-size: inherit;
-      padding-left: 1.5em;
-      text-indent: -1.5em;
-      border-left: 2px solid var(--accent);
+      width: 100%;
     }
 
     .preview-error {
@@ -343,19 +339,36 @@
       white-space: pre-line;
     }
 
-    pre.log-result {
-      white-space: pre-wrap;
-      word-break: break-word;
+    div.log-result {
       margin: 0;
       font-family: inherit;
       font-size: inherit;
       width: 100%;
-      padding-left: 1.5em;
-      text-indent: -1.5em;
-      border-left: 2px solid var(--accent);
     }
 
-    .log-entry:has(pre.log-result) {
+    .result-line {
+      position: relative;
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.4;
+      padding-left: 1.5em;
+      text-indent: -1.5em;
+      overflow: hidden;
+    }
+
+    .result-line::before {
+      content: "";
+      position: absolute;
+      top: 1.4em;
+      left: 0;
+      bottom: 0;
+      width: 1.2em;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Ctext x='0' y='12' font-size='12' fill='%23888'%3E↪%3C/text%3E%3C/svg%3E");
+      background-size: 1.2em 1.4em;
+      background-repeat: repeat-y;
+    }
+
+    .log-entry:has(div.log-result) {
       flex-wrap: wrap;
     }
 
