@@ -143,6 +143,7 @@
     .preview-result {
       color: var(--green);
       font-weight: 600;
+      white-space: pre-line;
     }
 
     .preview-error {
@@ -324,6 +325,7 @@
     .log-result {
       color: var(--green);
       font-weight: 600;
+      white-space: pre-line;
     }
 
     .log-error {
