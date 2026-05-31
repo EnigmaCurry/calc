@@ -1017,21 +1017,27 @@
      (when-let [[bill _] (parse-percentage-number (strip-dollar bill-str))]
        {:op :tip :percent 20N :bill bill}))
 
-   ;; Brief forms: "tip X percent $Y" (percent then bill)
-   (when-let [[_ pct-str bill-str] (re-matches #"(?i)^tip\s+(.+?)\s+percent\s+(.+)$" s)]
-     (when-let [[pct _] (parse-percentage-number (strip-dollar pct-str))]
-       (when-let [[bill _] (parse-percentage-number (strip-dollar bill-str))]
+   ;; Brief forms: "tip X percent $Y" (percent then dollar bill)
+   (when-let [[_ pct-str bill-str] (re-matches #"(?i)^tip\s+(.+?)\s+percent\s+\$(.+)$" s)]
+     (when-let [[pct _] (parse-percentage-number pct-str)]
+       (when-let [[bill _] (parse-percentage-number bill-str)]
          {:op :tip :percent pct :bill bill})))
 
-   ;; Brief forms: "tip $Y X percent" (bill with $ then percent)
-   (when-let [[_ bill-str pct-str] (re-matches #"(?i)^tip\s+\$(.+?)\s+(.+?)\s+percent$" s)]
+   ;; Brief forms: "tip $Y X percent" or "tip N X percent" (bill then percent)
+   (when-let [[_ bill-str pct-str] (re-matches #"(?i)^tip\s+\$?(.+?)\s+(.+?)\s+percent$" s)]
      (when-let [[bill _] (parse-percentage-number (strip-dollar bill-str))]
        (when-let [[pct _] (parse-percentage-number (strip-dollar pct-str))]
          {:op :tip :percent pct :bill bill})))
 
+   ;; Brief form: "tip $Y N" (dollar bill then bare number percent)
+   (when-let [[_ bill-str pct-str] (re-matches #"(?i)^tip\s+\$(\S+)\s+(\S+)$" s)]
+     (when-let [[bill _] (parse-percentage-number bill-str)]
+       (when-let [[pct _] (parse-percentage-number pct-str)]
+         {:op :tip :percent pct :bill bill})))
+
    ;; Brief form: "tip $Y" (dollar amount, default 20%)
-   (when-let [[_ bill-str] (re-matches #"(?i)^tip\s+\$(.+)$" s)]
-     (when-let [[bill _] (parse-percentage-number (strip-dollar bill-str))]
+   (when-let [[_ bill-str] (re-matches #"(?i)^tip\s+\$(\S+)$" s)]
+     (when-let [[bill _] (parse-percentage-number bill-str)]
        {:op :tip :percent 20N :bill bill}))
 
    ;; Brief form: "tip N M" (two bare numbers: bill then percent)

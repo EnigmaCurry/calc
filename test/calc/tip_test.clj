@@ -85,11 +85,19 @@
            (parser/parse-request "tip 15% $85.50")))))
 
 (deftest parses-tip-brief-bill-percent
-  (testing "'tip $Y X%' — bill then percent"
+  (testing "'tip $Y X%' — dollar bill then percent"
     (is (= {:op :tip :percent 10N :bill 50N}
            (parser/parse-request "tip $50 10%")))
     (is (= {:op :tip :percent 18N :bill 100N}
-           (parser/parse-request "tip $100 18%")))))
+           (parser/parse-request "tip $100 18%"))))
+
+  (testing "'tip $Y N' — dollar bill then bare number percent"
+    (is (= {:op :tip :percent 30N :bill 500N}
+           (parser/parse-request "tip $500 30"))))
+
+  (testing "'tip N X%' — bare bill then percent"
+    (is (= {:op :tip :percent 30N :bill 500N}
+           (parser/parse-request "tip 500 30%")))))
 
 (deftest parses-tip-brief-dollar-only
   (testing "'tip $Y' — dollar amount defaults to 20%"
