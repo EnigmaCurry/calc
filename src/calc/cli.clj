@@ -368,14 +368,14 @@
   [^LineReaderImpl reader fmt-opts-atom]
   (let [widgets (.getWidgets reader)
         wrap (fn [widget-name]
-               (when-let [original (get widgets widget-name)]
+               (when-let [^Widget original (get widgets widget-name)]
                  (.put widgets widget-name
                    (reify Widget
                      (apply [_]
                        (let [r (.apply original)]
                          (update-preview reader fmt-opts-atom)
                          r))))))
-        orig-accept (get widgets LineReader/ACCEPT_LINE)]
+        ^Widget orig-accept (get widgets LineReader/ACCEPT_LINE)]
     (doseq [wn [LineReader/SELF_INSERT
                 LineReader/BACKWARD_DELETE_CHAR
                 LineReader/DELETE_CHAR
