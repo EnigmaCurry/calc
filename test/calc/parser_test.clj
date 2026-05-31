@@ -20,7 +20,16 @@
     (is (= "37 W / 12 v" (parser/clean-phrase "37 W /12v")))
     (is (= "37 W / 12 v" (parser/clean-phrase "37W/12v")))
     (is (= "W / 12" (parser/clean-phrase "W/12")))
-    (is (= "12 / v" (parser/clean-phrase "12/v")))))
+    (is (= "12 / v" (parser/clean-phrase "12/v"))))
+
+  (testing "spaces star between letter and digit"
+    (is (= "12 V * 1 A" (parser/clean-phrase "12V*1A")))
+    (is (= "12 V * 1 A" (parser/clean-phrase "12V * 1A")))
+    (is (= "V * 1" (parser/clean-phrase "V*1")))
+    (is (= "12 * v" (parser/clean-phrase "12*v"))))
+
+  (testing "preserves star between letters for unit multiplication"
+    (is (= "ft*ft" (parser/clean-phrase "ft*ft")))))
 
 (deftest parses-simple-scalar-conversions
   (testing "basic '<number> <unit> in/to <unit>' phrases"
@@ -701,6 +710,12 @@
       (is (= expected (parser/parse-request "37 W /12v")))
       (is (= expected (parser/parse-request "37W/12v")))
       (is (= expected (parser/parse-request "37W / 12V")))))
+
+  (testing "quantity multiplication parses with compact spacing"
+    (let [expected (parser/parse-request "12 V * 1 amp")]
+      (is (= expected (parser/parse-request "12V*1amp")))
+      (is (= expected (parser/parse-request "12V * 1amp")))
+      (is (= expected (parser/parse-request "12V*1 amp")))))
 
   (testing "unit-first with scalar second is qty arithmetic"
     (is (= {:op :convert
