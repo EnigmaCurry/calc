@@ -295,6 +295,7 @@
     "  /s                Clear sig-figs setting"
     "  /clear            Clear screen and history"
     "  /reset            Clear screen and history"
+    "  /roll <expr>      Roll dice (e.g. /roll 2d6+3)"
     "  /quit, /exit      Exit the REPL"
     ""
     "Examples:"
@@ -316,7 +317,14 @@
     "  2 * sqrt(25)                  → 10"
     "  10 % 4                          → 2 (modulo)"
     "  10 mod 3                        → 1 (modulo)"
-    "  100 MB / 100 Mbps in seconds  → 8 s"]))
+    "  100 MB / 100 Mbps in seconds  → 8 s"
+    ""
+    "Dice rolling:"
+    "  roll d20                        Roll a d20"
+    "  roll 4d6kh3                     D&D stat roll (keep highest 3)"
+    "  roll 2d20kh1                    Advantage"
+    "  roll 6d6!                       Exploding dice"
+    "  roll 1d20+7>=15                 Attack with target check"]))
 
 (defn- parse-slash-command
   "Parse a slash command from trimmed input. Returns [cmd arg] or nil if not a slash command."
@@ -438,6 +446,20 @@
 
                       ("quit" "exit")
                       ::exit
+
+                      "roll"
+                      (if (str/blank? arg)
+                        (do (println "Usage: /roll <dice expression>  (e.g. /roll 2d6+3)")
+                            ::continue)
+                        (do
+                          (try
+                            (let [{:keys [error result]} (process-request-text (str "roll " arg) @fmt-opts)]
+                              (if error
+                                (println error)
+                                (println result)))
+                            (catch Exception e
+                              (println "Error:" (.getMessage e))))
+                          ::continue))
 
                       ;; unknown slash command
                       (do (println (str "Unknown command: /" cmd))

@@ -136,8 +136,37 @@
     :invalid-request "Invalid request"
     (str "Error: " (pr-str {:error error}))))
 
+(defn- format-roll-result
+  "Format a dice roll result for display."
+  [{:keys [roll]}]
+  (let [{:keys [rolls kept dropped modifier total comparison]} roll
+        exploding? (and (seq rolls) (map? (first rolls)))
+        rolls-str (if exploding?
+                    (str/join ", " (for [{:keys [initial exploded total]} rolls]
+                                    (if (seq exploded)
+                                      (str initial "!" (str/join "!" exploded) "=" total)
+                                      (str initial))))
+                    (str/join ", " rolls))
+        has-kd? (not= rolls kept)
+        kept-str (when has-kd?
+                   (str " -> kept [" (str/join ", " (sort > kept)) "]"
+                        (when (seq dropped)
+                          (str ", dropped [" (str/join ", " dropped) "]"))))
+        mod-str (cond
+                  (pos? modifier) (str " + " modifier)
+                  (neg? modifier) (str " - " (- modifier))
+                  :else "")
+        cmp-str (when comparison
+                  (str " " (name (:op comparison)) " " (:target comparison)
+                       " -> " (if (:success comparison) "Success!" "Failure")))]
+    (str "Rolls: [" rolls-str "]"
+         kept-str
+         mod-str
+         " = " total
+         cmp-str)))
+
 (defn format-op-result
-  "Format the result of a non-conversion op (:percentage, :root, :modulo, :tip, :tax).
+  "Format the result of a non-conversion op (:percentage, :root, :modulo, :tip, :tax, :roll).
    Returns a result string or nil if the op is not handled here."
   [parsed result fmt-opts]
   (case (:op parsed)
@@ -161,5 +190,7 @@
               ", Tax: $" (format-number (:tax result) fmt-opts)
               " (" (format-number (:percent parsed) fmt-opts) "%)"
               ", Total: $" (format-number (:total result) fmt-opts))
+
+    :roll (format-roll-result result)
 
     nil))

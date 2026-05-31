@@ -1,6 +1,7 @@
 (ns calc.parser
   (:require [clojure.string :as str]
-            [calc.units :as units]))
+            [calc.units :as units]
+            [calc.dice :as dice]))
 
 (def unit-aliases units/unit-aliases)
 
@@ -1104,6 +1105,8 @@
 
 (defn parse-request [phrase]
   (let [original phrase]
+    (if-let [roll (dice/parse-roll phrase)]
+      roll
     (try
       (let [cleaned (evaluate-math-exprs (clean-phrase phrase))
             [without-format format] (extract-format cleaned)
@@ -1171,4 +1174,4 @@
                  :phrase original})
          :cljs (catch :default _
                  {:error :unparseable
-                  :phrase original})))))
+                  :phrase original}))))))

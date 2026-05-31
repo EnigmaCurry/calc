@@ -1,5 +1,6 @@
 (ns calc.eval
   (:require [calc.units :as u]
+            [calc.dice :as dice]
             [clojure.string :as str]))
 
 ;; ============================================================================
@@ -274,6 +275,10 @@
     (error? result)
     (assoc result :ok? false)
 
+    ;; Dice roll result
+    (and (map? result) (contains? result :roll))
+    (assoc result :ok? true)
+
     ;; Mixed output result
     (and (map? result) (contains? result :mixed))
     (assoc result :ok? true)
@@ -494,6 +499,11 @@
 
      (= op :tax)
      (evaluate-tax request)
+
+     (= op :roll)
+     (let [{:keys [dice]} request
+           result (dice/roll dice)]
+       {:roll result})
 
      (not= op :convert)
      {:error :unsupported-operation
