@@ -1,68 +1,13 @@
 (ns calc.units
-  #?(:clj (:import [java.math BigDecimal MathContext RoundingMode])))
+  (:require [calc.math :as m]))
 
 ;; ============================================================================
 ;; BigDecimal-based unit system (cross-platform request pipeline)
 ;; ============================================================================
 
-#?(:clj (def ^:private math-context MathContext/DECIMAL128))
-
-(defn ->bigdec
-  "Convert a number to BigDecimal on JVM (using string representation for precision).
-   Identity on CLJS."
-  [x]
-  #?(:clj
-     (cond
-       (instance? BigDecimal x) x
-       (integer? x) (BigDecimal/valueOf (long x))
-       (ratio? x)   (.divide (BigDecimal/valueOf (long (numerator x)))
-                             (BigDecimal/valueOf (long (denominator x)))
-                             math-context)
-       :else         (BigDecimal. (str x)))
-     :cljs x))
-
-(defn safe-div [a b]
-  #?(:clj
-     (cond
-       (or (instance? BigDecimal a)
-           (instance? BigDecimal b)
-           (ratio? a)
-           (ratio? b))
-       (.divide (->bigdec a) (->bigdec b) math-context)
-
-       :else
-       (/ a b))
-     :cljs
-     (/ a b)))
-
-#?(:clj (def ^:private output-scale 14))
-
-(defn normalize-number [x]
-  #?(:clj
-     (cond
-       (integer? x)
-       x
-
-       (ratio? x)
-       (if (= 1 (denominator x))
-         (bigint (numerator x))
-         x)
-
-       (instance? BigDecimal x)
-       (let [stripped (.stripTrailingZeros x)]
-         (try
-           (bigint (.toBigIntegerExact stripped))
-           (catch ArithmeticException _
-             (.stripTrailingZeros
-              (.setScale x output-scale RoundingMode/HALF_UP)))))
-
-       :else
-       x)
-     :cljs
-     (if (js/Number.isInteger x)
-       (int x)
-       ;; Round to 12 significant digits to avoid floating point noise
-       (js/parseFloat (.toPrecision (js/Number x) 12)))))
+(def ->bigdec m/->dec)
+(def safe-div m/ddiv)
+(def normalize-number m/normalize)
 
 ;; ============================================================================
 ;; Consolidated unit registry
@@ -521,7 +466,7 @@
           (for [[dim entries] by-dim]
             [dim (->> entries
                       (map (fn [[k v]] [k (:scale v)]))
-                      (sort-by (fn [[_ s]] #?(:clj (double s) :cljs s))))]))))
+                      (sort-by (fn [[_ s]] (m/dec->double s))))]))))
 
 (def unit-display-names
   (into {} (for [[k v] unit-defs :when (:name v)] [k (:name v)])))
@@ -615,7 +560,7 @@
     (->bigdec 1)
 
     (pos? n)
-    (reduce * (->bigdec 1) (repeat n x))
+    (reduce m/d* (->bigdec 1) (repeat n x))
 
     :else
     (safe-div (->bigdec 1) (pow-dec x (- n)))))
@@ -632,6 +577,12 @@
 (defn scale-dim [dim exponent]
   (normalize-map
    (into {} (map (fn [[k v]] [k (* v exponent)]) dim))))
+
+;; Re-export for use by other namespaces
+(def d+ m/d+)
+(def d- m/d-)
+(def d* m/d*)
+(def ddiv m/ddiv)
 
 (defn unit-exponent-map [unit]
   (cond
@@ -674,7 +625,7 @@
          (when-not unit-dim
            (throw (ex-info "Unknown unit" {:unit u})))
          {:dim   (merge-dims dim (scale-dim unit-dim exponent))
-          :scale (* scale (pow-dec unit-scale exponent))}))
+          :scale (m/d* scale (pow-dec unit-scale exponent))}))
      {:dim {} :scale (->bigdec 1)}
      unit-map)))
 

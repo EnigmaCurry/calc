@@ -1,6 +1,7 @@
 (ns calc.invariant-test
   (:require [clojure.test :refer [deftest is testing]]
             [calc.units :as u]
+            [calc.math :as m]
             [calc.eval :as ev]
             [calc.parser :as p]))
 
@@ -113,9 +114,9 @@
   (testing "every non-temperature unit has a positive numeric scale"
     (doseq [[unit-key metadata] u/unit-defs
             :when (not (:temperature metadata))]
-      (is (number? (:scale metadata))
+      (is (or (number? (:scale metadata)) (m/dec-type? (:scale metadata)))
           (str unit-key " scale is not a number"))
-      (is (pos? (:scale metadata))
+      (is (m/dpos? (:scale metadata))
           (str unit-key " has non-positive scale: " (:scale metadata))))))
 
 ;; ---------------------------------------------------------------------------

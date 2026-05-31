@@ -1,20 +1,21 @@
 (ns calc.parser
   (:require [clojure.string :as str]
             [calc.units :as units]
+            [calc.math :as m]
             [calc.dice :as dice]))
 
 (def ^:private pi-value
   #?(:clj  (bigdec Math/PI)
-     :cljs Math/PI))
+     :cljs (m/dec->double (m/->dec m/PI))))
 
 (def ^:private e-value
   #?(:clj  (bigdec Math/E)
-     :cljs Math/E))
+     :cljs (m/dec->double (m/->dec m/E))))
 
 (def ^:private phi-value
   "The golden ratio φ = (1 + √5) / 2"
   #?(:clj  (bigdec 1.6180339887498948482)
-     :cljs (/ (+ 1 (js/Math.sqrt 5)) 2)))
+     :cljs (m/dec->double (m/ddiv (m/d+ 1 (m/dsqrt 5)) 2))))
 
 (def ^:private math-constants
   {"pi" pi-value "π" pi-value
@@ -98,12 +99,12 @@
 
 (defn parse-ratio-token [s]
   (let [[n d] (str/split s #"/")]
-    (/ (parse-integer n)
-       (parse-integer d))))
+    #?(:clj (/ (parse-integer n) (parse-integer d))
+       :cljs (m/dec->double (m/ddiv (parse-integer n) (parse-integer d))))))
 
 (defn parse-decimal-token [s]
   #?(:clj (bigdec s)
-     :cljs (js/parseFloat s)))
+     :cljs (js/parseFloat s)))  ;; Stays as float; precision applied in math evaluator
 
 (def number-words
   {"zero" 0 "one" 1 "two" 2 "three" 3 "four" 4 "five" 5
@@ -308,13 +309,14 @@
              (bigint candidate)
              (bigdec (Math/pow xd (/ 1.0 (double n))))))))
      :cljs
-     (let [result (js/Math.pow x (/ 1.0 n))]
-       (if (== result (js/Math.round result))
-         (js/Math.round result)
-         result))))
+     (let [result (m/dpow x (m/ddiv 1.0 n))
+           rounded (m/dround result)]
+       (if (m/d== result rounded)
+         (m/dec->double rounded)
+         (m/dec->double result)))))
 
 (defn- math-deg->rad [x]
-  (* (double x) (/ Math/PI 180.0)))
+  (* (m/dec->double x) (/ m/PI 180.0)))
 
 (def ^:private forward-math-trig
   #{"sin" "cos" "tan"})
@@ -323,9 +325,9 @@
   #{"asin" "acos" "atan" "arcsin" "arccos" "arctan"})
 
 (def ^:private math-trig-fns
-  {"sin" #(Math/sin %) "cos" #(Math/cos %) "tan" #(Math/tan %)
-   "asin" #(Math/asin %) "acos" #(Math/acos %) "atan" #(Math/atan %)
-   "arcsin" #(Math/asin %) "arccos" #(Math/acos %) "arctan" #(Math/atan %)})
+  {"sin" m/dsin "cos" m/dcos "tan" m/dtan
+   "asin" m/dasin "acos" m/dacos "atan" m/datan
+   "arcsin" m/dasin "arccos" m/dacos "arctan" m/datan})
 
 (defn- math-trig-eval
   "Evaluate a trig function. angle-mode is :deg (default) or :rad."
@@ -333,13 +335,12 @@
   (let [f (get math-trig-fns fname)
         mode (or angle-mode :deg)
         input (if (forward-math-trig fname)
-                (if (= mode :rad) (double v) (math-deg->rad v))
-                (double v))
-        raw-result (f input)
+                (if (= mode :rad) (m/dec->double v) (math-deg->rad v))
+                (m/dec->double v))
+        raw-result (double (f input))
         result (if (inverse-math-trig fname)
-                 (if (= mode :rad) raw-result (* (/ 180.0 Math/PI) raw-result))
+                 (if (= mode :rad) raw-result (* (/ 180.0 m/PI) raw-result))
                  raw-result)
-        ;; Clean up floating point noise
         rounded (Math/round (* result 1e10))]
     (if (< (Math/abs result) 1e-14)
       #?(:clj 0N :cljs 0)
@@ -422,7 +423,7 @@
        (pos? exp)  (reduce * 1N (repeat exp base))
        :else       (/ 1N (math-pow base (- exp))))
      :cljs
-     (js/Math.pow base exp)))
+     (m/dpow base exp)))
 
 (defn- math-parse-power
   "Parse factor (^ factor)* — right-associative."
@@ -438,7 +439,7 @@
   #?(:clj  (try (/ a b)
                 (catch ArithmeticException _
                   (.divide (bigdec a) (bigdec b) (java.math.MathContext. 34))))
-     :cljs (/ a b)))
+     :cljs (m/ddiv a b)))
 
 (defn- math-parse-term [tokens pos]
   (when-let [[v0 p0] (math-parse-power tokens pos)]
@@ -449,9 +450,9 @@
         (let [op (second (nth tokens p))]
           (if-let [[v2 p2] (math-parse-power tokens (inc p))]
             (recur (case op
-                     "*" (* acc v2)
+                     "*" (m/d* acc v2)
                      "/" (math-div acc v2)
-                     "%" (mod acc v2))
+                     "%" (m/dmod acc v2))
                    p2)
             [acc p]))
         [acc p]))))
@@ -464,7 +465,7 @@
                (#{"+" "-"} (second (nth tokens p))))
         (let [op (second (nth tokens p))]
           (if-let [[v2 p2] (math-parse-term tokens (inc p))]
-            (recur (if (= "+" op) (+ acc v2) (- acc v2)) p2)
+            (recur (if (= "+" op) (m/d+ acc v2) (m/d- acc v2)) p2)
             [acc p]))
         [acc p]))))
 
@@ -486,7 +487,7 @@
            (and (= 4 (count tokens))
                 (= [:op "/"] (nth tokens 2))
                 (= :num (first (nth tokens 1)))
-                (= (double pi-value) (double (second (nth tokens 1))))))))
+                (= (m/dec->double pi-value) (m/dec->double (second (nth tokens 1))))))))
 
 (defn- annotate-trig-expr
   "Annotate a trig expression string with explicit angle markers.
@@ -518,10 +519,11 @@
     (when (and (seq tokens) (not (standalone-trig? tokens)))
       (let [[v pos] (math-parse-expr tokens 0)]
         (when (and v (= pos (count tokens)))
-          (if (some #(and (= :fn (first %))
-                         (contains? math-trig-fns (second %))) tokens)
-            {:math-value v :trig-expr (annotate-trig-expr (str/trim s))}
-            v))))))
+          (let [v (m/normalize v)]
+            (if (some #(and (= :fn (first %))
+                           (contains? math-trig-fns (second %))) tokens)
+              {:math-value v :trig-expr (annotate-trig-expr (str/trim s))}
+              v)))))))
 
 (defn math-value
   "Extract the numeric value from a parse-math result (bare number or trig map)."
@@ -592,7 +594,7 @@
       (some? (parse-number-token t))
       (or (try-parse-math-tokens tokens i)
           (if (and (some? t2) (re-matches #"\d+/\d+" t2))
-            [(+ (parse-number-token t) (parse-number-token t2))
+            [(m/dec->double (m/d+ (parse-number-token t) (parse-number-token t2)))
              (+ i 2)]
             [(parse-number-token t) (inc i)]))
 
@@ -606,10 +608,11 @@
 
       ;; Pi division as single token: "pi/4"
       (and t (re-matches #"(?i)(?:pi|π)/\d+(?:\.\d+)?" t))
-      (let [[_ denom] (re-matches #"(?i)(?:pi|π)/(.+)" t)
-            v (#?(:clj bigdec :cljs js/parseFloat) denom)]
-        [(#?(:clj .divide :cljs /) pi-value v
-          #?(:clj (java.math.MathContext. 34))) (inc i)])
+      (let [[_ denom-str] (re-matches #"(?i)(?:pi|π)/(.+)" t)
+            v #?(:clj (bigdec denom-str) :cljs (js/parseFloat denom-str))]
+        [#?(:clj (.divide pi-value v (java.math.MathContext. 34))
+            :cljs (m/dec->double (m/ddiv pi-value v)))
+         (inc i)])
 
       ;; English number words: "ten", "twenty three", "one hundred", etc.
       (parse-number-words tokens i)
@@ -632,7 +635,7 @@
 (defn unit-map [u exp]
   (cond
     (keyword? u) {u exp}
-    (map? u) (into {} (map (fn [[k v]] [k (* exp v)]) u))
+    (map? u) (into {} (map (fn [[k v]] [k (* exp v)]) u))  ;; dim exponents are small ints
     :else (throw (ex-info "Bad unit" {:unit u}))))
 
 (defn merge-unit-maps [& maps]
@@ -1146,16 +1149,18 @@
     (cond
       ;; "pi/N" as a single token like "pi/4"
       (and t (re-matches #"(?i)(?:pi|π)/\d+(?:\.\d+)?" t))
-      (let [[_ denom] (re-matches #"(?i)(?:pi|π)/(.+)" t)
-            v (#?(:clj bigdec :cljs js/parseFloat) denom)]
-        [(#?(:clj .divide :cljs /) pi-value v
-          #?(:clj (java.math.MathContext. 34))) :rad (inc i)])
+      (let [[_ denom-str] (re-matches #"(?i)(?:pi|π)/(.+)" t)
+            v #?(:clj (bigdec denom-str) :cljs (js/parseFloat denom-str))]
+        [#?(:clj (.divide pi-value v (java.math.MathContext. 34))
+            :cljs (m/dec->double (m/ddiv pi-value v)))
+         :rad (inc i)])
 
       ;; "pi" "/" "N" as separate tokens (clean-phrase splits "pi/4" → "pi / 4")
       (and (#{"pi" "π"} t) (= "/" t2) t3 (re-matches #"\d+(?:\.\d+)?" t3))
-      (let [v (#?(:clj bigdec :cljs js/parseFloat) t3)]
-        [(#?(:clj .divide :cljs /) pi-value v
-          #?(:clj (java.math.MathContext. 34))) :rad (+ i 3)])
+      (let [v #?(:clj (bigdec t3) :cljs (js/parseFloat t3))]
+        [#?(:clj (.divide pi-value v (java.math.MathContext. 34))
+            :cljs (m/dec->double (m/ddiv pi-value v)))
+         :rad (+ i 3)])
 
       ;; bare "pi"
       (#{"pi" "π"} t)

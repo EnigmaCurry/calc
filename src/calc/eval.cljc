@@ -1,5 +1,6 @@
 (ns calc.eval
   (:require [calc.units :as u]
+            [calc.math :as m]
             [calc.dice :as dice]
             [clojure.string :as str]))
 
@@ -33,7 +34,7 @@
           {to-scale :scale}   (u/unit-spec to-unit)
           value (u/->bigdec value)]
       (u/normalize-number
-       (u/safe-div (* value from-scale) to-scale)))))
+       (m/ddiv (m/d* value from-scale) to-scale)))))
 
 ;; ============================================================================
 ;; Temperature conversion (affine transforms)
@@ -45,16 +46,16 @@
 (def ^:private temp-9 (u/->bigdec 9))
 
 (defn c->k [c]
-  (+ c temp-offset))
+  (m/d+ c temp-offset))
 
 (defn k->c [k]
-  (- k temp-offset))
+  (m/d- k temp-offset))
 
 (defn f->c [f]
-  (* (- f temp-32) (u/safe-div temp-5 temp-9)))
+  (m/d* (m/d- f temp-32) (m/ddiv temp-5 temp-9)))
 
 (defn c->f [c]
-  (+ (* c (u/safe-div temp-9 temp-5)) temp-32))
+  (m/d+ (m/d* c (m/ddiv temp-9 temp-5)) temp-32))
 
 (defn temperature->kelvin [value unit]
   (case unit
@@ -104,15 +105,14 @@
       (let [converted (convert-one (first remaining) to-unit)]
         (if (error? converted)
           converted
-          (recur (rest remaining) (+ total converted)))))))
+          (recur (rest remaining) (m/d+ total converted)))))))
 
 ;; ============================================================================
 ;; Quantity arithmetic evaluation
 ;; ============================================================================
 
 (defn- coerce-to-decimal [x]
-  #?(:clj (bigdec x)
-     :cljs x))
+  (m/->dec x))
 
 (defn- evaluate-qty-expr
   "Evaluate quantity arithmetic: multiply/divide/add/subtract quantities with units,
@@ -122,28 +122,28 @@
         result (reduce
                 (fn [{:keys [value dim]} [op term]]
                   (let [spec     (u/unit-spec (:unit term))
-                        term-val (* (coerce-to-decimal (:value term)) (:scale spec))]
+                        term-val (m/d* (coerce-to-decimal (:value term)) (:scale spec))]
                     (case op
-                      :* {:value (* value term-val)
+                      :* {:value (m/d* value term-val)
                           :dim   (u/merge-dims dim (:dim spec))}
-                      :/ {:value (u/safe-div value term-val)
+                      :/ {:value (m/ddiv value term-val)
                           :dim   (u/merge-dims dim (u/scale-dim (:dim spec) -1))}
                       :+ (if (= dim (:dim spec))
-                           {:value (+ value term-val) :dim dim}
+                           {:value (m/d+ value term-val) :dim dim}
                            (reduced {:error :incompatible-dimensions
                                      :from dim :to (:dim spec)}))
                       :- (if (= dim (:dim spec))
-                           {:value (- value term-val) :dim dim}
+                           {:value (m/d- value term-val) :dim dim}
                            (reduced {:error :incompatible-dimensions
                                      :from dim :to (:dim spec)})))))
-                {:value (* (coerce-to-decimal (:value (first terms))) (:scale first-spec))
+                {:value (m/d* (coerce-to-decimal (:value (first terms))) (:scale first-spec))
                  :dim   (:dim first-spec)}
                 (map vector ops (rest terms)))]
     (if (:error result)
       result
       (let [to-spec (u/unit-spec to-unit)]
         (if (= (:dim result) (:dim to-spec))
-          (u/normalize-number (u/safe-div (:value result) (:scale to-spec)))
+          (u/normalize-number (m/ddiv (:value result) (:scale to-spec)))
           {:error :incompatible-dimensions
            :from  (:dim result)
            :to    (:dim to-spec)})))))
@@ -158,9 +158,7 @@
   (or (->> candidates
            reverse
            (filter (fn [[_ s]]
-                     (>= #?(:clj (double (u/safe-div abs-val s))
-                            :cljs (/ abs-val s))
-                         1.0)))
+                     (m/d>= (m/ddiv abs-val s) 1.0)))
            first)
       (first candidates)))
 
@@ -181,12 +179,11 @@
               :let [num-cands   (get u/auto-scale-units num-dim)
                     denom-cands (get u/auto-scale-units denom-dim)]
               [denom-key denom-scale] denom-cands
-              :let [adjusted (* si-value denom-scale)
-                    abs-adj  #?(:clj (.abs (bigdec adjusted)) :cljs (js/Math.abs adjusted))
+              :let [adjusted (m/d* si-value denom-scale)
+                    abs-adj  (m/dabs adjusted)
                     [num-key num-scale] (pick-best-unit num-cands abs-adj)
-                    converted (u/normalize-number (u/safe-div adjusted num-scale))
-                    abs-conv #?(:clj (double (.abs (bigdec converted)))
-                                :cljs (js/Math.abs converted))]]
+                    converted (u/normalize-number (m/ddiv adjusted num-scale))
+                    abs-conv (m/dec->double (m/dabs converted))]]
           {:value     converted
            :abs-conv  abs-conv
            :unit-label (str (get u/unit-short-names num-key (name num-key))
@@ -197,8 +194,8 @@
                     (let [range-penalty
                           (cond
                             (and (>= abs-conv 1.0) (< abs-conv 1000.0)) 0.0
-                            (< abs-conv 1.0) (Math/log10 (/ 1.0 abs-conv))
-                            :else (Math/log10 (/ abs-conv 999.0)))
+                            (< abs-conv 1.0) (m/dlog10 (/ 1.0 abs-conv))
+                            :else (m/dlog10 (/ abs-conv 999.0)))
                           label-penalty (* 0.001 (count (str abs-conv)))]
                       (+ range-penalty label-penalty)))
             best (apply min-key score candidates)]
@@ -209,9 +206,9 @@
    and return {:value converted-value :unit-label \"days\"}."
   [dim si-value]
   (if-let [candidates (get u/auto-scale-units dim)]
-    (let [abs-val #?(:clj (.abs (bigdec si-value)) :cljs (js/Math.abs si-value))
+    (let [abs-val (m/dabs si-value)
           [unit-key scale] (pick-best-unit candidates abs-val)
-          converted (u/normalize-number (u/safe-div si-value scale))]
+          converted (u/normalize-number (m/ddiv si-value scale))]
       {:value converted :unit-label (get u/unit-display-names unit-key (name unit-key))})
     (or (try-compound-unit dim si-value)
         {:value (u/normalize-number si-value) :unit-label nil})))
@@ -237,21 +234,21 @@
         result (reduce
                 (fn [{:keys [value dim]} [op term]]
                   (let [spec     (u/unit-spec (:unit term))
-                        term-val (* (coerce-to-decimal (:value term)) (:scale spec))]
+                        term-val (m/d* (coerce-to-decimal (:value term)) (:scale spec))]
                     (case op
-                      :* {:value (* value term-val)
+                      :* {:value (m/d* value term-val)
                           :dim   (u/merge-dims dim (:dim spec))}
-                      :/ {:value (u/safe-div value term-val)
+                      :/ {:value (m/ddiv value term-val)
                           :dim   (u/merge-dims dim (u/scale-dim (:dim spec) -1))}
                       :+ (if (= dim (:dim spec))
-                           {:value (+ value term-val) :dim dim}
+                           {:value (m/d+ value term-val) :dim dim}
                            (reduced {:error :incompatible-dimensions
                                      :from dim :to (:dim spec)}))
                       :- (if (= dim (:dim spec))
-                           {:value (- value term-val) :dim dim}
+                           {:value (m/d- value term-val) :dim dim}
                            (reduced {:error :incompatible-dimensions
                                      :from dim :to (:dim spec)})))))
-                {:value (* (coerce-to-decimal (:value (first terms))) (:scale first-spec))
+                {:value (m/d* (coerce-to-decimal (:value (first terms))) (:scale first-spec))
                  :dim   (:dim first-spec)}
                 (map vector ops (rest terms)))]
     (if (:error result)
@@ -295,17 +292,17 @@
   (case type
     :what-percent
     (let [result (u/normalize-number
-                  (u/safe-div (* (u/->bigdec value) (u/->bigdec 100)) (u/->bigdec total)))]
+                  (m/ddiv (m/d* (m/->dec value) (m/->dec 100)) (m/->dec total)))]
       {:value result :unit-label "%"})
 
     :percent-of
     (let [result (u/normalize-number
-                  (u/safe-div (* (u/->bigdec percent) (u/->bigdec value)) (u/->bigdec 100)))]
+                  (m/ddiv (m/d* (m/->dec percent) (m/->dec value)) (m/->dec 100)))]
       {:value result})))
 
 (defn- evaluate-root
   "Compute the nth root of a value. Returns exact integer for perfect roots,
-   otherwise BigDecimal (JVM) or float (ClojureScript)."
+   otherwise BigDecimal (JVM) or Decimal (ClojureScript)."
   [{:keys [degree value]}]
   #?(:clj
      (let [n (long degree)
@@ -317,52 +314,46 @@
        (if (and (pos? candidate)
                 (= (reduce *' (repeat n (bigint candidate)))
                    (bigint abs-v)))
-         ;; Perfect root
          (let [result (bigint candidate)]
            {:value (u/normalize-number (if (and neg? (odd? n)) (- result) result))})
-         ;; Imperfect root — use decimal
          (let [result (Math/pow (double v) (/ 1.0 n))]
            {:value (u/normalize-number (bigdec result))})))
      :cljs
-     (let [result (js/Math.pow value (/ 1.0 degree))]
-       (if (== result (js/Math.round result))
-         {:value (js/Math.round result)}
-         {:value result}))))
+     (let [result (m/dpow value (m/ddiv 1.0 degree))
+           rounded (m/dround result)]
+       (if (m/d== result rounded)
+         {:value (m/normalize rounded)}
+         {:value (m/normalize result)}))))
 
 (defn- deg->rad [x]
-  #?(:clj  (* (double x) (/ Math/PI 180.0))
-     :cljs (* x (/ Math/PI 180))))
+  (* (m/dec->double x) (/ m/PI 180.0)))
 
 (defn- rad->deg [x]
-  #?(:clj  (* x (/ 180.0 Math/PI))
-     :cljs (* x (/ 180 Math/PI))))
+  (* (m/dec->double x) (/ 180.0 m/PI)))
 
 (def ^:private forward-trig-fns
-  {:sin #(Math/sin %) :cos #(Math/cos %) :tan #(Math/tan %)})
+  {:sin m/dsin :cos m/dcos :tan m/dtan})
 
 (def ^:private inverse-trig-fns
-  {:asin #(Math/asin %) :acos #(Math/acos %) :atan #(Math/atan %)})
+  {:asin m/dasin :acos m/dacos :atan m/datan})
 
 (defn- evaluate-trig
   "Evaluate a trig function. For forward trig (sin/cos/tan), input is in the
    given angle-mode and output is a dimensionless number. For inverse trig
    (asin/acos/atan), input is dimensionless and output is in the given angle-mode."
   [{:keys [fn value angle-mode]}]
-  (let [v (double value)]
+  (let [v (m/dec->double value)]
     (if-let [f (get forward-trig-fns fn)]
-      ;; Forward trig: convert input to radians, compute, return bare number
       (let [rad (if (= angle-mode :rad) v (deg->rad v))
             result (f rad)
-            ;; Clean up near-zero results from floating point
-            result (if (< (Math/abs result) 1e-14) 0.0 result)]
+            result (if (< (Math/abs (double result)) 1e-14) 0.0 (double result))]
         {:value (u/normalize-number #?(:clj (bigdec result) :cljs result))})
-      ;; Inverse trig: compute in radians, convert output to requested mode
       (let [f (get inverse-trig-fns fn)
             rad-result (f v)
             result (if (= angle-mode :rad)
                      rad-result
                      (rad->deg rad-result))
-            ;; Clean up near-zero/near-integer results
+            result (double result)
             result (if (< (Math/abs (- result (Math/round result))) 1e-10)
                      (double (Math/round result))
                      result)]
@@ -370,36 +361,36 @@
          :unit-label (if (= angle-mode :rad) "rad" "°")}))))
 
 (defn- evaluate-modulo [{:keys [dividend divisor]}]
-  (let [result (u/normalize-number (mod (u/->bigdec dividend) (u/->bigdec divisor)))]
+  (let [result (u/normalize-number (m/dmod (m/->dec dividend) (m/->dec divisor)))]
     {:value result}))
 
 (defn- round-up-penny
   "Round a monetary value up to the nearest cent (ceiling)."
   [x]
   #?(:clj  (u/normalize-number (.setScale (u/->bigdec x) 2 java.math.RoundingMode/CEILING))
-     :cljs (u/normalize-number (/ (js/Math.ceil (* x 100)) 100))))
+     :cljs (u/normalize-number (m/ddiv (m/dceil (m/d* x 100)) 100))))
 
 (defn- calc-pct
   "Calculate the effective tip percentage, rounded to 1 decimal."
   [tip bill]
   (u/normalize-number
-   #?(:clj  (.setScale (u/safe-div (* (u/->bigdec tip) (u/->bigdec 100)) (u/->bigdec bill))
+   #?(:clj  (.setScale (m/ddiv (m/d* (m/->dec tip) (m/->dec 100)) (m/->dec bill))
                         1 java.math.RoundingMode/HALF_UP)
-      :cljs (/ (js/Math.round (* (/ tip bill) 1000)) 10))))
+      :cljs (m/ddiv (m/dround (m/d* (m/ddiv tip bill) 1000)) 10))))
 
 (defn- tip-row
   "Build a tip table row from a bill and tip amount."
   [bill tip label]
   {:label label
-   :tip (u/normalize-number (u/->bigdec tip))
-   :total (u/normalize-number (+ (u/->bigdec bill) (u/->bigdec tip)))
+   :tip (u/normalize-number (m/->dec tip))
+   :total (u/normalize-number (m/d+ (m/->dec bill) (m/->dec tip)))
    :percent (calc-pct tip bill)})
 
 (defn- exact-tip-row
   "Build a row for an exact percentage."
   [bill pct]
   (let [tip (round-up-penny
-             (u/safe-div (* (u/->bigdec pct) (u/->bigdec bill)) (u/->bigdec 100)))
+             (m/ddiv (m/d* (m/->dec pct) (m/->dec bill)) (m/->dec 100)))
         display-pct (calc-pct tip bill)]
     (tip-row bill tip (str display-pct "%"))))
 
@@ -410,17 +401,16 @@
   (first
    (for [denom [20 10 5 1]
          :let [candidate (* denom
-                            #?(:clj  (long (Math/ceil (/ (double min-val) denom)))
-                               :cljs (js/Math.ceil (/ min-val denom))))]
-         :when (<= candidate (double max-val))]
-     (u/normalize-number (u/->bigdec candidate)))))
+                            (long (m/dceil (m/ddiv (m/dec->double min-val) denom))))]
+         :when (<= candidate (m/dec->double max-val))]
+     (u/normalize-number (m/->dec candidate)))))
 
 (defn- round-tip-row
   "Find a round tip amount between min-pct% and max-pct% of the bill."
   [bill min-pct max-pct]
-  (let [bill-d (double (u/->bigdec bill))
-        min-tip (* bill-d (/ (double min-pct) 100.0))
-        max-tip (* bill-d (/ (double max-pct) 100.0))]
+  (let [bill-d (m/dec->double bill)
+        min-tip (* bill-d (/ (m/dec->double min-pct) 100.0))
+        max-tip (* bill-d (/ (m/dec->double max-pct) 100.0))]
     (when-let [tip (find-round-amount min-tip max-tip)]
       (let [pct (calc-pct tip bill)]
         (tip-row bill tip (str pct "%"))))))
@@ -428,11 +418,11 @@
 (defn- round-total-row
   "Find a round total amount where the tip falls between min-pct% and max-pct%."
   [bill min-pct max-pct]
-  (let [bill-d (double (u/->bigdec bill))
-        min-total (+ bill-d (* bill-d (/ (double min-pct) 100.0)))
-        max-total (+ bill-d (* bill-d (/ (double max-pct) 100.0)))]
+  (let [bill-d (m/dec->double bill)
+        min-total (+ bill-d (* bill-d (/ (m/dec->double min-pct) 100.0)))
+        max-total (+ bill-d (* bill-d (/ (m/dec->double max-pct) 100.0)))]
     (when-let [total (find-round-amount min-total max-total)]
-      (let [tip (u/normalize-number (- (u/->bigdec total) (u/->bigdec bill)))
+      (let [tip (u/normalize-number (m/d- (m/->dec total) (m/->dec bill)))
             pct (calc-pct tip bill)]
         (tip-row bill tip (str pct "%"))))))
 
@@ -466,14 +456,14 @@
                  (dedupe-rows
                    (filterv some?
                      [exact-row
-                      (round-tip-row bill percent (+ (double percent) 10))
-                      (round-total-row bill percent (+ (double percent) 10))])))]
+                      (round-tip-row bill percent (+ (m/dec->double percent) 10))
+                      (round-total-row bill percent (+ (m/dec->double percent) 10))])))]
       {:value (:tip exact-row) :rows rows :bill bill})))
 
 (defn- evaluate-tax [{:keys [percent price]}]
   (let [tax (round-up-penny
-             (u/safe-div (* (u/->bigdec percent) (u/->bigdec price)) (u/->bigdec 100)))
-        total (u/normalize-number (+ (u/->bigdec price) (u/->bigdec tax)))]
+             (m/ddiv (m/d* (m/->dec percent) (m/->dec price)) (m/->dec 100)))
+        total (u/normalize-number (m/d+ (m/->dec price) (m/->dec tax)))]
     {:value tax :tax tax :total total}))
 
 (defn- convert-to-mixed-units
@@ -498,7 +488,7 @@
                                    :to (:dim (u/unit-spec tu))}))))
             ;; Convert source to SI base value
             from-spec (u/unit-spec from-unit)
-            si-value (* (coerce-to-decimal value) (:scale from-spec))
+            si-value (m/d* (coerce-to-decimal value) (:scale from-spec))
             ;; Cascade through target units largest-to-smallest
             results (loop [remaining-si si-value
                            units to-units
@@ -508,16 +498,16 @@
                         (let [u (first units)
                               spec (u/unit-spec u)
                               converted (u/normalize-number
-                                         (u/safe-div remaining-si (:scale spec)))]
+                                         (m/ddiv remaining-si (:scale spec)))]
                           (conj acc {:value converted
                                      :unit-label (format-unit-label u)}))
                         (let [u (first units)
                               spec (u/unit-spec u)
-                              converted (u/safe-div remaining-si (:scale spec))
+                              converted (m/ddiv remaining-si (:scale spec))
                               whole #?(:clj (bigint (long (Math/floor (double converted))))
-                                       :cljs (js/Math.floor converted))
-                              used (* (coerce-to-decimal whole) (:scale spec))
-                              leftover (- remaining-si used)]
+                                       :cljs (m/dfloor converted))
+                              used (m/d* (coerce-to-decimal whole) (:scale spec))
+                              leftover (m/d- remaining-si used)]
                           (recur leftover
                                  (rest units)
                                  (conj acc {:value (u/normalize-number whole)
@@ -599,7 +589,7 @@
           :unit-label (get u/unit-display-names unit-key (name unit-key))}
          ;; Compound unit (exponent map) — convert value to SI and auto-select
          (let [spec (u/unit-spec unit-key)
-               si-value (* (coerce-to-decimal (:value quantity)) (:scale spec))
+               si-value (m/d* (coerce-to-decimal (:value quantity)) (:scale spec))
                auto-result (auto-select-unit (:dim spec) si-value)]
            (if (:unit-label auto-result)
              auto-result
