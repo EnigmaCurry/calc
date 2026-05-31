@@ -4,8 +4,9 @@
             [calc.format :as fmt]
             [clojure.string :as str]
             [calc.parser :as parser])
-  (:import (org.jline.reader LineReaderBuilder EndOfFileException UserInterruptException LineReader Widget)
-           (org.jline.terminal TerminalBuilder))
+  (:import (org.jline.reader LineReaderBuilder EndOfFileException UserInterruptException LineReader Widget Highlighter)
+           (org.jline.terminal TerminalBuilder)
+           (org.jline.utils AttributedString AttributedStringBuilder AttributedStyle))
   (:gen-class))
 
 (def dim-labels u/dim-categories)
@@ -340,75 +341,54 @@
   (print "\033[2J\033[H")
   (flush))
 
-(defn- clear-preview
-  "Clear the preview line below the cursor."
-  [reader]
-  (let [writer (.writer (.getTerminal reader))]
-    (.write writer "\033[s\033[1B\r\033[2K\033[u")
-    (.flush writer)))
-
-(defn- show-preview
-  "Show preview text on the line below the cursor in green."
-  [reader text]
-  (let [writer (.writer (.getTerminal reader))]
-    (.write writer (str "\033[s\033[1B\r\033[2K  \033[32m→ " text "\033[0m\033[u"))
-    (.flush writer)))
-
-(defn- update-preview
-  "Evaluate the current buffer and display a live preview below the input line."
-  [reader fmt-opts-atom]
-  (let [text (str/trim (str (.getBuffer reader)))]
-    (if (or (str/blank? text)
-            (str/starts-with? text "/")
-            (#{"exit" "quit" "help"} text))
-      (clear-preview reader)
-      (try
-        (let [{:keys [error result target]} (process-request-text text @fmt-opts-atom)]
-          (if (and result (not error))
-            (let [display (if target (str result " " target) result)]
-              (show-preview reader display))
-            (clear-preview reader)))
-        (catch Exception _
-          (clear-preview reader))))))
-
-(defn- install-preview-widgets
-  "Install widget wrappers that update the live preview after each edit."
-  [reader fmt-opts-atom]
-  (let [widgets (.getWidgets reader)
-        wrap (fn [widget-name]
-               (when-let [^Widget original (get widgets widget-name)]
-                 (.put widgets widget-name
-                   (reify Widget
-                     (apply [_]
-                       (let [r (.apply original)]
-                         (update-preview reader fmt-opts-atom)
-                         r))))))
-        ^Widget orig-accept (get widgets LineReader/ACCEPT_LINE)]
-    (doseq [wn [LineReader/SELF_INSERT
-                LineReader/BACKWARD_DELETE_CHAR
-                LineReader/DELETE_CHAR
-                LineReader/KILL_LINE
-                LineReader/BACKWARD_KILL_WORD
-                LineReader/KILL_WORD
-                LineReader/YANK
-                LineReader/TRANSPOSE_CHARS]]
-      (wrap wn))
-    (.put widgets LineReader/ACCEPT_LINE
-      (reify Widget
-        (apply [_]
-          (clear-preview reader)
-          (.apply orig-accept))))))
+(defn- make-preview-highlighter
+  "Create a Highlighter that appends a live preview line below the input."
+  [fmt-opts accepting]
+  (reify Highlighter
+    (highlight [_ _ buf]
+      (let [text (str buf)]
+        (if (or @accepting
+                (str/blank? text)
+                (str/starts-with? text "/")
+                (#{"exit" "quit" "help"} text))
+          (AttributedString. text)
+          (try
+            (let [{:keys [error result target]} (process-request-text (str/trim text) @fmt-opts)]
+              (if (and result (not error))
+                (let [display (if target (str result " " target) result)
+                      asb (AttributedStringBuilder.)]
+                  (.append asb text)
+                  (.style asb (.foreground AttributedStyle/DEFAULT (int 2)))
+                  (.append asb (str "\n  → " display))
+                  (.style asb AttributedStyle/DEFAULT)
+                  (.toAttributedString asb))
+                (AttributedString. text)))
+            (catch Exception _
+              (AttributedString. text))))))
+    (setErrorPattern [_ _])
+    (setErrorIndex [_ _])))
 
 (defn repl
   "Launch an interactive REPL with JLine readline support and live preview."
   []
-  (let [terminal (-> (TerminalBuilder/builder) (.system true) (.build))
-        reader   (-> (LineReaderBuilder/builder) (.terminal terminal) (.build))
-        fmt-opts (atom nil)]
+  (let [fmt-opts (atom nil)
+        accepting (atom false)
+        terminal (-> (TerminalBuilder/builder) (.system true) (.build))
+        reader   (-> (LineReaderBuilder/builder)
+                     (.terminal terminal)
+                     (.highlighter (make-preview-highlighter fmt-opts accepting))
+                     (.build))]
     (.setVariable reader LineReader/HISTORY_FILE hist-path)
-    (install-preview-widgets reader fmt-opts)
+    (let [widgets (.getWidgets reader)
+          ^Widget orig-accept (get widgets LineReader/ACCEPT_LINE)]
+      (.put widgets LineReader/ACCEPT_LINE
+        (reify Widget
+          (apply [_]
+            (reset! accepting true)
+            (.apply orig-accept)))))
     (println "calc — type '/help' for usage, Ctrl-D to exit")
     (loop []
+      (reset! accepting false)
       (let [line (try (.readLine reader "calc> ")
                       (catch EndOfFileException _ ::eof)
                       (catch UserInterruptException _ ::interrupt))
