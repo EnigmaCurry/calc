@@ -56,15 +56,8 @@
               (not (:ok? result))
               {:error (fmt/format-error result)}
 
-              (= :percentage (:op parsed))
-              {:result (str (fmt/format-number (:value result) effective-fmt)
-                            (:unit-label result))}
-
-              (= :root (:op parsed))
-              {:result (fmt/format-number (:value result) effective-fmt)}
-
-              (= :modulo (:op parsed))
-              {:result (fmt/format-number (:value result) effective-fmt)}
+              (fmt/format-op-result parsed result effective-fmt)
+              {:result (fmt/format-op-result parsed result effective-fmt)}
 
               ;; Mixed output (e.g., "feet and inches")
               (:mixed result)

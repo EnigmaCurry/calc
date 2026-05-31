@@ -135,3 +135,27 @@
     :unsupported-operation "Unsupported operation"
     :invalid-request "Invalid request"
     (str "Error: " (pr-str {:error error}))))
+
+(defn format-op-result
+  "Format the result of a non-conversion op (:percentage, :root, :modulo, :tip, :tax).
+   Returns a result string or nil if the op is not handled here."
+  [parsed result fmt-opts]
+  (case (:op parsed)
+    :percentage (str (format-number (:value result) fmt-opts)
+                     (:unit-label result))
+
+    :root (format-number (:value result) fmt-opts)
+
+    :modulo (format-number (:value result) fmt-opts)
+
+    :tip (str "Bill: $" (format-number (:bill parsed) fmt-opts)
+              ", Tip: $" (format-number (:tip result) fmt-opts)
+              " (" (format-number (:percent parsed) fmt-opts) "%)"
+              ", Total: $" (format-number (:total result) fmt-opts))
+
+    :tax (str "Price: $" (format-number (:price parsed) fmt-opts)
+              ", Tax: $" (format-number (:tax result) fmt-opts)
+              " (" (format-number (:percent parsed) fmt-opts) "%)"
+              ", Total: $" (format-number (:total result) fmt-opts))
+
+    nil))

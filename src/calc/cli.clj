@@ -165,29 +165,8 @@
         (not (:ok? result))
         {:error (format-error result)}
 
-        (= :percentage (:op parsed))
-        (if (:unit-label result)
-          {:result (str (fmt/format-number (:value result) effective-fmt)
-                        (:unit-label result))}
-          {:result (fmt/format-number (:value result) effective-fmt)})
-
-        (= :root (:op parsed))
-        {:result (fmt/format-number (:value result) effective-fmt)}
-
-        (= :tip (:op parsed))
-        {:result (str "Bill: $" (fmt/format-number (:bill parsed) effective-fmt)
-                      ", Tip: $" (fmt/format-number (:tip result) effective-fmt)
-                      " (" (fmt/format-number (:percent parsed) effective-fmt) "%)"
-                      ", Total: $" (fmt/format-number (:total result) effective-fmt))}
-
-        (= :tax (:op parsed))
-        {:result (str "Price: $" (fmt/format-number (:price parsed) effective-fmt)
-                      ", Tax: $" (fmt/format-number (:tax result) effective-fmt)
-                      " (" (fmt/format-number (:percent parsed) effective-fmt) "%)"
-                      ", Total: $" (fmt/format-number (:total result) effective-fmt))}
-
-        (= :modulo (:op parsed))
-        {:result (fmt/format-number (:value result) effective-fmt)}
+        (fmt/format-op-result parsed result effective-fmt)
+        {:result (fmt/format-op-result parsed result effective-fmt)}
 
         ;; Mixed output (e.g., "feet and inches")
         (:mixed result)
