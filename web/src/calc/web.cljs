@@ -280,9 +280,9 @@
      ["2^10" "1024"]
      ["sqrt(9) + sqrt(16)" "7"]]]
    ["Tip & Tax"
-    [["tip $50" "Bill: $50, Tip: $10 (20%), Total: $60"]
-     ["tip 85.50 18" "Bill: $85.5, Tip: $15.39 (18%), Total: $100.89"]
-     ["tip $100 15%" "Bill: $100, Tip: $15 (15%), Total: $115"]
+    [["tip $50" "Tip table with 15%, 20%, round options"]
+     ["tip 85 18" "18% exact + round total option"]
+     ["tip $100 15%" "15% exact + round total option"]
      ["tax 29.99 8.25" "Price: $29.99, Tax: $2.48 (8.25%), Total: $32.47"]
      ["tax $50 10%" "Price: $50, Tax: $5 (10%), Total: $55"]]]
    ["Formatting"

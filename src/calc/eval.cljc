@@ -334,36 +334,77 @@
   #?(:clj  (u/normalize-number (.setScale (u/->bigdec x) 2 java.math.RoundingMode/CEILING))
      :cljs (u/normalize-number (/ (js/Math.ceil (* x 100)) 100))))
 
-(defn- find-round-tip
-  "Find a round cash-friendly tip between 20% and 30% of the bill.
-   Tries denominations $20, $10, $5, $1 in order, preferring rounder amounts.
-   For each, finds the smallest multiple >= 20% of the bill.
-   Returns the first one that also <= 30%. Falls back to ceiling of 20%."
-  [bill]
-  (let [bill-d  (double (u/->bigdec bill))
-        min-tip (* bill-d 0.20)
-        max-tip (* bill-d 0.30)]
-    (or (first
-         (for [denom [20 10 5 1]
-               :let [candidate (* denom
-                                  #?(:clj  (long (Math/ceil (/ min-tip denom)))
-                                     :cljs (js/Math.ceil (/ min-tip denom))))]
-               :when (<= candidate max-tip)]
-           (u/normalize-number (u/->bigdec candidate))))
-        ;; fallback: exact 20% rounded up to penny
-        (round-up-penny (u/safe-div (* (u/->bigdec bill) (u/->bigdec 20)) (u/->bigdec 100))))))
+(defn- calc-pct
+  "Calculate the effective tip percentage, rounded to 1 decimal."
+  [tip bill]
+  (u/normalize-number
+   #?(:clj  (.setScale (u/safe-div (* (u/->bigdec tip) (u/->bigdec 100)) (u/->bigdec bill))
+                        1 java.math.RoundingMode/HALF_UP)
+      :cljs (/ (js/Math.round (* (/ tip bill) 1000)) 10))))
+
+(defn- tip-row
+  "Build a tip table row from a bill and tip amount."
+  [bill tip label]
+  {:label label
+   :tip (u/normalize-number (u/->bigdec tip))
+   :total (u/normalize-number (+ (u/->bigdec bill) (u/->bigdec tip)))
+   :percent (calc-pct tip bill)})
+
+(defn- exact-tip-row
+  "Build a row for an exact percentage."
+  [bill pct]
+  (let [tip (round-up-penny
+             (u/safe-div (* (u/->bigdec pct) (u/->bigdec bill)) (u/->bigdec 100)))]
+    (tip-row bill tip (str (u/normalize-number pct) "%"))))
+
+(defn- find-round-amount
+  "Find the smallest round cash amount (multiple of $20/$10/$5/$1) in [min-val, max-val].
+   Tries largest denominations first. Returns the amount or nil."
+  [min-val max-val]
+  (first
+   (for [denom [20 10 5 1]
+         :let [candidate (* denom
+                            #?(:clj  (long (Math/ceil (/ (double min-val) denom)))
+                               :cljs (js/Math.ceil (/ min-val denom))))]
+         :when (<= candidate (double max-val))]
+     (u/normalize-number (u/->bigdec candidate)))))
+
+(defn- round-tip-row
+  "Find a round tip amount between min-pct% and max-pct% of the bill."
+  [bill min-pct max-pct]
+  (let [bill-d (double (u/->bigdec bill))
+        min-tip (* bill-d (/ (double min-pct) 100.0))
+        max-tip (* bill-d (/ (double max-pct) 100.0))]
+    (when-let [tip (find-round-amount min-tip max-tip)]
+      (tip-row bill tip "Round tip"))))
+
+(defn- round-total-row
+  "Find a round total amount where the tip falls between min-pct% and max-pct%."
+  [bill min-pct max-pct]
+  (let [bill-d (double (u/->bigdec bill))
+        min-total (+ bill-d (* bill-d (/ (double min-pct) 100.0)))
+        max-total (+ bill-d (* bill-d (/ (double max-pct) 100.0)))]
+    (when-let [total (find-round-amount min-total max-total)]
+      (let [tip (u/normalize-number (- (u/->bigdec total) (u/->bigdec bill)))]
+        (tip-row bill tip "Round total")))))
 
 (defn- evaluate-tip [{:keys [percent bill round-tip]}]
-  (let [tip (if round-tip
-              (find-round-tip bill)
-              (round-up-penny
-               (u/safe-div (* (u/->bigdec percent) (u/->bigdec bill)) (u/->bigdec 100))))
-        actual-pct (u/normalize-number
-                    #?(:clj  (.setScale (u/safe-div (* (u/->bigdec tip) (u/->bigdec 100)) (u/->bigdec bill))
-                                        1 java.math.RoundingMode/HALF_UP)
-                       :cljs (/ (js/Math.round (* (/ tip bill) 1000)) 10)))
-        total (u/normalize-number (+ (u/->bigdec bill) (u/->bigdec tip)))]
-    {:value tip :tip tip :total total :percent actual-pct}))
+  (let [bill-dec (u/->bigdec bill)]
+    (if round-tip
+      ;; No explicit rate: show table with 15%, 20%, round tip, round total
+      (let [rows (filterv some?
+                   [(exact-tip-row bill 15)
+                    (exact-tip-row bill 20)
+                    (round-tip-row bill 20 30)
+                    (round-total-row bill 20 30)])]
+        {:value (:tip (second rows)) :rows rows :bill bill})
+      ;; Explicit rate: show exact + round tip + round total
+      (let [exact (exact-tip-row bill percent)
+            rows (filterv some?
+                   [exact
+                    (round-tip-row bill percent (+ (double percent) 10))
+                    (round-total-row bill percent (+ (double percent) 10))])]
+        {:value (:tip exact) :rows rows :bill bill}))))
 
 (defn- evaluate-tax [{:keys [percent price]}]
   (let [tax (round-up-penny
