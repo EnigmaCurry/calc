@@ -158,7 +158,8 @@
   "Find the largest precision where 100 iterations of (10^(prec-1))+1-(10^(prec-1))
    complete in under 200ms. Returns the best precision value."
   []
-  (let [candidates [200 500 1000 2000 5000 10000 20000 50000 100000]]
+  (let [candidates [200 500 1000 2000 5000 10000 20000 50000
+                    100000 200000 500000 1000000]]
     (loop [remaining candidates
            best m/default-precision]
       (if (empty? remaining)
