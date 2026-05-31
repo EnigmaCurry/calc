@@ -211,7 +211,8 @@
    "1e9 BTU in kWh"
    "tip $50"
    "tip 85.50 20"
-   "tax 29.99 8.25"])
+   "tax 29.99 8.25"
+   "roll 2d6"])
 
 (def unit-groups units/unit-groups)
 
