@@ -31,7 +31,20 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
 
+      - uses: DeLaGuardo/setup-clojure@13.3
+        with:
+          cli: latest
+
       - uses: extractions/setup-just@v2
+
+      - name: Run JVM tests
+        run: clojure -M:test
+
+      - name: Run ClojureScript tests
+        run: |
+          cd web
+          npm ci --silent
+          npx shadow-cljs compile test
 
       - name: Build web app
         run: just web-build
