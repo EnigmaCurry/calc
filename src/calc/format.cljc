@@ -139,10 +139,14 @@
 
 (defn roll-preview
   "If input is a roll command, return a preview string like 'Rolling 2d6 ...'
-   without actually rolling. Returns nil for non-roll input."
+   without actually rolling. Returns nil for non-roll input.
+   Returns an error string if the dice expression is invalid."
   [input]
   (when-let [expr (dice/roll-input? input)]
-    (str "Rolling " expr " ...")))
+    (let [parsed (dice/parse-dice expr)]
+      (if (:error parsed)
+        {:error (:message parsed)}
+        {:result (str "Rolling " expr " ...")}))))
 
 (defn- format-roll-result
   "Format a dice roll result for display."

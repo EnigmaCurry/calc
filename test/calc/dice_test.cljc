@@ -244,13 +244,18 @@
 
 (deftest roll-preview-hides-result
   (testing "roll preview shows teaser, not results"
-    (is (= "Rolling 2d6+3 ..." (fmt/roll-preview "roll 2d6+3")))
-    (is (= "Rolling d20 ..." (fmt/roll-preview "roll d20")))
-    (is (= "Rolling 4d6kh3 ..." (fmt/roll-preview "Roll 4d6kh3"))))
+    (is (= {:result "Rolling 2d6+3 ..."} (fmt/roll-preview "roll 2d6+3")))
+    (is (= {:result "Rolling d20 ..."} (fmt/roll-preview "roll d20")))
+    (is (= {:result "Rolling 4d6kh3 ..."} (fmt/roll-preview "Roll 4d6kh3"))))
 
   (testing "non-roll input returns nil"
     (is (nil? (fmt/roll-preview "12 feet in yards")))
-    (is (nil? (fmt/roll-preview "d20")))))
+    (is (nil? (fmt/roll-preview "d20"))))
+
+  (testing "invalid dice expression returns error"
+    (is (:error (fmt/roll-preview "roll asdfiuva")))
+    (is (:error (fmt/roll-preview "roll 0d6")))
+    (is (nil? (:result (fmt/roll-preview "roll asdfiuva"))))))
 
 ;; ============================================================================
 ;; Format tests

@@ -332,6 +332,17 @@
       color: var(--red);
     }
 
+    .log-copied {
+      color: var(--accent);
+      font-weight: 600;
+      animation: flash-copied 0.3s ease-out;
+    }
+
+    @keyframes flash-copied {
+      0% { opacity: 0; transform: scale(1.2); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
     .examples {
       padding: 2rem 0;
       margin-top: auto;

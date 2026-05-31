@@ -156,7 +156,8 @@
                         :menu-open false
                         :theme (load-theme)
                         :hide-examples (load-hide-examples)
-                        :page :calc}))
+                        :page :calc
+                        :copied-idx nil}))
 
 (defn effective-fmt-opts
   "Merge default settings with session overrides. Session wins."
@@ -166,6 +167,8 @@
 
 (defonce log-ref (atom nil))
 (defonce suppress-menu (atom false))
+(defonce press-start (atom nil))
+(def long-press-ms 400)
 
 (defn scroll-log-to-top []
   (when-let [el @log-ref]
@@ -591,9 +594,8 @@
         typing? (not (str/blank? input))
         preview (when (and typing?
                            (not (str/starts-with? (str/trim input) "/")))
-                  (if-let [rp (fmt/roll-preview (str/trim input))]
-                    {:result rp}
-                    (evaluate input eff-fmt)))]
+                  (or (fmt/roll-preview (str/trim input))
+                      (evaluate input eff-fmt)))]
     [:<>
      [:header
       [:h1 "calc"]
@@ -678,33 +680,59 @@
          (when (seq history)
            [:div.log
             (for [[idx {:keys [input from target result error]}] (map-indexed vector history)]
-              ^{:key idx}
-              [(if (and (zero? idx) (not typing?)) :div.log-entry.latest :div.log-entry)
-               {:on-click (fn []
-                            (when input
-                              (.writeText js/navigator.clipboard input)
-                              (swap! state assoc :input input)
-                              (when-let [el (.querySelector js/document ".input-wrapper input")]
-                                (.focus el)
-                                (js/setTimeout
-                                 (fn []
-                                   (let [len (count input)]
-                                     (.setSelectionRange el len len)))
-                                 0))))}               [:span.log-input (or from input)]
-               (cond
-                 error
-                 [:span.log-error (str "\u2192 " error)]
+              (let [result-text (cond
+                                  error error
+                                  target (str result " " target)
+                                  :else (str result))
+                    copied? (= idx (:copied-idx @state))
+                    on-press-start (fn [e]
+                                     (when-not (.. e -target -classList (contains "log-delete"))
+                                       (reset! press-start (.now js/Date))))
+                    on-press-end (fn [e]
+                                   (when-not (.. e -target -classList (contains "log-delete"))
+                                     (when-let [start @press-start]
+                                       (reset! press-start nil)
+                                       (let [elapsed (- (.now js/Date) start)]
+                                         (if (>= elapsed long-press-ms)
+                                           ;; Long press: copy result to clipboard
+                                           (do (.preventDefault e)
+                                               (.writeText js/navigator.clipboard result-text)
+                                               (swap! state assoc :copied-idx idx)
+                                               (js/setTimeout #(swap! state assoc :copied-idx nil) 1200))
+                                           ;; Short click: put input in input box
+                                           (when input
+                                             (swap! state assoc :input input)
+                                             (when-let [el (.querySelector js/document ".input-wrapper input")]
+                                               (.focus el)
+                                               (js/setTimeout
+                                                (fn []
+                                                  (let [len (count input)]
+                                                    (.setSelectionRange el len len)))
+                                                0))))))))]
+                ^{:key idx}
+                [(if (and (zero? idx) (not typing?)) :div.log-entry.latest :div.log-entry)
+                 {:on-mouse-down on-press-start
+                  :on-mouse-up on-press-end
+                  :on-touch-start on-press-start
+                  :on-touch-end on-press-end
+                  :on-click (fn [e] (.preventDefault e))}
+                 [:span.log-input (or from input)]
+                 (if copied?
+                   [:span.log-copied "Copied!"]
+                   (cond
+                     error
+                     [:span.log-error (str "\u2192 " error)]
 
-                 target
-                 [:span.log-result (str "= " result " " target)]
+                     target
+                     [:span.log-result (str "= " result " " target)]
 
-                 :else
-                 [:span.log-result (str "= " result)])
-               [:button.log-delete
-                {:on-click (fn [e]
-                             (.stopPropagation e)
-                             (delete-history-entry! idx))}
-                "\u00d7"]])])
+                     :else
+                     [:span.log-result (str "= " result)]))
+                 [:button.log-delete
+                  {:on-click (fn [e]
+                               (.stopPropagation e)
+                               (delete-history-entry! idx))}
+                  "\u00d7"]]))])
          (when-not (:hide-examples @state)
            [:div.examples
             [:h3 "Try some examples"]

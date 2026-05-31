@@ -359,9 +359,8 @@
           (try
             (let [trimmed (str/trim text)
                   {:keys [error result target]}
-                  (if-let [preview (fmt/roll-preview trimmed)]
-                    {:result preview}
-                    (process-request-text trimmed @fmt-opts))]
+                  (or (fmt/roll-preview trimmed)
+                      (process-request-text trimmed @fmt-opts))]
               (if (and result (not error))
                 (let [display (if target (str result " " target) result)
                       asb (AttributedStringBuilder.)]
