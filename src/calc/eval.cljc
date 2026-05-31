@@ -359,8 +359,9 @@
   "Build a row for an exact percentage."
   [bill pct]
   (let [tip (round-up-penny
-             (u/safe-div (* (u/->bigdec pct) (u/->bigdec bill)) (u/->bigdec 100)))]
-    (tip-row bill tip (str (u/normalize-number pct) "%"))))
+             (u/safe-div (* (u/->bigdec pct) (u/->bigdec bill)) (u/->bigdec 100)))
+        display-pct (calc-pct tip bill)]
+    (tip-row bill tip (str display-pct "%"))))
 
 (defn- find-round-amount
   "Find the smallest round cash amount (multiple of $20/$10/$5/$1) in [min-val, max-val].
@@ -382,7 +383,7 @@
         max-tip (* bill-d (/ (double max-pct) 100.0))]
     (when-let [tip (find-round-amount min-tip max-tip)]
       (let [pct (calc-pct tip bill)]
-        (tip-row bill tip (str "Round tip " pct "%"))))))
+        (tip-row bill tip (str pct "%"))))))
 
 (defn- round-total-row
   "Find a round total amount where the tip falls between min-pct% and max-pct%."
@@ -393,7 +394,7 @@
     (when-let [total (find-round-amount min-total max-total)]
       (let [tip (u/normalize-number (- (u/->bigdec total) (u/->bigdec bill)))
             pct (calc-pct tip bill)]
-        (tip-row bill tip (str "Round total " pct "%"))))))
+        (tip-row bill tip (str pct "%"))))))
 
 (defn- dedupe-rows
   "Remove rows with duplicate totals, keeping the first occurrence."
@@ -406,7 +407,7 @@
            [[] #{}]
            rows)))
 
-(defn- evaluate-tip [{:keys [percent bill round-tip]}]
+(defn- evaluate-tip [{:keys [percent bill round-tip exact]}]
   (if round-tip
     ;; No explicit rate: show table with 15%, 20%, round tip, round total
     (let [rows (dedupe-rows
@@ -416,14 +417,18 @@
                     (round-tip-row bill 20 30)
                     (round-total-row bill 20 30)]))]
       {:value (:tip (second rows)) :rows rows :bill bill})
-    ;; Explicit rate: show exact + round tip + round total
-    (let [exact (exact-tip-row bill percent)
-          rows (dedupe-rows
-                 (filterv some?
-                   [exact
-                    (round-tip-row bill percent (+ (double percent) 10))
-                    (round-total-row bill percent (+ (double percent) 10))]))]
-      {:value (:tip exact) :rows rows :bill bill})))
+    ;; Explicit rate
+    (let [exact-row (exact-tip-row bill percent)
+          rows (if exact
+                 ;; Exact total specified: only show the one result
+                 [exact-row]
+                 ;; Normal percent: show exact + round tip + round total
+                 (dedupe-rows
+                   (filterv some?
+                     [exact-row
+                      (round-tip-row bill percent (+ (double percent) 10))
+                      (round-total-row bill percent (+ (double percent) 10))])))]
+      {:value (:tip exact-row) :rows rows :bill bill})))
 
 (defn- evaluate-tax [{:keys [percent price]}]
   (let [tax (round-up-penny

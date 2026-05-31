@@ -1,4 +1,8 @@
 .cpcache
 .test-results/
 web/out/
+web/public/index.html
+web/public/calc.html
+web/public/sw.js
+web/public/js/
 result

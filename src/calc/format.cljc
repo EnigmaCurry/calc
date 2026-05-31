@@ -189,19 +189,32 @@
 
     :modulo (format-number (:value result) fmt-opts)
 
-    :tip (let [rows (:rows result)
-               bill-str (str "$" (format-number (:bill result) fmt-opts))
-               fmt-row (fn [{:keys [label tip total]}]
-                         (str label ": "
-                              "Tip $" (format-number tip fmt-opts)
-                              " -> Total $" (format-number total fmt-opts)))]
-           (str "Bill: " bill-str "\n"
-                (str/join "\n" (map fmt-row rows))))
+    :tip (let [money-opts (assoc fmt-opts :round 2)
+               rows (:rows result)
+               fmt-money (fn [v] (format-number v money-opts))
+               bill-str (fmt-money (:bill result))
+               all-tips (map #(fmt-money (:tip %)) rows)
+               all-totals (map #(fmt-money (:total %)) rows)
+               labels (map :label rows)
+               lpad (fn [s w] (let [n (- w (count s))]
+                                (str (apply str (repeat n " ")) s)))
+               max-label (apply max (count "Bill") (map count labels))
+               dollar (fn [s w] (let [n (- w (count s))]
+                                 (str (apply str (repeat n " ")) "$" s)))
+               max-bill (apply max (count bill-str) (map count all-tips))
+               max-total (apply max (map count all-totals))
+               fmt-row (fn [{:keys [label]} tip-s total-s]
+                         (str (lpad label max-label) ": "
+                              "Tip " (dollar tip-s max-bill)
+                              " -> Total " (dollar total-s max-total)))]
+           (str (lpad "Bill" max-label) ": " (dollar bill-str max-bill) "\n"
+                (str/join "\n" (map fmt-row rows all-tips all-totals))))
 
-    :tax (str "Price: $" (format-number (:price parsed) fmt-opts)
-              ", Tax: $" (format-number (:tax result) fmt-opts)
-              " (" (format-number (:percent parsed) fmt-opts) "%)"
-              ", Total: $" (format-number (:total result) fmt-opts))
+    :tax (let [money-opts (assoc fmt-opts :round 2)]
+           (str "Price: $" (format-number (:price parsed) money-opts)
+                ", Tax: $" (format-number (:tax result) money-opts)
+                " (" (format-number (:percent parsed) fmt-opts) "%)"
+                ", Total: $" (format-number (:total result) money-opts)))
 
     :roll (format-roll-result result)
 
