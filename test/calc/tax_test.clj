@@ -131,19 +131,19 @@
 (deftest end-to-end-tax
   (testing "X% tax on Y"
     (let [{:keys [result]} (cli/process-request-text "10 percent tax on 50" nil)]
-      (is (= "Price: $50, Tax: $5 (10%), Total: $55" result))))
+      (is (= "Price: $50.00, Tax: $5.00 (10%), Total: $55.00" result))))
 
   (testing "tax on Y at X%"
     (let [{:keys [result]} (cli/process-request-text "tax on $100 at 10 percent" nil)]
-      (is (= "Price: $100, Tax: $10 (10%), Total: $110" result))))
+      (is (= "Price: $100.00, Tax: $10.00 (10%), Total: $110.00" result))))
 
   (testing "brief: tax 50 10"
     (let [{:keys [result]} (cli/process-request-text "tax 50 10" nil)]
-      (is (= "Price: $50, Tax: $5 (10%), Total: $55" result))))
+      (is (= "Price: $50.00, Tax: $5.00 (10%), Total: $55.00" result))))
 
   (testing "brief: tax $50 10%"
     (let [{:keys [result]} (cli/process-request-text "tax $50 10%" nil)]
-      (is (= "Price: $50, Tax: $5 (10%), Total: $55" result))))
+      (is (= "Price: $50.00, Tax: $5.00 (10%), Total: $55.00" result))))
 
   (testing "tax with decimals"
     (let [{:keys [result]} (cli/process-request-text "8.25 percent tax on $99.99" nil)]

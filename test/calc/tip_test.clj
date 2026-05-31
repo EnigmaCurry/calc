@@ -174,14 +174,14 @@
 (deftest end-to-end-tip-explicit
   (testing "explicit percent shows exact + round tip"
     (let [{:keys [result]} (cli/process-request-text "tip $85 18%" nil)]
-      (is (re-find #"Bill: \$85" result))
+      (is (re-find #"Bill: \$85\.00" result))
       (is (re-find #"18%" result))
       (is (re-find #"Round tip" result)))))
 
 (deftest end-to-end-round-tip
   (testing "$85 shows 15%, 20%, round tip, round total"
     (let [{:keys [result]} (cli/process-request-text "tip $85" nil)]
-      (is (re-find #"Bill: \$85" result))
+      (is (re-find #"Bill: \$85\.00" result))
       (is (re-find #"15%" result))
       (is (re-find #"20%" result))
       (is (re-find #"Round tip" result))
@@ -189,5 +189,28 @@
 
   (testing "tip $50 table"
     (let [{:keys [result]} (cli/process-request-text "tip $50" nil)]
-      (is (re-find #"Bill: \$50" result))
-      (is (re-find #"Tip \$10" result)))))
+      (is (re-find #"Bill: \$50\.00" result))
+      (is (re-find #"Tip \$10\.00" result)))))
+
+;; ==========================================================================
+;; Money formatting — always show two decimal places
+;; ==========================================================================
+
+(deftest tip-money-format-two-decimals
+  (testing "tip amounts always show exactly two decimal places"
+    (let [{:keys [result]} (cli/process-request-text "tip $42" nil)]
+      (is (re-find #"Bill: \$42\.00" result))
+      ;; 15% of $42 = $6.30, not $6.3
+      (is (re-find #"Tip \$6\.30" result))
+      ;; 20% of $42 = $8.40, not $8.4
+      (is (re-find #"Tip \$8\.40" result))))
+
+  (testing "whole dollar tips still show .00"
+    (let [{:keys [result]} (cli/process-request-text "tip $50" nil)]
+      (is (re-find #"Tip \$7\.50" result))   ;; 15% of $50
+      (is (re-find #"Tip \$10\.00" result)))) ;; 20% of $50
+
+  (testing "penny-precise tip amounts"
+    (let [{:keys [result]} (cli/process-request-text "tip $29.99 18%" nil)]
+      (is (re-find #"Bill: \$29\.99" result))
+      (is (re-find #"Tip \$5\.40" result)))))

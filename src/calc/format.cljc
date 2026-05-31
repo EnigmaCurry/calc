@@ -189,19 +189,21 @@
 
     :modulo (format-number (:value result) fmt-opts)
 
-    :tip (let [rows (:rows result)
-               bill-str (str "$" (format-number (:bill result) fmt-opts))
+    :tip (let [money-opts (assoc fmt-opts :round 2)
+               rows (:rows result)
+               bill-str (str "$" (format-number (:bill result) money-opts))
                fmt-row (fn [{:keys [label tip total]}]
                          (str label ": "
-                              "Tip $" (format-number tip fmt-opts)
-                              " -> Total $" (format-number total fmt-opts)))]
+                              "Tip $" (format-number tip money-opts)
+                              " -> Total $" (format-number total money-opts)))]
            (str "Bill: " bill-str "\n"
                 (str/join "\n" (map fmt-row rows))))
 
-    :tax (str "Price: $" (format-number (:price parsed) fmt-opts)
-              ", Tax: $" (format-number (:tax result) fmt-opts)
-              " (" (format-number (:percent parsed) fmt-opts) "%)"
-              ", Total: $" (format-number (:total result) fmt-opts))
+    :tax (let [money-opts (assoc fmt-opts :round 2)]
+           (str "Price: $" (format-number (:price parsed) money-opts)
+                ", Tax: $" (format-number (:tax result) money-opts)
+                " (" (format-number (:percent parsed) fmt-opts) "%)"
+                ", Total: $" (format-number (:total result) money-opts)))
 
     :roll (format-roll-result result)
 
