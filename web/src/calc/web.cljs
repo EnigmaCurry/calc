@@ -218,7 +218,7 @@
    "5 feet 11 inches to cm"
    "300 miles / 65 mph in hours and minutes"
    "60 mph * 2 hours"
-   "3.5 hours in minutes and seconds"
+   "3.53 hours in minutes and seconds"
    "180cm in feet and inches"
    "10 is what percent of 250?"
    "100 fahrenheit to celsius"
