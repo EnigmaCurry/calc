@@ -458,10 +458,10 @@
    ;; ---- Temperature (special: affine transforms, no dim/scale) ----
    :degF   {:temperature true
             :name "fahrenheit" :short "°F"
-            :aliases ["f" "fahrenheit"]}
+            :aliases ["f" "fahrenheit" "degf" "°f"]}
    :degC   {:temperature true
             :name "celsius" :short "°C"
-            :aliases ["c" "celsius"]}
+            :aliases ["c" "celsius" "degc" "°c"]}
    :K      {:temperature true
             :name "kelvin" :short "K"
             :aliases ["k" "kelvin"]}})

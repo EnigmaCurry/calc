@@ -65,6 +65,9 @@
       (str/replace #"([A-Za-z])\s*/\s*([A-Za-z])" "$1/$2")
       ;; Collapse whitespace around / between digits: "21349 /234234" → "21349/234234"
       (str/replace #"(\d)\s*/\s*(\d)" "$1/$2")
+      ;; Ensure / has spaces between letter and digit: "W/12" → "W / 12", "12/v" → "12 / v"
+      (str/replace #"([A-Za-z])\s*/\s*(\d)" "$1 / $2")
+      (str/replace #"(\d)\s*/\s*([A-Za-z])" "$1 / $2")
       (str/replace #"\s+" " ")
       str/trim))
 

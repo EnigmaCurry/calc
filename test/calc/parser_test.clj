@@ -14,7 +14,13 @@
     (is (= "21349/234234" (parser/clean-phrase "21349/234234"))))
 
   (testing "does not collapse slash between unit and number"
-    (is (= "100 MB / 100 Mbps" (parser/clean-phrase "100 MB / 100 Mbps")))))
+    (is (= "100 MB / 100 Mbps" (parser/clean-phrase "100 MB / 100 Mbps"))))
+
+  (testing "spaces slash between letter and digit"
+    (is (= "37 W / 12 v" (parser/clean-phrase "37 W /12v")))
+    (is (= "37 W / 12 v" (parser/clean-phrase "37W/12v")))
+    (is (= "W / 12" (parser/clean-phrase "W/12")))
+    (is (= "12 / v" (parser/clean-phrase "12/v")))))
 
 (deftest parses-simple-scalar-conversions
   (testing "basic '<number> <unit> in/to <unit>' phrases"
@@ -683,6 +689,18 @@
             :quantity {:value 12N :unit :ft}
             :to :m}
            (parser/parse-request "3 * 4 feet in meters"))))
+
+  (testing "quantity division parses with compact spacing"
+    (let [expected {:op :convert
+                    :quantity {:qty-expr true
+                               :terms [{:value 37N :unit :W}
+                                       {:value 12N :unit :V}]
+                               :ops [:/]}
+                    :to :auto}]
+      (is (= expected (parser/parse-request "37 W / 12v")))
+      (is (= expected (parser/parse-request "37 W /12v")))
+      (is (= expected (parser/parse-request "37W/12v")))
+      (is (= expected (parser/parse-request "37W / 12V")))))
 
   (testing "unit-first with scalar second is qty arithmetic"
     (is (= {:op :convert
