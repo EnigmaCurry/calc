@@ -167,7 +167,7 @@
 
 (defonce log-ref (atom nil))
 (defonce suppress-menu (atom false))
-(defonce press-start (atom nil))
+(defonce press-timer (atom nil))
 (def long-press-ms 400)
 
 (defn scroll-log-to-top []
@@ -687,28 +687,30 @@
                     copied? (= idx (:copied-idx @state))
                     on-press-start (fn [e]
                                      (when-not (.. e -target -classList (contains "log-delete"))
-                                       (reset! press-start (.now js/Date))))
-                    on-press-end (fn [e]
-                                   (when-not (.. e -target -classList (contains "log-delete"))
-                                     (when-let [start @press-start]
-                                       (reset! press-start nil)
-                                       (let [elapsed (- (.now js/Date) start)]
-                                         (if (>= elapsed long-press-ms)
-                                           ;; Long press: copy result to clipboard
-                                           (do (.preventDefault e)
-                                               (.writeText js/navigator.clipboard result-text)
-                                               (swap! state assoc :copied-idx idx)
-                                               (js/setTimeout #(swap! state assoc :copied-idx nil) 1200))
-                                           ;; Short click: put input in input box
-                                           (when input
-                                             (swap! state assoc :input input)
-                                             (when-let [el (.querySelector js/document ".input-wrapper input")]
-                                               (.focus el)
+                                       (when-let [old @press-timer] (js/clearTimeout old))
+                                       (reset! press-timer
                                                (js/setTimeout
                                                 (fn []
-                                                  (let [len (count input)]
-                                                    (.setSelectionRange el len len)))
-                                                0))))))))]
+                                                  (reset! press-timer :fired)
+                                                  (.writeText js/navigator.clipboard result-text)
+                                                  (swap! state assoc :copied-idx idx)
+                                                  (js/setTimeout #(swap! state assoc :copied-idx nil) 1200))
+                                                long-press-ms))))
+                    on-press-end (fn [_e]
+                                   (let [timer @press-timer]
+                                     (when (and timer (not= timer :fired))
+                                       (js/clearTimeout timer)
+                                       (reset! press-timer nil)
+                                       ;; Short click: put input in input box
+                                       (when input
+                                         (swap! state assoc :input input)
+                                         (when-let [el (.querySelector js/document ".input-wrapper input")]
+                                           (.focus el)
+                                           (js/setTimeout
+                                            (fn []
+                                              (let [len (count input)]
+                                                (.setSelectionRange el len len)))
+                                            0))))))]
                 ^{:key idx}
                 [(if (and (zero? idx) (not typing?)) :div.log-entry.latest :div.log-entry)
                  {:on-mouse-down on-press-start
