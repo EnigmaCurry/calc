@@ -328,6 +328,12 @@
   (let [result (u/normalize-number (mod (u/->bigdec dividend) (u/->bigdec divisor)))]
     {:value result}))
 
+(defn- evaluate-tip [{:keys [percent bill]}]
+  (let [tip (u/normalize-number
+             (u/safe-div (* (u/->bigdec percent) (u/->bigdec bill)) (u/->bigdec 100)))
+        total (u/normalize-number (+ (u/->bigdec bill) (u/->bigdec tip)))]
+    {:value tip :tip tip :total total}))
+
 (defn- convert-to-mixed-units
   "Convert a single value+unit to a vector of mixed output units.
    E.g., 180 cm → [{:value 5 :unit-label \"ft\"} {:value 10.866... :unit-label \"in\"}]
@@ -390,6 +396,9 @@
 
      (= op :modulo)
      (evaluate-modulo request)
+
+     (= op :tip)
+     (evaluate-tip request)
 
      (not= op :convert)
      {:error :unsupported-operation

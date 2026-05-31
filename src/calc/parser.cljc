@@ -981,15 +981,58 @@
        (when-let [[y _] (parse-percentage-number y-str)]
          {:op :modulo :dividend x :divisor y})))))
 
+(defn- strip-dollar [s]
+  (str/replace (str/trim s) #"^\$\s*" ""))
+
+(defn parse-tip
+  "Try to parse a tip calculation expression. Returns a request map or nil.
+   Supports:
+     '20% tip on $50'                → {:op :tip :percent 20 :bill 50}
+     '20 percent tip on 50'          → same
+     'tip on $50 at 20%'             → same
+     'what is the tip on $85.50 at 18%' → {:op :tip :percent 18 :bill 85.50}
+     'tip 20% on 100'                → same"
+  [s]
+  (or
+   ;; "X% tip on Y" / "X percent tip on Y"
+   (when-let [[_ pct-str bill-str] (re-matches #"(?i)^(.+?)\s+percent\s+tip\s+on\s+(.+)$" s)]
+     (when-let [[pct _] (parse-percentage-number (strip-dollar pct-str))]
+       (when-let [[bill _] (parse-percentage-number (strip-dollar bill-str))]
+         {:op :tip :percent pct :bill bill})))
+
+   ;; "tip X% on Y" / "tip X percent on Y"
+   (when-let [[_ pct-str bill-str] (re-matches #"(?i)^(?:what\s+is\s+(?:the\s+)?)?tip\s+(.+?)\s+percent\s+on\s+(.+)$" s)]
+     (when-let [[pct _] (parse-percentage-number (strip-dollar pct-str))]
+       (when-let [[bill _] (parse-percentage-number (strip-dollar bill-str))]
+         {:op :tip :percent pct :bill bill})))
+
+   ;; "tip on Y at X%" / "what is the tip on Y at X%"
+   (when-let [[_ bill-str pct-str] (re-matches #"(?i)^(?:what\s+is\s+(?:the\s+)?)?tip\s+on\s+(.+?)\s+at\s+(.+?)\s*percent$" s)]
+     (when-let [[pct _] (parse-percentage-number (strip-dollar pct-str))]
+       (when-let [[bill _] (parse-percentage-number (strip-dollar bill-str))]
+         {:op :tip :percent pct :bill bill})))
+
+   ;; "X% tip on Y" where X% was already converted to "X percent" by clean-phrase
+   ;; already handled above
+
+   ;; "tip on Y" (default 20%)
+   (when-let [[_ bill-str] (re-matches #"(?i)^(?:what\s+is\s+(?:the\s+)?)?tip\s+on\s+(.+)$" s)]
+     (when-let [[bill _] (parse-percentage-number (strip-dollar bill-str))]
+       {:op :tip :percent 20N :bill bill}))))
+
 (defn parse-request [phrase]
   (let [original phrase]
     (try
       (let [cleaned (evaluate-math-exprs (clean-phrase phrase))
             [without-format format] (extract-format cleaned)
             [without-approx approx?] (extract-approx without-format)
-            pct (parse-percentage without-approx)
-            root (when-not pct (parse-root without-approx))
-            modulo (when-not (or pct root) (parse-modulo without-approx))]
+            tip (parse-tip without-approx)
+            pct (when-not tip (parse-percentage without-approx))
+            root (when-not (or tip pct) (parse-root without-approx))
+            modulo (when-not (or tip pct root) (parse-modulo without-approx))]
+        (if tip
+          (cond-> tip
+            format (assoc :format format))
         (if pct
           (cond-> pct
             format (assoc :format format))
@@ -1028,7 +1071,7 @@
                                      :to (parse-unit-phrase to-str)}
                               approx? (assoc :approx? true)
                               format (assoc :format format))]
-                request)))))))))
+                request))))))))))
       #?(:clj (catch clojure.lang.ExceptionInfo ex
                 (or (parse-error original ex)
                     {:error :unparseable

@@ -174,6 +174,10 @@
         (= :root (:op parsed))
         {:result (fmt/format-number (:value result) effective-fmt)}
 
+        (= :tip (:op parsed))
+        {:result (str "Tip: $" (fmt/format-number (:tip result) effective-fmt)
+                      ", Total: $" (fmt/format-number (:total result) effective-fmt))}
+
         (= :modulo (:op parsed))
         {:result (fmt/format-number (:value result) effective-fmt)}
 
