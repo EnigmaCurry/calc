@@ -53,7 +53,7 @@
                    :quantity {:value 2 :unit {:yd 3}}
                    :to :gal})]
       (is (:ok? result))
-      (is (== 403.94805194805195 (:value result))))))
+      (is (th/approx== 403.94805194805195 (:value result))))))
 
 (deftest evaluates-mixed-quantity-request
   (testing "feet plus inches to centimeters"

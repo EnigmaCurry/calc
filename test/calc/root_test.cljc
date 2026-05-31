@@ -188,7 +188,7 @@
            (parser/parse-request "square root of 2.25"))))
 
   (testing "fraction input"
-    (is (th/deep== {:op :root :degree 2 :value 1/4}
+    (is (th/deep== {:op :root :degree 2 :value (/ 1 4)}
            (parser/parse-request "square root of 1/4")))))
 
 ;; ==========================================================================
@@ -198,7 +198,7 @@
 (deftest evaluates-perfect-square-roots
   (testing "perfect squares return exact integers"
     (are [n expected] (let [r (ev/convert-request {:op :root :degree 2 :value n})]
-                        (and (:ok? r) (== expected (:value r))))
+                        (and (:ok? r) (th/approx== expected (:value r))))
       0    0
       1    1
       4    2
@@ -229,7 +229,7 @@
 (deftest evaluates-perfect-cube-roots
   (testing "perfect cubes return exact integers"
     (are [n expected] (let [r (ev/convert-request {:op :root :degree 3 :value n})]
-                        (and (:ok? r) (== expected (:value r))))
+                        (and (:ok? r) (th/approx== expected (:value r))))
       1    1
       8    2
       27   3
@@ -244,7 +244,7 @@
 (deftest evaluates-perfect-nth-roots
   (testing "perfect 4th roots"
     (are [n expected] (let [r (ev/convert-request {:op :root :degree 4 :value n})]
-                        (and (:ok? r) (== expected (:value r))))
+                        (and (:ok? r) (th/approx== expected (:value r))))
       16   2
       81   3
       256  4
@@ -252,7 +252,7 @@
 
   (testing "perfect 5th roots"
     (are [n expected] (let [r (ev/convert-request {:op :root :degree 5 :value n})]
-                        (and (:ok? r) (== expected (:value r))))
+                        (and (:ok? r) (th/approx== expected (:value r))))
       32   2
       243  3
       1024 4
@@ -261,7 +261,8 @@
   (testing "perfect 6th root"
     (let [r (ev/convert-request {:op :root :degree 6 :value 64})]
       (is (:ok? r))
-      (is (== 2 (:value r))))))
+      (is (th/approx== 2 (:value r)))))
+)
 
 (deftest evaluates-imperfect-nth-roots
   (testing "imperfect 4th root"

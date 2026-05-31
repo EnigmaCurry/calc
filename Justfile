@@ -22,8 +22,9 @@ _test-clj:
 
 # Run tests in Babashka, JVM Clojure, and ClojureScript (Node)
 test:
+    @rm -rf .test-results
     @echo "Running tests for Babashka, JVM, and ClojureScript..."
-    @just _nix "rm -rf .test-results; bb test; clojure -M:test; cd web && npm ci --silent && npx shadow-cljs compile test 2>&1 | grep -v -E '^\[:|^shadow-cljs|^='; cd ..; bb test/report.clj"
+    @just _nix "bb test; clojure -M:test; cd web && npm ci --silent && npx shadow-cljs compile test 2>&1 | grep -v -E '^\[:|^shadow-cljs|^='; cd ..; bb test/report.clj"
 
 # Build the static ClojureScript web app (output: web/public/)
 web-build:

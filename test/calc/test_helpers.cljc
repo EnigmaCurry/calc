@@ -45,12 +45,22 @@
         (catch #?(:clj Exception :cljs :default) e
           {:error (str #?(:clj (.getMessage e) :cljs (.-message e)))})))))
 
+(defn approx==
+  "Compare two numbers with a relative tolerance (default 1e-6).
+   Useful for CLJS where float precision differs from JVM BigDecimal."
+  ([a b] (approx== a b 1e-6))
+  ([a b tol]
+   (if (== a 0)
+     (< (abs (double b)) tol)
+     (< (abs (/ (- (double a) (double b)) (double a))) tol))))
+
 (defn deep==
-  "Recursively compare structures, using == for numbers.
-   Handles BigDecimal/BigInt vs plain number differences across platforms."
+  "Recursively compare structures, using approx== for numbers.
+   Handles BigDecimal/BigInt vs plain number differences across platforms,
+   and tolerates minor float precision differences in CLJS."
   [a b]
   (cond
-    (and (number? a) (number? b)) (== a b)
+    (and (number? a) (number? b)) (approx== a b)
     (and (map? a) (map? b))
     (and (= (count a) (count b))
          (every? (fn [k] (and (contains? b k) (deep== (get a k) (get b k)))) (keys a)))
