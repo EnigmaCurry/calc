@@ -5,7 +5,7 @@
  :aliases
  {:test
   {:extra-paths ["test"]
-   :main-opts ["-e" "(require '[clojure.test :as t] '[clojure.string :as str]) (let [test-dir (java.io.File. \"test\") all-files (file-seq test-dir) test-nses (->> all-files (filter #(.isFile %)) (map #(.getPath %)) (filter #(re-find #\"_test\\.cljc?$\" %)) (map #(-> % (str/replace #\"^test/\" \"\") (str/replace #\"\\.cljc?$\" \"\") (str/replace \"/\" \".\") (str/replace \"_\" \"-\") symbol)) sort)] (doseq [ns-sym test-nses] (require ns-sym)) (let [{:keys [fail error]} (with-redefs [t/report (let [orig (deref (var t/report))] (fn [m] (when-not (= :begin-test-ns (:type m)) (orig m))))] (apply t/run-tests test-nses))] (System/exit (if (pos? (+ fail error)) 1 0))))"]}
+   :main-opts ["-e" "(require '[clojure.test :as t] '[clojure.string :as str]) (.mkdirs (java.io.File. \".test-results\")) (let [test-dir (java.io.File. \"test\") all-files (file-seq test-dir) test-nses (->> all-files (filter #(.isFile %)) (map #(.getPath %)) (filter #(re-find #\"_test\\.cljc?$\" %)) (map #(-> % (str/replace #\"^test/\" \"\") (str/replace #\"\\.cljc?$\" \"\") (str/replace \"/\" \".\") (str/replace \"_\" \"-\") symbol)) sort)] (doseq [ns-sym test-nses] (require ns-sym)) (let [summary (with-redefs [t/report (let [orig (deref (var t/report))] (fn [m] (when-not (#{:begin-test-ns :summary} (:type m)) (orig m))))] (apply t/run-tests test-nses))] (spit \".test-results/jvm.edn\" (pr-str {:platform \"JVM\" :test (:test summary 0) :pass (:pass summary 0) :fail (:fail summary 0) :error (:error summary 0)})) (System/exit (if (pos? (+ (:fail summary 0) (:error summary 0))) 1 0))))"]}
 
   :cli
   {:main-opts ["-m" "calc.cli"]}}}

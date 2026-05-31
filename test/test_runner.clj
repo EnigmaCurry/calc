@@ -3,6 +3,7 @@
          '[babashka.fs :as fs])
 
 (def test-dir "test")
+(def results-dir ".test-results")
 
 (defn test-file? [path]
   (and (fs/regular-file? path)
@@ -28,10 +29,18 @@
 (doseq [ns-sym test-namespaces]
   (require ns-sym))
 
+(fs/create-dirs results-dir)
+
 (let [summary (with-redefs [t/report (let [orig-report t/report]
                                        (fn [m]
-                                         (when-not (= :begin-test-ns (:type m))
+                                         (when-not (#{:begin-test-ns :summary} (:type m))
                                            (orig-report m))))]
                 (apply t/run-tests test-namespaces))]
+  (spit (str results-dir "/bb.edn")
+        (pr-str {:platform "Babashka"
+                 :test (:test summary 0)
+                 :pass (:pass summary 0)
+                 :fail (:fail summary 0)
+                 :error (:error summary 0)}))
   (when (pos? (+ (:fail summary 0) (:error summary 0)))
     (System/exit 1)))
