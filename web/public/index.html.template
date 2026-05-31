@@ -290,7 +290,7 @@
     .log-entry {
       font-family: "SF Mono", "Fira Code", "Fira Mono", monospace;
       font-size: 0.95rem;
-      padding: 0.5rem 0.75rem;
+      padding: 0.5rem 1.75rem 0.5rem 0.75rem;
       border-radius: 4px;
       cursor: pointer;
       user-select: none;
@@ -298,10 +298,13 @@
       display: flex;
       align-items: center;
       gap: 1ch;
+      position: relative;
     }
 
     .log-delete {
-      margin-left: auto;
+      position: absolute;
+      top: 0.4rem;
+      right: 0.35rem;
       background: none;
       border: none;
       color: var(--text-muted);
