@@ -2,6 +2,7 @@
   (:require [reagent.core :as r]
             [reagent.dom.client :as rdom]
             [calc.units :as units]
+            [calc.math :as m]
             [calc.eval :as ev]
             [calc.format :as fmt]
             [calc.parser :as parser]
@@ -136,6 +137,43 @@
       (.removeItem js/localStorage "calc-default-fmt-opts"))
     (catch :default _ nil)))
 
+(defn load-precision []
+  (try
+    (when-let [raw (.getItem js/localStorage "calc-precision")]
+      (let [n (js/parseInt raw 10)]
+        (when-not (js/isNaN n) n)))
+    (catch :default _ nil)))
+
+(defn save-precision! [v]
+  (try
+    (if v
+      (.setItem js/localStorage "calc-precision" (str v))
+      (.removeItem js/localStorage "calc-precision"))
+    (catch :default _ nil)))
+
+(defn apply-precision! [n]
+  (m/set-precision! n))
+
+(defn benchmark-precision
+  "Find the largest precision where 100 iterations of (10^(prec-1))+1-(10^(prec-1))
+   complete in under 200ms. Returns the best precision value."
+  []
+  (let [candidates [200 500 1000 2000 5000 10000]]
+    (loop [remaining candidates
+           best m/default-precision]
+      (if (empty? remaining)
+        best
+        (let [prec (first remaining)
+              _ (m/set-precision! prec)
+              start (.now js/Date)
+              _ (dotimes [_ 100]
+                  (let [big (m/dpow 10 (dec prec))]
+                    (m/d- (m/d+ big 1) big)))
+              elapsed (- (.now js/Date) start)]
+          (if (< elapsed 200)
+            (recur (rest remaining) prec)
+            (do (m/set-precision! best) best)))))))
+
 (defn load-hide-examples []
   (try
     (= "true" (.getItem js/localStorage "calc-hide-examples"))
@@ -172,6 +210,9 @@
 (defn apply-zoom! [v]
   (set! (.. js/document -documentElement -style -zoom) (str v)))
 
+(def initial-precision (or (load-precision) m/default-precision))
+(apply-precision! initial-precision)
+
 (defonce state (r/atom {:input ""
                         :result nil
                         :error nil
@@ -184,6 +225,7 @@
                         :theme (load-theme)
                         :hide-examples (load-hide-examples)
                         :zoom (or (load-zoom) (default-zoom))
+                        :precision initial-precision
                         :page :calc
                         :copied-idx nil}))
 
@@ -518,7 +560,54 @@
                (when-not (js/isNaN n)
                  (let [new-opts (assoc defaults :sig-figs n)]
                    (swap! state assoc :default-fmt-opts new-opts)
-                   (save-default-fmt-opts! new-opts)))))}])]]]))
+                   (save-default-fmt-opts! new-opts)))))}])]]
+     (let [prec (or (:precision-pending @state) (:precision @state))
+           benchmarking? (:benchmarking @state)]
+       [:div.settings-section
+        [:h3 "Arithmetic Precision"]
+        [:p.group-desc
+         "Maximum significant digits for decimal.js arithmetic. "
+         "Higher values support larger exponents (e.g. 10^N) but use more memory. "
+         "Default: " m/default-precision "."]
+        [:div.setting-row
+         [:label.setting-label (str "Digits: " prec)]
+         [:input.setting-input
+          {:type "number" :min 34 :max 10000 :value prec
+           :style {:width "6em"}
+           :on-change
+           (fn [e]
+             (let [n (js/parseInt (.. e -target -value) 10)]
+               (when (and (not (js/isNaN n)) (>= n 34) (<= n 10000))
+                 (swap! state assoc :precision-pending n))))}]]
+        [:div.setting-row
+         [:button.back-btn
+          {:on-click (fn []
+                       (let [v (or (:precision-pending @state) (:precision @state))]
+                         (apply-precision! v)
+                         (save-precision! v)
+                         (swap! state assoc :precision v :precision-pending nil)))}
+          "Apply"]
+         [:button.back-btn
+          {:disabled benchmarking?
+           :on-click (fn []
+                       (swap! state assoc :benchmarking true)
+                       (js/setTimeout
+                        (fn []
+                          (let [result (benchmark-precision)]
+                            (apply-precision! result)
+                            (save-precision! result)
+                            (swap! state assoc
+                                   :precision result
+                                   :precision-pending nil
+                                   :benchmarking false)))
+                        50))}
+          (if benchmarking? "Running..." "Auto")]
+         [:button.back-btn
+          {:on-click (fn []
+                       (apply-precision! m/default-precision)
+                       (save-precision! nil)
+                       (swap! state assoc :precision m/default-precision :precision-pending nil))}
+          "Reset"]]])]))
 
 (def clear-commands #{"clear" "/clear" "reset" "/reset"})
 

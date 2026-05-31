@@ -16,10 +16,20 @@
 #?(:clj (def ^:private math-context MathContext/DECIMAL128))
 #?(:clj (def ^:private output-scale 14))
 
+(def default-precision 200)
+
 #?(:cljs
    (do
-     (set! (.-precision Decimal) 200)
+     (set! (.-precision Decimal) default-precision)
      (set! (.-rounding Decimal) 4))) ;; ROUND_HALF_UP
+
+(defn get-precision []
+  #?(:clj 34
+     :cljs (.-precision Decimal)))
+
+(defn set-precision! [n]
+  #?(:clj nil
+     :cljs (set! (.-precision Decimal) n)))
 
 ;; ---------------------------------------------------------------------------
 ;; Construction / conversion
