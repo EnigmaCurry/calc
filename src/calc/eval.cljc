@@ -501,9 +501,10 @@
      (evaluate-tax request)
 
      (= op :roll)
-     (let [{:keys [dice]} request
-           result (dice/roll dice)]
-       {:roll result})
+     (let [{:keys [dice]} request]
+       (if (:error dice)
+         dice
+         {:roll (dice/roll dice)}))
 
      (not= op :convert)
      {:error :unsupported-operation

@@ -1,6 +1,10 @@
 (ns calc.dice-test
   (:require [clojure.test :refer [deftest testing is are]]
-            [calc.dice :as dice]))
+            [clojure.string :as str]
+            [calc.dice :as dice]
+            [calc.parser :as parser]
+            [calc.eval :as ev]
+            [calc.format :as fmt]))
 
 ;; ============================================================================
 ;; Parser tests
@@ -233,3 +237,198 @@
   (testing "rejects non-roll input"
     (is (nil? (dice/parse-roll "12 feet in yards")))
     (is (nil? (dice/parse-roll "d20")))))
+
+;; ============================================================================
+;; Format tests
+;; ============================================================================
+
+(deftest format-basic-roll
+  (testing "simple roll format"
+    (let [result {:roll {:rolls [3 5 2]
+                         :kept [3 5 2]
+                         :dropped []
+                         :modifier 0
+                         :total 10}}]
+      (is (= "Rolls: [3, 5, 2] = 10"
+             (fmt/format-op-result {:op :roll} result nil)))))
+
+  (testing "roll with positive modifier"
+    (let [result {:roll {:rolls [4 6]
+                         :kept [4 6]
+                         :dropped []
+                         :modifier 3
+                         :total 13}}]
+      (is (str/includes? (fmt/format-op-result {:op :roll} result nil) "+ 3"))
+      (is (str/includes? (fmt/format-op-result {:op :roll} result nil) "= 13"))))
+
+  (testing "roll with negative modifier"
+    (let [result {:roll {:rolls [4 6]
+                         :kept [4 6]
+                         :dropped []
+                         :modifier -2
+                         :total 8}}]
+      (is (str/includes? (fmt/format-op-result {:op :roll} result nil) "- 2"))
+      (is (str/includes? (fmt/format-op-result {:op :roll} result nil) "= 8")))))
+
+(deftest format-keep-drop-roll
+  (testing "kept and dropped shown"
+    (let [result {:roll {:rolls [1 6 5 3]
+                         :kept [6 5 3]
+                         :dropped [1]
+                         :modifier 0
+                         :total 14}}]
+      (is (str/includes? (fmt/format-op-result {:op :roll} result nil) "kept [6, 5, 3]"))
+      (is (str/includes? (fmt/format-op-result {:op :roll} result nil) "dropped [1]")))))
+
+(deftest format-exploding-roll
+  (testing "exploding dice formatted with bangs"
+    (let [result {:roll {:rolls [{:initial 6 :exploded [6 2] :total 14}
+                                 {:initial 3 :exploded [] :total 3}]
+                         :kept [14 3]
+                         :dropped []
+                         :modifier 0
+                         :total 17}}]
+      (let [output (fmt/format-op-result {:op :roll} result nil)]
+        (is (str/includes? output "6!6!2=14"))
+        (is (str/includes? output "3"))
+        (is (str/includes? output "= 17"))))))
+
+(deftest format-comparison-roll
+  (testing "success shown"
+    (let [result {:roll {:rolls [15]
+                         :kept [15]
+                         :dropped []
+                         :modifier 7
+                         :total 22
+                         :comparison {:op :>= :target 15 :success true}}}]
+      (is (str/includes? (fmt/format-op-result {:op :roll} result nil) "Success!"))))
+
+  (testing "failure shown"
+    (let [result {:roll {:rolls [2]
+                         :kept [2]
+                         :dropped []
+                         :modifier 3
+                         :total 5
+                         :comparison {:op :>= :target 15 :success false}}}]
+      (is (str/includes? (fmt/format-op-result {:op :roll} result nil) "Failure")))))
+
+;; ============================================================================
+;; Comparison logic tests (deterministic)
+;; ============================================================================
+
+(deftest comparison-operators-deterministic
+  (testing ">= success and failure"
+    (let [cmp {:op :>= :target 10}]
+      ;; Use fixed rolls via the internal compare
+      (is (true? (:success (:comparison (dice/roll {:count 1 :sides 1000000 :modifier 10 :explode false :comparison cmp})))))
+      ;; 1d2 with no modifier: max total is 2, target is 10
+      (dotimes [_ 50]
+        (let [result (dice/roll (dice/parse-dice "1d2>=10"))]
+          (is (false? (:success (:comparison result))))))))
+
+  (testing "> operator"
+    (dotimes [_ 50]
+      (let [result (dice/roll (dice/parse-dice "1d2>100"))]
+        (is (false? (:success (:comparison result)))))))
+
+  (testing "<= operator always succeeds for 1d2<=2"
+    (dotimes [_ 50]
+      (let [result (dice/roll (dice/parse-dice "1d2<=2"))]
+        (is (true? (:success (:comparison result)))))))
+
+  (testing "< operator always fails for 1d6<1"
+    (dotimes [_ 50]
+      (let [result (dice/roll (dice/parse-dice "1d6<1"))]
+        (is (false? (:success (:comparison result)))))))
+
+  (testing "== operator"
+    ;; 1d2==3 should always fail (max roll is 2)
+    (dotimes [_ 50]
+      (let [result (dice/roll (dice/parse-dice "1d2==3"))]
+        (is (false? (:success (:comparison result))))))))
+
+;; ============================================================================
+;; Exploding + keep/drop combined
+;; ============================================================================
+
+(deftest roll-exploding-with-keep-drop
+  (testing "exploding dice with keep highest"
+    (dotimes [_ 50]
+      (let [result (dice/roll (dice/parse-dice "4d6!kh3"))]
+        (is (= 4 (count (:rolls result))))
+        (is (every? map? (:rolls result)))
+        (is (= 3 (count (:kept result))))
+        (is (= 1 (count (:dropped result))))
+        ;; kept values should be the 3 highest totals
+        (is (>= (apply min (:kept result))
+                (apply max (:dropped result))))
+        (is (= (reduce + (:kept result)) (:total result))))))
+
+  (testing "exploding dice with drop lowest"
+    (dotimes [_ 50]
+      (let [result (dice/roll (dice/parse-dice "3d4!dl1"))]
+        (is (= 3 (count (:rolls result))))
+        (is (= 2 (count (:kept result))))
+        (is (= 1 (count (:dropped result))))
+        (is (<= (apply max (:dropped result))
+                (apply min (:kept result))))))))
+
+;; ============================================================================
+;; Error propagation
+;; ============================================================================
+
+(deftest roll-error-propagation
+  (testing "rolling an invalid parse throws"
+    (let [bad-parse (dice/parse-dice "0d6")]
+      (is (:error bad-parse))
+      (is (thrown? #?(:clj Exception :cljs js/Error)
+                   (dice/roll bad-parse)))))
+
+  (testing "invalid parse through convert-request returns error"
+    (let [parsed (parser/parse-request "roll 0d6")
+          result (ev/convert-request parsed)]
+      (is (not (:ok? result))))))
+
+;; ============================================================================
+;; End-to-end pipeline tests
+;; ============================================================================
+
+(deftest end-to-end-roll-pipeline
+  (testing "roll d20 through full pipeline"
+    (let [parsed (parser/parse-request "roll d20")
+          _ (is (= :roll (:op parsed)))
+          result (ev/convert-request parsed)
+          _ (is (:ok? result))
+          output (fmt/format-op-result parsed result nil)]
+      (is (string? output))
+      (is (str/starts-with? output "Rolls: ["))
+      (is (str/includes? output "= "))))
+
+  (testing "roll 4d6kh3 through full pipeline"
+    (let [parsed (parser/parse-request "roll 4d6kh3")
+          result (ev/convert-request parsed)
+          output (fmt/format-op-result parsed result nil)]
+      (is (:ok? result))
+      (is (str/includes? output "kept"))
+      (is (str/includes? output "dropped"))))
+
+  (testing "roll 2d6+3>=10 through full pipeline"
+    (let [parsed (parser/parse-request "roll 2d6+3>=10")
+          result (ev/convert-request parsed)
+          output (fmt/format-op-result parsed result nil)]
+      (is (:ok? result))
+      (is (or (str/includes? output "Success!")
+              (str/includes? output "Failure")))))
+
+  (testing "roll 6d6! through full pipeline"
+    (let [parsed (parser/parse-request "roll 6d6!")
+          result (ev/convert-request parsed)
+          output (fmt/format-op-result parsed result nil)]
+      (is (:ok? result))
+      (is (str/includes? output "Rolls: ["))))
+
+  (testing "Roll (capitalized) works"
+    (let [parsed (parser/parse-request "Roll 2d20kh1")
+          result (ev/convert-request parsed)]
+      (is (:ok? result))
+      (is (= 2 (count (get-in result [:roll :rolls])))))))
