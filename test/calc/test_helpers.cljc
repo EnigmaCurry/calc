@@ -14,7 +14,10 @@
     (when-not (str/blank? input)
       (try
         (if-let [math-result (parser/parse-math input)]
-          {:result (fmt/format-number math-result fmt-opts)}
+          (if (map? math-result)
+            {:result (str (:trig-expr math-result) " = "
+                          (fmt/format-number (:math-value math-result) fmt-opts))}
+            {:result (fmt/format-number math-result fmt-opts)})
           (let [parsed (parser/parse-request input)
                 effective-fmt (merge (:format parsed) fmt-opts)
                 result (ev/convert-request parsed)]

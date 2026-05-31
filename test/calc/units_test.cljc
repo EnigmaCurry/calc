@@ -1,6 +1,7 @@
 (ns calc.units-test
   (:require [clojure.test :refer [deftest is testing]]
-            [calc.units :as u]))
+            [calc.units :as u]
+            [calc.math :as m]))
 
 (deftest unit-registry-shape-test
   (testing "every non-temperature unit has dim and scale"
@@ -20,7 +21,7 @@
   (testing "every non-temperature unit scale is numeric"
     (doseq [[unit metadata] u/unit-defs
             :when (not (:temperature metadata))]
-      (is (number? (:scale metadata))
+      (is (or (number? (:scale metadata)) (m/dec-type? (:scale metadata)))
           (str unit " has non-numeric :scale")))))
 
 (deftest derived-unit-dimension-test

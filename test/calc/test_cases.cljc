@@ -186,6 +186,10 @@
     :input "2^10"
     :result "1024"}
 
+   {:group "Arithmetic"
+    :input "(10^100)+1-(10^100)"
+    :result "1"}
+
    {:group "Roots"
     :input "sqrt(144)"
     :result "12"}

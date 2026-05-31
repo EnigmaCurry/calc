@@ -2,8 +2,7 @@
 
 A calculator and unit conversion utility written in Clojure. Parses
 natural English phrases like "how many inches are in 3 feet?" and
-evaluates them using exact BigDecimal arithmetic (JVM) or floating
-point (ClojureScript).
+evaluates them using arbitrary-precision arithmetic on all platforms.
 
 Runs in three places:
 
@@ -178,13 +177,21 @@ All other units are case-insensitive.
 
 ## Precision
 
-On the JVM and Babashka, all arithmetic uses exact Clojure ratios or
-`BigDecimal` with `DECIMAL128` precision (34 significant digits). This
-means conversions between units with exact rational scale factors
-(feet/yards, bytes/kilobytes, etc.) produce exact results.
+All platforms use arbitrary-precision arithmetic:
 
-In ClojureScript (web), standard JavaScript floating point is used,
-with results rounded to 12 significant digits to suppress noise.
+ * **JVM / Babashka** — exact Clojure ratios and `BigDecimal` with
+   `DECIMAL128` precision (34 significant digits).
+ * **ClojureScript (web)** — [decimal.js](https://github.com/MikeMcl/decimal.js)
+   with 200 significant digits by default. Results are rounded to
+   12 significant digits for display. The precision is configurable in
+   Settings — use the **Auto** button to benchmark your device and
+   find the maximum it can handle (often 100,000+ digits), or set it
+   manually.
+
+This means expressions like `(10^100)+1-(10^100)` correctly return `1`
+on all platforms, and conversions between units with exact rational
+scale factors (feet/yards, bytes/kilobytes, etc.) produce exact results
+everywhere.
 
 ## Library API
 
@@ -227,6 +234,7 @@ Add the dependency, then:
 
 | Namespace | Responsibility |
 |-----------|----------------|
+| `calc.math` | Cross-platform arithmetic (BigDecimal on JVM, decimal.js on CLJS) |
 | `calc.units` | Unit registry, aliases, dimensions, unit algebra |
 | `calc.parser` | Natural language text to structured request AST |
 | `calc.eval` | Request AST to result (conversion engine) |

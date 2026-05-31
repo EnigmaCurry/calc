@@ -1,7 +1,26 @@
 (ns calc.parser
   (:require [clojure.string :as str]
             [calc.units :as units]
+            [calc.math :as m]
             [calc.dice :as dice]))
+
+(def ^:private pi-value
+  #?(:clj  (bigdec Math/PI)
+     :cljs (m/dec->double (m/->dec m/PI))))
+
+(def ^:private e-value
+  #?(:clj  (bigdec Math/E)
+     :cljs (m/dec->double (m/->dec m/E))))
+
+(def ^:private phi-value
+  "The golden ratio φ = (1 + √5) / 2"
+  #?(:clj  (bigdec 1.6180339887498948482)
+     :cljs (m/dec->double (m/ddiv (m/d+ 1 (m/dsqrt 5)) 2))))
+
+(def ^:private math-constants
+  {"pi" pi-value "π" pi-value
+   "e" e-value
+   "phi" phi-value "φ" phi-value})
 
 (def unit-aliases units/unit-aliases)
 
@@ -80,12 +99,12 @@
 
 (defn parse-ratio-token [s]
   (let [[n d] (str/split s #"/")]
-    (/ (parse-integer n)
-       (parse-integer d))))
+    #?(:clj (/ (parse-integer n) (parse-integer d))
+       :cljs (m/dec->double (m/ddiv (parse-integer n) (parse-integer d))))))
 
 (defn parse-decimal-token [s]
   #?(:clj (bigdec s)
-     :cljs (js/parseFloat s)))
+     :cljs (js/parseFloat s)))  ;; Stays as float; precision applied in math evaluator
 
 (def number-words
   {"zero" 0 "one" 1 "two" 2 "three" 3 "four" 4 "five" 5
@@ -191,16 +210,26 @@
             (whitespace? ch)
             (recur (inc i) tokens)
 
-            ;; Function names: sqrt, cbrt, root
+            ;; Function names and constants
             (alpha? ch)
             (let [end (loop [j (inc i)]
                         (if (and (< j n) (alpha? (char-at s j)))
                           (recur (inc j))
                           j))
                   word (str/lower-case (subs s i end))]
-              (if (#{"sqrt" "cbrt" "root"} word)
+              (cond
+                (#{"sqrt" "cbrt" "root"
+                   "sin" "cos" "tan" "asin" "acos" "atan"
+                   "arcsin" "arccos" "arctan"} word)
                 (recur end (conj tokens [:fn word]))
-                nil))
+
+                (#{"rad" "radians" "deg" "degrees"} word)
+                (recur end (conj tokens [:angle (if (#{"rad" "radians"} word) :rad :deg)]))
+
+                (contains? math-constants word)
+                (recur end (conj tokens [:num (get math-constants word)]))
+
+                :else nil))
 
             (or (digit? ch) (= ch "."))
             (let [end (loop [j (inc i)]
@@ -238,6 +267,9 @@
 
             (#{"+" "*" "/" "^" "%"} ch)
             (recur (inc i) (conj tokens [:op ch]))
+
+            (contains? math-constants ch)
+            (recur (inc i) (conj tokens [:num (get math-constants ch)]))
 
             (= ch "-")
             (if (or (empty? tokens) (#{:lp :op :comma} (first (peek tokens))))
@@ -277,20 +309,56 @@
              (bigint candidate)
              (bigdec (Math/pow xd (/ 1.0 (double n))))))))
      :cljs
-     (let [result (js/Math.pow x (/ 1.0 n))]
-       (if (== result (js/Math.round result))
-         (js/Math.round result)
-         result))))
+     (let [result (m/dpow x (m/ddiv 1.0 n))
+           rounded (m/dround result)]
+       (if (m/d== result rounded)
+         (m/dec->double rounded)
+         (m/dec->double result)))))
+
+(defn- math-deg->rad [x]
+  (* (m/dec->double x) (/ m/PI 180.0)))
+
+(def ^:private forward-math-trig
+  #{"sin" "cos" "tan"})
+
+(def ^:private inverse-math-trig
+  #{"asin" "acos" "atan" "arcsin" "arccos" "arctan"})
+
+(def ^:private math-trig-fns
+  {"sin" m/dsin "cos" m/dcos "tan" m/dtan
+   "asin" m/dasin "acos" m/dacos "atan" m/datan
+   "arcsin" m/dasin "arccos" m/dacos "arctan" m/datan})
+
+(defn- math-trig-eval
+  "Evaluate a trig function. angle-mode is :deg (default) or :rad."
+  [fname v angle-mode]
+  (let [f (get math-trig-fns fname)
+        mode (or angle-mode :deg)
+        input (if (forward-math-trig fname)
+                (if (= mode :rad) (m/dec->double v) (math-deg->rad v))
+                (m/dec->double v))
+        raw-result (double (f input))
+        result (if (inverse-math-trig fname)
+                 (if (= mode :rad) raw-result (* (/ 180.0 m/PI) raw-result))
+                 raw-result)
+        rounded (Math/round (* result 1e10))]
+    (if (< (Math/abs result) 1e-14)
+      #?(:clj 0N :cljs 0)
+      (if (< (Math/abs (- result (/ (double rounded) 1e10))) 1e-14)
+        #?(:clj (bigdec (/ (double rounded) 1e10)) :cljs (/ rounded 1e10))
+        #?(:clj (bigdec result) :cljs result)))))
 
 (defn- math-parse-factor [tokens pos]
   (when (< pos (count tokens))
     (case (first (nth tokens pos))
       :num [(second (nth tokens pos)) (inc pos)]
       :fn  (let [fname (second (nth tokens pos))
-                 npos (inc pos)]
-             ;; Expect '(' after function name
-             (when (and (< npos (count tokens))
-                        (= :lp (first (nth tokens npos))))
+                 npos (inc pos)
+                 has-paren (and (< npos (count tokens))
+                                (= :lp (first (nth tokens npos))))]
+             (cond
+               ;; Parenthesized form: fn(expr) or fn(expr, expr)
+               has-paren
                (case fname
                  ;; sqrt(expr)
                  "sqrt"
@@ -316,21 +384,58 @@
                                   (= :rp (first (nth tokens p2))))
                          [(math-nth-root v degree) (inc p2)]))))
 
-                 nil)))
+                 ;; Trig functions: sin(x), cos(x), etc. — degrees by default
+                 ("sin" "cos" "tan" "asin" "acos" "atan"
+                  "arcsin" "arccos" "arctan")
+                 (when-let [[v p1] (math-parse-expr tokens (inc npos))]
+                   ;; Check for optional angle mode before closing paren
+                   (let [[mode p2] (if (and (< p1 (count tokens))
+                                            (= :angle (first (nth tokens p1))))
+                                     [(second (nth tokens p1)) (inc p1)]
+                                     [nil p1])]
+                     (when (and (< p2 (count tokens))
+                                (= :rp (first (nth tokens p2))))
+                       [(math-trig-eval fname v mode) (inc p2)])))
+
+                 nil)
+
+               ;; Bare trig: sin 45, cos 60 (no parens, consume next factor)
+               ;; Check for optional angle mode suffix: sin 45 rad, cos 60 deg
+               (contains? math-trig-fns fname)
+               (when-let [[v p1] (math-parse-factor tokens npos)]
+                 (let [[mode p2] (if (and (< p1 (count tokens))
+                                          (= :angle (first (nth tokens p1))))
+                                   [(second (nth tokens p1)) (inc p1)]
+                                   [nil p1])]
+                   [(math-trig-eval fname v mode) p2]))
+
+               :else nil))
       :lp  (when-let [[v npos] (math-parse-expr tokens (inc pos))]
              (when (and (< npos (count tokens))
                         (= :rp (first (nth tokens npos))))
                [v (inc npos)]))
       nil)))
 
+(defn- max-pow-exponent []
+  #?(:clj 10000
+     :cljs (m/get-precision)))
+
 (defn- math-pow [base exp]
   #?(:clj
-     (cond
-       (zero? exp) 1N
-       (pos? exp)  (reduce * 1N (repeat exp base))
-       :else       (/ 1N (math-pow base (- exp))))
+     (let [n (long exp)]
+       (when (> (Math/abs n) (max-pow-exponent))
+         (throw (ex-info "Exponent too large" {:error :exponent-too-large :exp n
+                                               :limit (max-pow-exponent)})))
+       (cond
+         (zero? n) 1N
+         (pos? n)  (reduce * 1N (repeat n base))
+         :else     (/ 1N (math-pow base (- n)))))
      :cljs
-     (js/Math.pow base exp)))
+     (let [limit (max-pow-exponent)]
+       (when (> (Math/abs (m/dec->double exp)) limit)
+         (throw (ex-info "Exponent too large" {:error :exponent-too-large :exp exp
+                                               :limit limit})))
+       (m/dpow base exp))))
 
 (defn- math-parse-power
   "Parse factor (^ factor)* — right-associative."
@@ -346,7 +451,7 @@
   #?(:clj  (try (/ a b)
                 (catch ArithmeticException _
                   (.divide (bigdec a) (bigdec b) (java.math.MathContext. 34))))
-     :cljs (/ a b)))
+     :cljs (m/ddiv a b)))
 
 (defn- math-parse-term [tokens pos]
   (when-let [[v0 p0] (math-parse-power tokens pos)]
@@ -357,9 +462,9 @@
         (let [op (second (nth tokens p))]
           (if-let [[v2 p2] (math-parse-power tokens (inc p))]
             (recur (case op
-                     "*" (* acc v2)
+                     "*" (m/d* acc v2)
                      "/" (math-div acc v2)
-                     "%" (mod acc v2))
+                     "%" (m/dmod acc v2))
                    p2)
             [acc p]))
         [acc p]))))
@@ -372,18 +477,70 @@
                (#{"+" "-"} (second (nth tokens p))))
         (let [op (second (nth tokens p))]
           (if-let [[v2 p2] (math-parse-term tokens (inc p))]
-            (recur (if (= "+" op) (+ acc v2) (- acc v2)) p2)
+            (recur (if (= "+" op) (m/d+ acc v2) (m/d- acc v2)) p2)
             [acc p]))
         [acc p]))))
 
+(defn- standalone-trig?
+  "True when tokens represent a single trig call with no binary operators
+   and no nested function calls, e.g. sin(30), asin 0.5, cos 45 deg.
+   Also matches trig with pi division: cos pi/4 → [:fn] [:num pi] [:op /] [:num 4].
+   These should be handled by parse-trig (which tracks angle mode and
+   attaches unit labels) rather than parse-math."
+  [tokens]
+  (and (seq tokens)
+       (= :fn (first (first tokens)))
+       (contains? math-trig-fns (second (first tokens)))
+       ;; If there are nested function calls, it's a compound expression
+       (<= (count (filter #(= :fn (first %)) tokens)) 1)
+       ;; No binary operators, OR the only operator is / in a pi/N pattern
+       (or (not (some #(= :op (first %)) tokens))
+           ;; Allow pi/N: [:fn] [:num pi-val] [:op "/"] [:num N]
+           (and (= 4 (count tokens))
+                (= [:op "/"] (nth tokens 2))
+                (= :num (first (nth tokens 1)))
+                (= (m/dec->double pi-value) (m/dec->double (second (nth tokens 1))))))))
+
+(defn- annotate-trig-expr
+  "Annotate a trig expression string with explicit angle markers.
+   'cos 32 / sin 45'       → 'cos 32° / sin 45°'
+   'cos 32 rad / sin 45 rad' → unchanged (already explicit)
+   'sin(45) + cos(60)'     → 'sin(45°) + cos(60°)'"
+  [s]
+  (-> s
+      ;; Bare form: sin 30 → sin 30°, sin 30 rad → sin 30 rad (unchanged)
+      (str/replace #"(?i)\b(a?(?:rc)?(?:sin|cos|tan))\s+(\d+(?:\.\d+)?)(\s+(?:rad|radians|deg|degrees)\b)?"
+                   (fn [[_ fname num mode]]
+                     (if mode
+                       (str fname " " num mode)
+                       (str fname " " num "°"))))
+      ;; Paren form: sin(30) → sin(30°), sin(30 rad) → sin(30 rad)
+      (str/replace #"(?i)\b(a?(?:rc)?(?:sin|cos|tan))\((\d+(?:\.\d+)?)\s*((?:rad|radians|deg|degrees))?\)"
+                   (fn [[_ fname num mode]]
+                     (if mode
+                       (str fname "(" num " " mode ")")
+                       (str fname "(" num "°)"))))
+      str/trim))
+
 (defn parse-math
-  "Evaluate a simple arithmetic expression string. Returns a number or nil."
+  "Evaluate a simple arithmetic expression string. Returns a number or nil.
+   When the expression contains trig functions, returns a map
+   {:value N :trig-expr \"annotated string\"} instead of a bare number."
   [s]
   (when-let [tokens (math-tokenize (str/trim s))]
-    (when (seq tokens)
+    (when (and (seq tokens) (not (standalone-trig? tokens)))
       (let [[v pos] (math-parse-expr tokens 0)]
         (when (and v (= pos (count tokens)))
-          v)))))
+          (let [v (m/normalize v)]
+            (if (some #(and (= :fn (first %))
+                           (contains? math-trig-fns (second %))) tokens)
+              {:math-value v :trig-expr (annotate-trig-expr (str/trim s))}
+              v)))))))
+
+(defn math-value
+  "Extract the numeric value from a parse-math result (bare number or trig map)."
+  [result]
+  (if (map? result) (:math-value result) result))
 
 (defn evaluate-math-exprs
   "Replace parenthesised arithmetic expressions in `s` with their values.
@@ -391,7 +548,7 @@
   [s]
   (let [result (str/replace s #"(?<![A-Za-z])\(([^()]+)\)"
                             (fn [[match inner]]
-                              (if-let [v (parse-math inner)]
+                              (if-let [v (math-value (parse-math inner))]
                                 (str v)
                                 match)))]
     (if (= result s)
@@ -410,13 +567,13 @@
         (if (and tok (numeric-token? tok))
           (recur (inc j) (conj parts tok))
           (when (>= (count parts) 3)
-            (when-let [v (parse-math (str/join " " parts))]
+            (when-let [v (math-value (parse-math (str/join " " parts)))]
               [v j])))
         ;; Expecting an operator (+, -, *)
         (if (and tok (= 1 (count tok)) (#{"+" "-" "*" "^" "%"} tok))
           (recur (inc j) (conj parts tok))
           (when (>= (count parts) 3)
-            (when-let [v (parse-math (str/join " " parts))]
+            (when-let [v (math-value (parse-math (str/join " " parts)))]
               [v j])))))))
 
 (def ordinal-fractions
@@ -449,13 +606,25 @@
       (some? (parse-number-token t))
       (or (try-parse-math-tokens tokens i)
           (if (and (some? t2) (re-matches #"\d+/\d+" t2))
-            [(+ (parse-number-token t) (parse-number-token t2))
+            [(m/dec->double (m/d+ (parse-number-token t) (parse-number-token t2)))
              (+ i 2)]
             [(parse-number-token t) (inc i)]))
 
       ;; Single token containing math (no spaces): 2+2, 3*4-1
-      (and (some? t) (some? (parse-math t)))
-      [(parse-math t) (inc i)]
+      (and (some? t) (some? (math-value (parse-math t))))
+      [(math-value (parse-math t)) (inc i)]
+
+      ;; Math constants: pi, π, e, phi, φ
+      (contains? math-constants t)
+      [(get math-constants t) (inc i)]
+
+      ;; Pi division as single token: "pi/4"
+      (and t (re-matches #"(?i)(?:pi|π)/\d+(?:\.\d+)?" t))
+      (let [[_ denom-str] (re-matches #"(?i)(?:pi|π)/(.+)" t)
+            v #?(:clj (bigdec denom-str) :cljs (js/parseFloat denom-str))]
+        [#?(:clj (.divide pi-value v (java.math.MathContext. 34))
+            :cljs (m/dec->double (m/ddiv pi-value v)))
+         (inc i)])
 
       ;; English number words: "ten", "twenty three", "one hundred", etc.
       (parse-number-words tokens i)
@@ -478,7 +647,7 @@
 (defn unit-map [u exp]
   (cond
     (keyword? u) {u exp}
-    (map? u) (into {} (map (fn [[k v]] [k (* exp v)]) u))
+    (map? u) (into {} (map (fn [[k v]] [k (* exp v)]) u))  ;; dim exponents are small ints
     :else (throw (ex-info "Bad unit" {:unit u}))))
 
 (defn merge-unit-maps [& maps]
@@ -969,6 +1138,117 @@
        (when-let [[value _] (parse-percentage-number val-str)]
          {:op :root :degree 3 :value value})))))
 
+(defn- parse-pi-expr
+  "Parse a pi expression like 'pi', 'pi/4', '2pi', '2*pi'.
+   Returns [value next-index] consuming tokens from `tokens` at index `i`, or nil."
+  [tokens i]
+  (let [t (some-> (nth tokens i nil) str/lower-case)]
+    (when (#{"pi" "π"} t)
+      (let [next-t (some-> (nth tokens (inc i) nil) str/lower-case)]
+        (if (and next-t (re-matches #"\d+(?:\.\d+)?" next-t))
+          ;; "pi 4" is not valid, just return pi
+          [pi-value (inc i)]
+          [pi-value (inc i)])))))
+
+(defn- parse-trig-value
+  "Parse the value argument for a trig function from tokens starting at index i.
+   Handles pi, pi/N, numbers, and number expressions.
+   Returns [value angle-mode next-index] or nil."
+  [tokens i]
+  (let [t (some-> (nth tokens i nil) str/lower-case)
+        t2 (some-> (nth tokens (inc i) nil) str/lower-case)
+        t3 (some-> (nth tokens (+ i 2) nil) str/lower-case)]
+    (cond
+      ;; "pi/N" as a single token like "pi/4"
+      (and t (re-matches #"(?i)(?:pi|π)/\d+(?:\.\d+)?" t))
+      (let [[_ denom-str] (re-matches #"(?i)(?:pi|π)/(.+)" t)
+            v #?(:clj (bigdec denom-str) :cljs (js/parseFloat denom-str))]
+        [#?(:clj (.divide pi-value v (java.math.MathContext. 34))
+            :cljs (m/dec->double (m/ddiv pi-value v)))
+         :rad (inc i)])
+
+      ;; "pi" "/" "N" as separate tokens (clean-phrase splits "pi/4" → "pi / 4")
+      (and (#{"pi" "π"} t) (= "/" t2) t3 (re-matches #"\d+(?:\.\d+)?" t3))
+      (let [v #?(:clj (bigdec t3) :cljs (js/parseFloat t3))]
+        [#?(:clj (.divide pi-value v (java.math.MathContext. 34))
+            :cljs (m/dec->double (m/ddiv pi-value v)))
+         :rad (+ i 3)])
+
+      ;; bare "pi"
+      (#{"pi" "π"} t)
+      [pi-value :rad (inc i)]
+
+      ;; numeric value
+      :else
+      (when-let [[value j] (parse-number-at tokens i)]
+        [value nil j]))))
+
+(def ^:private trig-fns
+  {"sin" :sin "cos" :cos "tan" :tan
+   "asin" :asin "acos" :acos "atan" :atan
+   "arcsin" :asin "arccos" :acos "arctan" :atan})
+
+(def ^:private inverse-trig-fns
+  #{:asin :acos :atan})
+
+(defn parse-trig
+  "Try to parse a trig expression. Returns a request map or nil.
+   Supports:
+     'sin 45'              → {:op :trig :fn :sin :value 45 :angle-mode :deg}
+     'sin 45 degrees'      → same
+     'sin 1 rad'           → {:op :trig :fn :sin :value 1 :angle-mode :rad}
+     'sin pi'              → {:op :trig :fn :sin :value π :angle-mode :rad}
+     'sin pi/4'            → {:op :trig :fn :sin :value π/4 :angle-mode :rad}
+     'asin 0.5'            → {:op :trig :fn :asin :value 0.5 :angle-mode :deg}
+     'asin 0.5 in radians' → {:op :trig :fn :asin :value 0.5 :angle-mode :rad}"
+  [s]
+  (let [tokens (->> (str/split (str/trim s) #"\s+")
+                    (remove str/blank?)
+                    vec)
+        fn-name (some-> (first tokens) str/lower-case)]
+    (when-let [trig-fn (get trig-fns fn-name)]
+      (when (> (count tokens) 1)
+        (when-let [[value pi-mode j] (parse-trig-value tokens 1)]
+          (let [remaining (subvec tokens j)
+                lower-remaining (mapv str/lower-case remaining)
+                ;; Determine angle mode from remaining tokens
+                [angle-mode consumed]
+                (cond
+                  ;; "in radians" / "in rad" (for inverse trig output)
+                  (and (>= (count lower-remaining) 2)
+                       (= "in" (first lower-remaining))
+                       (#{"radians" "rad"} (second lower-remaining)))
+                  [:rad 2]
+
+                  ;; "in degrees" / "in deg" (for inverse trig output)
+                  (and (>= (count lower-remaining) 2)
+                       (= "in" (first lower-remaining))
+                       (#{"degrees" "deg"} (second lower-remaining)))
+                  [:deg 2]
+
+                  ;; "radians" / "rad" suffix
+                  (and (>= (count lower-remaining) 1)
+                       (#{"radians" "rad"} (first lower-remaining)))
+                  [:rad 1]
+
+                  ;; "degrees" / "deg" suffix
+                  (and (>= (count lower-remaining) 1)
+                       (#{"degrees" "deg"} (first lower-remaining)))
+                  [:deg 1]
+
+                  ;; Pi implies radians
+                  pi-mode
+                  [:rad 0]
+
+                  ;; Default: degrees
+                  :else
+                  [:deg 0])
+                ;; Check no unconsumed tokens (besides format suffixes which
+                ;; are already stripped before we get here)
+                leftover (subvec remaining (min consumed (count remaining)))]
+            (when (empty? leftover)
+              {:op :trig :fn trig-fn :value value :angle-mode angle-mode})))))))
+
 (defn parse-modulo
   "Try to parse a modulo expression. Returns a request map or nil.
    Supports:
@@ -981,6 +1261,24 @@
      (when-let [[x _] (parse-percentage-number x-str)]
        (when-let [[y _] (parse-percentage-number y-str)]
          {:op :modulo :dividend x :divisor y})))))
+
+(def ^:private constant-patterns
+  "Lowercase strings and Unicode chars that indicate a math constant is present."
+  #{"pi" "phi" "π" "φ"})
+
+(defn parse-standalone-math
+  "Try to parse a standalone math/constant expression (no units).
+   Handles 'pi', 'π', 'e', 'phi', 'φ', '2*pi', 'pi/4', 'e^2', etc.
+   Only matches when the expression contains a named constant — plain
+   numbers like '42' are not matched to avoid hijacking unit queries."
+  [s]
+  (let [lower (str/lower-case (str/trim s))]
+    (when (or (some #(str/includes? lower %) constant-patterns)
+              ;; 'e' is too short to substring-match; require exact or bounded
+              (re-find #"(?i)(?:^e$|(?<![a-z])e(?![a-z]))" lower))
+      (let [normalized (-> s (str/replace "π" "pi") (str/replace "φ" "phi"))]
+        (when-let [result (parse-math normalized)]
+          {:op :math-expr :value (math-value result)})))))
 
 (defn- strip-dollar [s]
   (str/replace (str/trim s) #"^\$\s*" ""))
@@ -1115,14 +1413,22 @@
     (if-let [roll (dice/parse-roll phrase)]
       roll
     (try
-      (let [cleaned (evaluate-math-exprs (clean-phrase phrase))
+      (let [pre-cleaned (clean-phrase phrase)
+            ;; Try full expression as standalone math first (preserves Decimal
+            ;; precision for expressions like (10^100)+1-(10^100))
+            [without-format-pre format-pre] (extract-format pre-cleaned)
+            full-math (math-value (parse-math without-format-pre))
+            cleaned (if full-math pre-cleaned (evaluate-math-exprs pre-cleaned))
             [without-format format] (extract-format cleaned)
             [without-approx approx?] (extract-approx without-format)
             tip (parse-tip without-approx)
             tax (when-not tip (parse-tax without-approx))
             pct (when-not (or tip tax) (parse-percentage without-approx))
             root (when-not (or tip tax pct) (parse-root without-approx))
-            modulo (when-not (or tip tax pct root) (parse-modulo without-approx))]
+            modulo (when-not (or tip tax pct root) (parse-modulo without-approx))
+            trig (when-not (or tip tax pct root modulo) (parse-trig without-approx))
+            math (or (when full-math {:op :math-expr :value full-math})
+                     (when-not (or tip tax pct root modulo trig) (parse-standalone-math without-approx)))]
         (if tip
           (cond-> tip
             format (assoc :format format))
@@ -1137,6 +1443,12 @@
             format (assoc :format format))
         (if modulo
           (cond-> modulo
+            format (assoc :format format))
+        (if trig
+          (cond-> trig
+            format (assoc :format format))
+        (if math
+          (cond-> math
             format (assoc :format format))
           (let [pieces (split-request without-approx)]
         (if-not pieces
@@ -1167,7 +1479,7 @@
                                      :to (parse-unit-phrase to-str)}
                               approx? (assoc :approx? true)
                               format (assoc :format format))]
-                request)))))))))))
+                request)))))))))))))
       #?(:clj (catch clojure.lang.ExceptionInfo ex
                 (or (parse-error original ex)
                     {:error :unparseable

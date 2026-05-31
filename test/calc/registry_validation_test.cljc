@@ -1,7 +1,8 @@
 (ns calc.registry-validation-test
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.string :as str]
-            [calc.units :as u]))
+            [calc.units :as u]
+            [calc.math :as m]))
 
 (deftest every-unit-has-name-and-short
   (testing "every unit has :name and :short fields"
@@ -52,7 +53,7 @@
   (testing "every non-temperature unit has a positive scale factor"
     (doseq [[unit metadata] u/unit-defs
             :when (not (:temperature metadata))]
-      (is (pos? (:scale metadata))
+      (is (m/dpos? (:scale metadata))
           (str unit " has non-positive :scale: " (:scale metadata))))))
 
 (deftest temperature-units-have-no-dim-or-scale
@@ -82,8 +83,8 @@
           by-dim (group-by (fn [[_ v]] (:dim v)) as-entries)]
       (doseq [[dim entries] by-dim]
         (let [scales (map (fn [[_ v]] (:scale v))
-                          (sort-by (fn [[_ v]] (double (:scale v))) entries))]
-          (is (= scales (sort-by double scales))
+                          (sort-by (fn [[_ v]] (m/dec->double (:scale v))) entries))]
+          (is (= scales (sort-by m/dec->double scales))
               (str "auto-scale units for " (pr-str dim)
                    " are not in monotonic order")))))))
 

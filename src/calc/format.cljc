@@ -1,6 +1,7 @@
 (ns calc.format
   #?(:clj (:import [java.math BigDecimal MathContext RoundingMode]))
   (:require [clojure.string :as str]
+            [calc.math :as m]
             [calc.dice :as dice]))
 
 ;; ---------------------------------------------------------------------------
@@ -18,8 +19,7 @@
         (> mid-d max-denom) nil
         (> iters 100) nil
 
-        (< (#?(:clj #(Math/abs (double %)) :cljs js/Math.abs)
-            (- (/ (double mid-n) (double mid-d)) x))
+        (< (m/dec->double (m/dabs (- (/ (double mid-n) (double mid-d)) x)))
            tol)
         [mid-n mid-d]
 
@@ -37,8 +37,8 @@
     (str (if neg? (- n) n))
 
     :else
-    (let [whole (#?(:clj quot :cljs js/Math.trunc) n d)
-          rem   (mod n d)
+    (let [whole #?(:clj (quot n d) :cljs (m/dec->double (m/dquot n d)))
+          rem   #?(:clj (mod n d) :cljs (m/dec->double (m/dmod n d)))
           s (cond
               (zero? rem)   (str whole)
               (zero? whole) (str n "/" d)
@@ -46,12 +46,12 @@
       (if neg? (str "-" s) s))))
 
 (defn- format-as-fraction [x]
-  (let [d (double x)]
-    (if (== d (#?(:clj long :cljs js/Math.trunc) d))
-      (str (#?(:clj long :cljs js/Math.trunc) x))
+  (let [d (m/dec->double x)]
+    (if (m/dinteger? x)
+      (str (long d))
       (let [neg?  (neg? d)
-            abs-d (#?(:clj #(Math/abs %) :cljs js/Math.abs) d)
-            whole (#?(:clj long :cljs js/Math.trunc) abs-d)
+            abs-d (Math/abs d)
+            whole (long (Math/floor abs-d))
             frac  (- abs-d whole)]
         (if (< frac 1e-9)
           (str (if neg? (- whole) whole))
@@ -86,7 +86,10 @@
           :else
           (cond
             (instance? BigDecimal x)
-            (.toPlainString (.stripTrailingZeros ^BigDecimal x))
+            (let [s (.toPlainString (.stripTrailingZeros ^BigDecimal x))]
+              (if (> (count s) 20)
+                (.toString (.stripTrailingZeros ^BigDecimal x))
+                s))
 
             (ratio? x)
             (let [bd (BigDecimal. (double x))
@@ -101,29 +104,37 @@
                   (str reduced " = " approx))))
 
             :else
-            (str x)))
+            (let [s (str x)]
+              (if (> (count s) 20)
+                (let [bd (BigDecimal. s)]
+                  (.toString (.stripTrailingZeros bd)))
+                s))))
 
         :cljs
-        (cond
-          round
-          (.toFixed (js/Number x) round)
+        (let [d (m/->dec x)]
+          (cond
+            round
+            (.toFixed d round)
 
-          sig-figs
-          (let [s (.toPrecision (js/Number x) sig-figs)]
-            (if (str/includes? s ".")
-              (-> s (str/replace #"0+$" "") (str/replace #"\.$" ""))
-              s))
+            sig-figs
+            (let [s (.toPrecision d sig-figs)]
+              (if (str/includes? s ".")
+                (-> s (str/replace #"0+$" "") (str/replace #"\.$" ""))
+                s))
 
-          (js/Number.isInteger x)
-          (str (js/Math.trunc x))
+            (m/dinteger? d)
+            (let [s (.toFixed d 0)]
+              (if (> (count s) 20)
+                (.toExponential d)
+                s))
 
-          :else
-          (let [s (.toPrecision (js/Number x) 10)]
-            (if (str/includes? s ".")
-              (-> s
-                  (str/replace #"0+$" "")
-                  (str/replace #"\.$" ""))
-              s)))))))
+            :else
+            (let [s (.toPrecision d 10)]
+              (if (str/includes? s ".")
+                (-> s
+                    (str/replace #"0+$" "")
+                    (str/replace #"\.$" ""))
+                s))))))))
 
 (defn format-error
   "Format an error map into a human-readable string (without 'Error: ' prefix)."
@@ -188,6 +199,20 @@
     :root (format-number (:value result) fmt-opts)
 
     :modulo (format-number (:value result) fmt-opts)
+
+    :trig (let [fn-name (name (:fn parsed))
+                inverse? (#{:asin :acos :atan} (:fn parsed))
+                ;; For forward trig, annotate input angle; for inverse, input is dimensionless
+                input-str (if inverse?
+                            (str fn-name " " (format-number (:value parsed) nil))
+                            (let [angle-suffix (if (= :rad (:angle-mode parsed)) " rad" "°")]
+                              (str fn-name " " (format-number (:value parsed) nil) angle-suffix)))
+                result-str (str (format-number (:value result) fmt-opts)
+                                (when (:unit-label result)
+                                  (if (= "°" (:unit-label result))
+                                    "°"
+                                    (str " " (:unit-label result)))))]
+            (str input-str " = " result-str))
 
     :tip (let [money-opts (assoc fmt-opts :round 2)
                rows (:rows result)
