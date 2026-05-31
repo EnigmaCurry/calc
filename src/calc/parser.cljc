@@ -1035,7 +1035,7 @@
      (when-let [[bill _] (parse-percentage-number bill-str)]
        (when-let [[total _] (parse-percentage-number total-str)]
          (when (> total bill)
-           {:op :tip :percent (* (/ (double (- total bill)) (double bill)) 100.0) :bill bill}))))
+           {:op :tip :percent (* (/ (double (- total bill)) (double bill)) 100.0) :bill bill :exact true}))))
 
    ;; Brief form: "tip $Y N" (dollar bill then bare number percent)
    (when-let [[_ bill-str pct-str] (re-matches #"(?i)^tip\s+\$(\S+)\s+(\S+)$" s)]

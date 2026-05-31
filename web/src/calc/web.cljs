@@ -218,7 +218,7 @@
    "5 feet 11 inches to cm"
    "300 miles / 65 mph in hours and minutes"
    "60 mph * 2 hours"
-   "100.4 weeks in hours and minutes"
+   "3.5 hours in minutes and seconds"
    "180cm in feet and inches"
    "10 is what percent of 250?"
    "100 fahrenheit to celsius"
@@ -226,7 +226,7 @@
    "1 GB in MB"
    "3.5 kg to pounds"
    "2 cubic yards to gallons"
-   "100 MB / 10 Mbps in seconds"
+   "5 liters in gallons"
    "7 inches in feet as a fraction"
    "15% of 50"
    "sqrt(144)"
@@ -289,7 +289,6 @@
      ["100 sqft in sqm" "9.290304 m\u00b2"]]]
    ["Compound Units"
     [["60 mph in ft/s" "88 ft/s"]
-     ["100 MB / 10 Mbps in seconds" "80 s"]
      ["100 GB / 900 Mbps" "14.81 min"]]]
    ["Roots"
     [["sqrt(144)" "12"]

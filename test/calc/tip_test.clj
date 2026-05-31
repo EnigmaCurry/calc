@@ -114,7 +114,8 @@
     (let [r (parser/parse-request "tip $40 $55")]
       (is (= :tip (:op r)))
       (is (= 40N (:bill r)))
-      (is (= 37.5 (:percent r)))))
+      (is (= 37.5 (:percent r)))
+      (is (true? (:exact r)))))
 
   (testing "total must be greater than bill"
     (is (= {:error :unparseable :phrase "tip $55 $40"}
@@ -128,7 +129,8 @@
     (let [r (parser/parse-request "tip $85.50 $100")]
       (is (= :tip (:op r)))
       (is (= 85.50M (:bill r)))
-      (is (number? (:percent r))))))
+      (is (number? (:percent r)))
+      (is (true? (:exact r))))))
 
 ;; ==========================================================================
 ;; Eval tests
@@ -200,12 +202,14 @@
       (is (re-find #"18%" result)))))
 
 (deftest end-to-end-tip-two-dollar-amounts
-  (testing "$40 bill with $55 total"
+  (testing "$40 bill with $55 total — single exact row"
     (let [{:keys [result]} (cli/process-request-text "tip $40 $55" nil)]
       (is (re-find #"\$40\.00" result))
       (is (re-find #"\$15\.00" result))
       (is (re-find #"\$55\.00" result))
-      (is (re-find #"37\.5%" result)))))
+      (is (re-find #"37\.5%" result))
+      ;; Only one data row (plus the Bill line)
+      (is (= 2 (count (clojure.string/split-lines result)))))))
 
 (deftest end-to-end-round-tip
   (testing "$85 shows 15%, 20%, and round-amount rows"
