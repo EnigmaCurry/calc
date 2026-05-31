@@ -35,6 +35,7 @@
         bb-only  (sort (set/difference bb-names jvm-names))
         jvm-only (sort (set/difference jvm-names bb-names))]
     (when parity-fail?
+      (println "  FAIL: Expected Babashka test set to equal JVM test set")
       (when (seq bb-only)
         (println "  Babashka only:")
         (doseq [n bb-only] (println "    -" n)))
