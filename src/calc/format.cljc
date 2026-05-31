@@ -86,7 +86,10 @@
           :else
           (cond
             (instance? BigDecimal x)
-            (.toPlainString (.stripTrailingZeros ^BigDecimal x))
+            (let [s (.toPlainString (.stripTrailingZeros ^BigDecimal x))]
+              (if (> (count s) 20)
+                (.toString (.stripTrailingZeros ^BigDecimal x))
+                s))
 
             (ratio? x)
             (let [bd (BigDecimal. (double x))
@@ -101,7 +104,11 @@
                   (str reduced " = " approx))))
 
             :else
-            (str x)))
+            (let [s (str x)]
+              (if (> (count s) 20)
+                (let [bd (BigDecimal. s)]
+                  (.toString (.stripTrailingZeros bd)))
+                s))))
 
         :cljs
         (let [d (m/->dec x)]
