@@ -158,7 +158,7 @@
   "Find the largest precision where 100 iterations of (10^(prec-1))+1-(10^(prec-1))
    complete in under 200ms. Returns the best precision value."
   []
-  (let [candidates [200 500 1000 2000 5000 10000]]
+  (let [candidates [200 500 1000 2000 5000 10000 20000 50000 100000]]
     (loop [remaining candidates
            best m/default-precision]
       (if (empty? remaining)
@@ -572,12 +572,12 @@
         [:div.setting-row
          [:label.setting-label (str "Digits: " prec)]
          [:input.setting-input
-          {:type "number" :min 34 :max 10000 :value prec
+          {:type "number" :min 34 :value prec
            :style {:width "6em"}
            :on-change
            (fn [e]
              (let [n (js/parseInt (.. e -target -value) 10)]
-               (when (and (not (js/isNaN n)) (>= n 34) (<= n 10000))
+               (when (and (not (js/isNaN n)) (>= n 34))
                  (swap! state assoc :precision-pending n))))}]]
         [:div.setting-row
          [:button.back-btn
