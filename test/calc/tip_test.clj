@@ -55,6 +55,45 @@
            (parser/parse-request "tip on $85.50")))))
 
 ;; ==========================================================================
+;; Parser tests — brief/shorthand tip forms
+;; ==========================================================================
+
+(deftest parses-tip-brief-percent-bill
+  (testing "'tip X% $Y' — percent then bill"
+    (is (= {:op :tip :percent 10N :bill 50N}
+           (parser/parse-request "tip 10% $50")))
+    (is (= {:op :tip :percent 15N :bill 85.50M}
+           (parser/parse-request "tip 15% $85.50")))))
+
+(deftest parses-tip-brief-bill-percent
+  (testing "'tip $Y X%' — bill then percent"
+    (is (= {:op :tip :percent 10N :bill 50N}
+           (parser/parse-request "tip $50 10%")))
+    (is (= {:op :tip :percent 18N :bill 100N}
+           (parser/parse-request "tip $100 18%")))))
+
+(deftest parses-tip-brief-dollar-only
+  (testing "'tip $Y' — dollar amount defaults to 20%"
+    (is (= {:op :tip :percent 20N :bill 50N}
+           (parser/parse-request "tip $50")))
+    (is (= {:op :tip :percent 20N :bill 85.50M}
+           (parser/parse-request "tip $85.50")))))
+
+(deftest parses-tip-brief-bare-number
+  (testing "'tip N' — bare number defaults to $N at 20%"
+    (is (= {:op :tip :percent 20N :bill 50N}
+           (parser/parse-request "tip 50")))
+    (is (= {:op :tip :percent 20N :bill 100N}
+           (parser/parse-request "tip 100")))))
+
+(deftest parses-tip-brief-two-bare-numbers
+  (testing "'tip N M' — first is bill, second is percent"
+    (is (= {:op :tip :percent 25N :bill 50N}
+           (parser/parse-request "tip 50 25")))
+    (is (= {:op :tip :percent 18N :bill 100N}
+           (parser/parse-request "tip 100 18")))))
+
+;; ==========================================================================
 ;; Eval tests
 ;; ==========================================================================
 

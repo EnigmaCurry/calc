@@ -1012,12 +1012,37 @@
        (when-let [[bill _] (parse-percentage-number (strip-dollar bill-str))]
          {:op :tip :percent pct :bill bill})))
 
-   ;; "X% tip on Y" where X% was already converted to "X percent" by clean-phrase
-   ;; already handled above
-
    ;; "tip on Y" (default 20%)
    (when-let [[_ bill-str] (re-matches #"(?i)^(?:what\s+is\s+(?:the\s+)?)?tip\s+on\s+(.+)$" s)]
      (when-let [[bill _] (parse-percentage-number (strip-dollar bill-str))]
+       {:op :tip :percent 20N :bill bill}))
+
+   ;; Brief forms: "tip X percent $Y" (percent then bill)
+   (when-let [[_ pct-str bill-str] (re-matches #"(?i)^tip\s+(.+?)\s+percent\s+(.+)$" s)]
+     (when-let [[pct _] (parse-percentage-number (strip-dollar pct-str))]
+       (when-let [[bill _] (parse-percentage-number (strip-dollar bill-str))]
+         {:op :tip :percent pct :bill bill})))
+
+   ;; Brief forms: "tip $Y X percent" (bill with $ then percent)
+   (when-let [[_ bill-str pct-str] (re-matches #"(?i)^tip\s+\$(.+?)\s+(.+?)\s+percent$" s)]
+     (when-let [[bill _] (parse-percentage-number (strip-dollar bill-str))]
+       (when-let [[pct _] (parse-percentage-number (strip-dollar pct-str))]
+         {:op :tip :percent pct :bill bill})))
+
+   ;; Brief form: "tip $Y" (dollar amount, default 20%)
+   (when-let [[_ bill-str] (re-matches #"(?i)^tip\s+\$(.+)$" s)]
+     (when-let [[bill _] (parse-percentage-number (strip-dollar bill-str))]
+       {:op :tip :percent 20N :bill bill}))
+
+   ;; Brief form: "tip N M" (two bare numbers: bill then percent)
+   (when-let [[_ first-str second-str] (re-matches #"(?i)^tip\s+(\S+)\s+(\S+)$" s)]
+     (when-let [[first-val _] (parse-percentage-number first-str)]
+       (when-let [[second-val _] (parse-percentage-number second-str)]
+         {:op :tip :percent second-val :bill first-val})))
+
+   ;; Brief form: "tip N" (single bare number: bill at 20%)
+   (when-let [[_ bill-str] (re-matches #"(?i)^tip\s+(\S+)$" s)]
+     (when-let [[bill _] (parse-percentage-number bill-str)]
        {:op :tip :percent 20N :bill bill}))))
 
 (defn parse-request [phrase]
