@@ -416,14 +416,22 @@
                [v (inc npos)]))
       nil)))
 
+(def ^:private max-pow-exponent 10000)
+
 (defn- math-pow [base exp]
   #?(:clj
-     (cond
-       (zero? exp) 1N
-       (pos? exp)  (reduce * 1N (repeat exp base))
-       :else       (/ 1N (math-pow base (- exp))))
+     (let [n (long exp)]
+       (when (> (Math/abs n) max-pow-exponent)
+         (throw (ex-info "Exponent too large" {:error :exponent-too-large :exp n})))
+       (cond
+         (zero? n) 1N
+         (pos? n)  (reduce * 1N (repeat n base))
+         :else     (/ 1N (math-pow base (- n)))))
      :cljs
-     (m/dpow base exp)))
+     (do
+       (when (> (Math/abs (m/dec->double exp)) max-pow-exponent)
+         (throw (ex-info "Exponent too large" {:error :exponent-too-large :exp exp})))
+       (m/dpow base exp))))
 
 (defn- math-parse-power
   "Parse factor (^ factor)* — right-associative."
