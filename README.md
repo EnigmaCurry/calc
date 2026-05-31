@@ -182,10 +182,11 @@ All platforms use arbitrary-precision arithmetic:
  * **JVM / Babashka** — exact Clojure ratios and `BigDecimal` with
    `DECIMAL128` precision (34 significant digits).
  * **ClojureScript (web)** — [decimal.js](https://github.com/MikeMcl/decimal.js)
-   with 10,000 significant digits by default. Results are rounded to
+   with 200 significant digits by default. Results are rounded to
    12 significant digits for display. The precision is configurable in
    Settings — use the **Auto** button to benchmark your device and
-   find the maximum it can handle, or set it manually.
+   find the maximum it can handle (often 100,000+ digits), or set it
+   manually.
 
 This means expressions like `(10^100)+1-(10^100)` correctly return `1`
 on all platforms, and conversions between units with exact rational

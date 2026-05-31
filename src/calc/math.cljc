@@ -16,7 +16,7 @@
 #?(:clj (def ^:private math-context MathContext/DECIMAL128))
 #?(:clj (def ^:private output-scale 14))
 
-(def default-precision 10000)
+(def default-precision 200)
 
 #?(:cljs
    (do
@@ -188,7 +188,7 @@
 
 (defn dsqrt [x]
   #?(:clj (Math/sqrt (double x))
-     :cljs (.sqrt (->dec x))))
+     :cljs (js/Math.sqrt (dec->double x))))
 
 (defn dfloor [x]
   #?(:clj (Math/floor (double x))
@@ -204,7 +204,7 @@
 
 (defn dlog10 [x]
   #?(:clj (Math/log10 (double x))
-     :cljs (let [^js r (.log (->dec x) 10)] (.toNumber r))))
+     :cljs (js/Math.log10 (dec->double x))))
 
 ;; ---------------------------------------------------------------------------
 ;; Trig functions
@@ -212,27 +212,27 @@
 
 (defn dsin [x]
   #?(:clj (Math/sin (double x))
-     :cljs (let [^js r (.sin (->dec x))] (.toNumber r))))
+     :cljs (js/Math.sin (dec->double x))))
 
 (defn dcos [x]
   #?(:clj (Math/cos (double x))
-     :cljs (let [^js r (.cos (->dec x))] (.toNumber r))))
+     :cljs (js/Math.cos (dec->double x))))
 
 (defn dtan [x]
   #?(:clj (Math/tan (double x))
-     :cljs (let [^js r (.tan (->dec x))] (.toNumber r))))
+     :cljs (js/Math.tan (dec->double x))))
 
 (defn dasin [x]
   #?(:clj (Math/asin (double x))
-     :cljs (let [^js r (.asin (->dec x))] (.toNumber r))))
+     :cljs (js/Math.asin (dec->double x))))
 
 (defn dacos [x]
   #?(:clj (Math/acos (double x))
-     :cljs (let [^js r (.acos (->dec x))] (.toNumber r))))
+     :cljs (js/Math.acos (dec->double x))))
 
 (defn datan [x]
   #?(:clj (Math/atan (double x))
-     :cljs (let [^js r (.atan (->dec x))] (.toNumber r))))
+     :cljs (js/Math.atan (dec->double x))))
 
 ;; ---------------------------------------------------------------------------
 ;; Constants
@@ -240,11 +240,11 @@
 
 (def PI
   #?(:clj Math/PI
-     :cljs (let [^js r (.acos (->dec -1))] (.toNumber r))))
+     :cljs js/Math.PI))
 
 (def E
   #?(:clj Math/E
-     :cljs (let [^js r (.exp (->dec 1))] (.toNumber r))))
+     :cljs js/Math.E))
 
 ;; ---------------------------------------------------------------------------
 ;; Normalization
