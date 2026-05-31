@@ -214,7 +214,7 @@
 
 (def examples
   ["100GB / 900Mbps"
-   "12 feet in yards"
+   "(10^100)+1-(10^100)"
    "2 cups in tablespoons"
    "3 feet in inches"
    "37 W / 12 v"
@@ -309,6 +309,7 @@
     [["2 + 2" "4"]
      ["3 * (4 + 5)" "27"]
      ["2^10" "1024"]
+     ["(10^100)+1-(10^100)" "1"]
      ["sqrt(9) + sqrt(16)" "7"]]]
    ["Tip & Tax"
     [["tip $50" "Tip table with 15%, 20%, round options"]

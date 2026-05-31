@@ -1401,7 +1401,12 @@
     (if-let [roll (dice/parse-roll phrase)]
       roll
     (try
-      (let [cleaned (evaluate-math-exprs (clean-phrase phrase))
+      (let [pre-cleaned (clean-phrase phrase)
+            ;; Try full expression as standalone math first (preserves Decimal
+            ;; precision for expressions like (10^100)+1-(10^100))
+            [without-format-pre format-pre] (extract-format pre-cleaned)
+            full-math (math-value (parse-math without-format-pre))
+            cleaned (if full-math pre-cleaned (evaluate-math-exprs pre-cleaned))
             [without-format format] (extract-format cleaned)
             [without-approx approx?] (extract-approx without-format)
             tip (parse-tip without-approx)
@@ -1410,7 +1415,8 @@
             root (when-not (or tip tax pct) (parse-root without-approx))
             modulo (when-not (or tip tax pct root) (parse-modulo without-approx))
             trig (when-not (or tip tax pct root modulo) (parse-trig without-approx))
-            math (when-not (or tip tax pct root modulo trig) (parse-standalone-math without-approx))]
+            math (or (when full-math {:op :math-expr :value full-math})
+                     (when-not (or tip tax pct root modulo trig) (parse-standalone-math without-approx)))]
         (if tip
           (cond-> tip
             format (assoc :format format))

@@ -18,7 +18,7 @@
 
 #?(:cljs
    (do
-     (set! (.-precision Decimal) 34)
+     (set! (.-precision Decimal) 200)
      (set! (.-rounding Decimal) 4))) ;; ROUND_HALF_UP
 
 ;; ---------------------------------------------------------------------------
