@@ -463,3 +463,81 @@
     (let [{:keys [result]} (th/evaluate "2 * sin(30)" nil)]
       (is (str/includes? result "sin(30°)"))
       (is (str/includes? result "= 1")))))
+
+;; ==========================================================================
+;; Standalone pi / π constant tests
+;; ==========================================================================
+
+(deftest parse-standalone-pi
+  (testing "bare 'pi' parses as math-expr"
+    (let [parsed (parser/parse-request "pi")]
+      (is (= :math-expr (:op parsed)))
+      (is (th/approx== Math/PI (:value parsed)))))
+
+  (testing "bare 'π' (unicode) parses as math-expr"
+    (let [parsed (parser/parse-request "π")]
+      (is (= :math-expr (:op parsed)))
+      (is (th/approx== Math/PI (:value parsed)))))
+
+  (testing "'pi/4' parses as math-expr"
+    (let [parsed (parser/parse-request "pi/4")]
+      (is (= :math-expr (:op parsed)))
+      (is (th/approx== (/ Math/PI 4) (:value parsed)))))
+
+  (testing "'2*pi' parses as math-expr"
+    (let [parsed (parser/parse-request "2*pi")]
+      (is (= :math-expr (:op parsed)))
+      (is (th/approx== (* 2 Math/PI) (:value parsed)))))
+
+  (testing "'pi*2' parses as math-expr"
+    (let [parsed (parser/parse-request "pi*2")]
+      (is (= :math-expr (:op parsed)))
+      (is (th/approx== (* 2 Math/PI) (:value parsed))))))
+
+(deftest e2e-standalone-pi
+  (testing "pi returns its value"
+    (let [{:keys [result]} (th/evaluate "pi" nil)]
+      (is (some? result))
+      (is (str/starts-with? result "3.14"))))
+
+  (testing "π (unicode) returns its value"
+    (let [{:keys [result]} (th/evaluate "π" nil)]
+      (is (some? result))
+      (is (str/starts-with? result "3.14"))))
+
+  (testing "pi/4 returns correct value"
+    (let [{:keys [result]} (th/evaluate "pi/4" nil)]
+      (is (some? result))
+      (is (str/starts-with? result "0.785"))))
+
+  (testing "2*pi returns correct value"
+    (let [{:keys [result]} (th/evaluate "2*pi" nil)]
+      (is (some? result))
+      (is (str/starts-with? result "6.28"))))
+
+  (testing "pi+1 returns correct value"
+    (let [{:keys [result]} (th/evaluate "pi+1" nil)]
+      (is (some? result))
+      (is (str/starts-with? result "4.14"))))
+
+  (testing "pi^2 returns correct value"
+    (let [{:keys [result]} (th/evaluate "pi^2" nil)]
+      (is (some? result))
+      (is (str/starts-with? result "9.86"))))
+
+  (testing "pi still works inside trig: sin pi"
+    (let [{:keys [result]} (th/evaluate "sin pi" nil)]
+      (is (some? result))
+      (is (str/includes? result "rad"))
+      (is (str/includes? result "= 0"))))
+
+  (testing "pi still works inside trig: cos pi/4"
+    (let [{:keys [result]} (th/evaluate "cos pi/4" nil)]
+      (is (some? result))
+      (is (str/includes? result "rad"))
+      (is (str/includes? result "0.707"))))
+
+  (testing "π inside trig: sin π"
+    (let [{:keys [result]} (th/evaluate "sin π" nil)]
+      (is (some? result))
+      (is (str/includes? result "= 0")))))

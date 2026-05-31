@@ -548,6 +548,9 @@
      (= op :tax)
      (evaluate-tax request)
 
+     (= op :math-expr)
+     {:value (u/normalize-number (:value request))}
+
      (= op :roll)
      (let [{:keys [dice]} request]
        (if (:error dice)

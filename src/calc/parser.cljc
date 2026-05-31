@@ -211,6 +211,9 @@
                 (#{"rad" "radians" "deg" "degrees"} word)
                 (recur end (conj tokens [:angle (if (#{"rad" "radians"} word) :rad :deg)]))
 
+                (= "pi" word)
+                (recur end (conj tokens [:num pi-value]))
+
                 :else nil))
 
             (or (digit? ch) (= ch "."))
@@ -249,6 +252,9 @@
 
             (#{"+" "*" "/" "^" "%"} ch)
             (recur (inc i) (conj tokens [:op ch]))
+
+            (= ch "π")
+            (recur (inc i) (conj tokens [:num pi-value]))
 
             (= ch "-")
             (if (or (empty? tokens) (#{:lp :op :comma} (first (peek tokens))))
@@ -451,15 +457,22 @@
 (defn- standalone-trig?
   "True when tokens represent a single trig call with no binary operators
    and no nested function calls, e.g. sin(30), asin 0.5, cos 45 deg.
+   Also matches trig with pi division: cos pi/4 → [:fn] [:num pi] [:op /] [:num 4].
    These should be handled by parse-trig (which tracks angle mode and
    attaches unit labels) rather than parse-math."
   [tokens]
   (and (seq tokens)
        (= :fn (first (first tokens)))
        (contains? math-trig-fns (second (first tokens)))
-       (not (some #(= :op (first %)) tokens))
        ;; If there are nested function calls, it's a compound expression
-       (<= (count (filter #(= :fn (first %)) tokens)) 1)))
+       (<= (count (filter #(= :fn (first %)) tokens)) 1)
+       ;; No binary operators, OR the only operator is / in a pi/N pattern
+       (or (not (some #(= :op (first %)) tokens))
+           ;; Allow pi/N: [:fn] [:num pi-val] [:op "/"] [:num N]
+           (and (= 4 (count tokens))
+                (= [:op "/"] (nth tokens 2))
+                (= :num (first (nth tokens 1)))
+                (= (double pi-value) (double (second (nth tokens 1))))))))
 
 (defn- annotate-trig-expr
   "Annotate a trig expression string with explicit angle markers.
@@ -574,12 +587,12 @@
       [(math-value (parse-math t)) (inc i)]
 
       ;; Pi constant
-      (= "pi" t)
+      (#{"pi" "π"} t)
       [pi-value (inc i)]
 
       ;; Pi division as single token: "pi/4"
-      (and t (re-matches #"(?i)pi/\d+(?:\.\d+)?" t))
-      (let [[_ denom] (re-matches #"(?i)pi/(.+)" t)
+      (and t (re-matches #"(?i)(?:pi|π)/\d+(?:\.\d+)?" t))
+      (let [[_ denom] (re-matches #"(?i)(?:pi|π)/(.+)" t)
             v (#?(:clj bigdec :cljs js/parseFloat) denom)]
         [(#?(:clj .divide :cljs /) pi-value v
           #?(:clj (java.math.MathContext. 34))) (inc i)])
@@ -1101,7 +1114,7 @@
    Returns [value next-index] consuming tokens from `tokens` at index `i`, or nil."
   [tokens i]
   (let [t (some-> (nth tokens i nil) str/lower-case)]
-    (when (= "pi" t)
+    (when (#{"pi" "π"} t)
       (let [next-t (some-> (nth tokens (inc i) nil) str/lower-case)]
         (if (and next-t (re-matches #"\d+(?:\.\d+)?" next-t))
           ;; "pi 4" is not valid, just return pi
@@ -1118,20 +1131,20 @@
         t3 (some-> (nth tokens (+ i 2) nil) str/lower-case)]
     (cond
       ;; "pi/N" as a single token like "pi/4"
-      (and t (re-matches #"(?i)pi/\d+(?:\.\d+)?" t))
-      (let [[_ denom] (re-matches #"(?i)pi/(.+)" t)
+      (and t (re-matches #"(?i)(?:pi|π)/\d+(?:\.\d+)?" t))
+      (let [[_ denom] (re-matches #"(?i)(?:pi|π)/(.+)" t)
             v (#?(:clj bigdec :cljs js/parseFloat) denom)]
         [(#?(:clj .divide :cljs /) pi-value v
           #?(:clj (java.math.MathContext. 34))) :rad (inc i)])
 
       ;; "pi" "/" "N" as separate tokens (clean-phrase splits "pi/4" → "pi / 4")
-      (and (= "pi" t) (= "/" t2) t3 (re-matches #"\d+(?:\.\d+)?" t3))
+      (and (#{"pi" "π"} t) (= "/" t2) t3 (re-matches #"\d+(?:\.\d+)?" t3))
       (let [v (#?(:clj bigdec :cljs js/parseFloat) t3)]
         [(#?(:clj .divide :cljs /) pi-value v
           #?(:clj (java.math.MathContext. 34))) :rad (+ i 3)])
 
       ;; bare "pi"
-      (= "pi" t)
+      (#{"pi" "π"} t)
       [pi-value :rad (inc i)]
 
       ;; numeric value
@@ -1217,6 +1230,20 @@
      (when-let [[x _] (parse-percentage-number x-str)]
        (when-let [[y _] (parse-percentage-number y-str)]
          {:op :modulo :dividend x :divisor y})))))
+
+(defn parse-standalone-math
+  "Try to parse a standalone math/constant expression (no units).
+   Handles 'pi', 'π', '2*pi', 'pi/4', '(3+2)*pi', etc.
+   Only matches when the expression contains pi/π or operators — plain
+   numbers like '42' are not matched to avoid hijacking unit queries."
+  [s]
+  (let [lower (str/lower-case (str/trim s))]
+    (when (or (str/includes? lower "pi")
+              (str/includes? s "π"))
+      (let [;; Normalize π to pi for math-tokenize
+            normalized (str/replace s "π" "pi")]
+        (when-let [result (parse-math normalized)]
+          {:op :math-expr :value (math-value result)})))))
 
 (defn- strip-dollar [s]
   (str/replace (str/trim s) #"^\$\s*" ""))
@@ -1359,7 +1386,8 @@
             pct (when-not (or tip tax) (parse-percentage without-approx))
             root (when-not (or tip tax pct) (parse-root without-approx))
             modulo (when-not (or tip tax pct root) (parse-modulo without-approx))
-            trig (when-not (or tip tax pct root modulo) (parse-trig without-approx))]
+            trig (when-not (or tip tax pct root modulo) (parse-trig without-approx))
+            math (when-not (or tip tax pct root modulo trig) (parse-standalone-math without-approx))]
         (if tip
           (cond-> tip
             format (assoc :format format))
@@ -1377,6 +1405,9 @@
             format (assoc :format format))
         (if trig
           (cond-> trig
+            format (assoc :format format))
+        (if math
+          (cond-> math
             format (assoc :format format))
           (let [pieces (split-request without-approx)]
         (if-not pieces
@@ -1407,7 +1438,7 @@
                                      :to (parse-unit-phrase to-str)}
                               approx? (assoc :approx? true)
                               format (assoc :format format))]
-                request))))))))))))
+                request)))))))))))))
       #?(:clj (catch clojure.lang.ExceptionInfo ex
                 (or (parse-error original ex)
                     {:error :unparseable
