@@ -145,6 +145,30 @@
       (.removeItem js/localStorage "calc-hide-examples"))
     (catch :default _ nil)))
 
+(defn mobile? []
+  (and js/window.matchMedia
+       (.-matches (.matchMedia js/window "(max-width: 480px)"))))
+
+(defn default-zoom []
+  (if (mobile?) 1.2 2.0))
+
+(defn load-zoom []
+  (try
+    (when-let [raw (.getItem js/localStorage "calc-zoom")]
+      (let [n (js/parseFloat raw)]
+        (when-not (js/isNaN n) n)))
+    (catch :default _ nil)))
+
+(defn save-zoom! [v]
+  (try
+    (if v
+      (.setItem js/localStorage "calc-zoom" (str v))
+      (.removeItem js/localStorage "calc-zoom"))
+    (catch :default _ nil)))
+
+(defn apply-zoom! [v]
+  (set! (.. js/document -documentElement -style -zoom) (str v)))
+
 (defonce state (r/atom {:input ""
                         :result nil
                         :error nil
@@ -156,6 +180,7 @@
                         :menu-open false
                         :theme (load-theme)
                         :hide-examples (load-hide-examples)
+                        :zoom (or (load-zoom) (default-zoom))
                         :page :calc
                         :copied-idx nil}))
 
@@ -401,7 +426,25 @@
         [:input {:type "checkbox"
                  :checked (= theme "dark")
                  :on-change (fn [_] (toggle-theme!))}]
-        "Dark mode"]]]
+        "Dark mode"]]
+      [:div.setting-row
+       [:label.setting-label (str "Zoom: " (.toFixed (js/Number (:zoom @state)) 1))]
+       [:input {:type "range"
+                :min 0.5 :max 3.0 :step 0.1
+                :value (:zoom @state)
+                :style {:width "100%"}
+                :on-change (fn [e]
+                             (let [v (js/parseFloat (.. e -target -value))]
+                               (swap! state assoc :zoom v)
+                               (save-zoom! v)
+                               (apply-zoom! v)))}]
+       [:button.back-btn
+        {:on-click (fn []
+                     (let [d (default-zoom)]
+                       (swap! state assoc :zoom d)
+                       (save-zoom! nil)
+                       (apply-zoom! d)))}
+        "Reset"]]]
      [:div.settings-section
       [:h3 "History"]
       [:div.setting-row
@@ -753,6 +796,7 @@
 
 (defn ^:export init []
   (apply-theme! (load-theme))
+  (apply-zoom! (or (load-zoom) (default-zoom)))
   (let [el (js/document.getElementById "app")]
     (when-not @root
       (reset! root (rdom/create-root el)))

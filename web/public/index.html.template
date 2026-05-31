@@ -28,7 +28,7 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     html {
-      zoom: 2;
+      /* zoom set by JS from user preference */
     }
 
     html, body, #app {
@@ -542,7 +542,7 @@
         padding: 0 3.5rem 0 0.5rem;
       }
       .input-wrapper input[type="text"] { font-size: 0.9rem; }
-      html { zoom: 1.5; }
+      /* mobile zoom default handled by JS */
       .preview-bar { padding: 0.5rem 1rem; }
       .preview-spacer { display: none; }
       header:has(.input-wrapper input:focus) {
