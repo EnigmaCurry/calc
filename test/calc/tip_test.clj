@@ -121,16 +121,16 @@
 (deftest end-to-end-tip
   (testing "X% tip on Y"
     (let [{:keys [result]} (cli/process-request-text "20 percent tip on 50" nil)]
-      (is (= "Tip: $10, Total: $60" result))))
+      (is (= "Bill: $50, Tip: $10 (20%), Total: $60" result))))
 
   (testing "tip on Y at X%"
     (let [{:keys [result]} (cli/process-request-text "tip on $100 at 15 percent" nil)]
-      (is (= "Tip: $15, Total: $115" result))))
+      (is (= "Bill: $100, Tip: $15 (15%), Total: $115" result))))
 
   (testing "tip on Y (default 20%)"
     (let [{:keys [result]} (cli/process-request-text "tip on $50" nil)]
-      (is (= "Tip: $10, Total: $60" result))))
+      (is (= "Bill: $50, Tip: $10 (20%), Total: $60" result))))
 
   (testing "tip with decimals"
     (let [{:keys [result]} (cli/process-request-text "18 percent tip on $85.50" nil)]
-      (is (= "Tip: $15.39, Total: $100.89" result)))))
+      (is (= "Bill: $85.5, Tip: $15.39 (18%), Total: $100.89" result)))))

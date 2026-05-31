@@ -175,7 +175,9 @@
         {:result (fmt/format-number (:value result) effective-fmt)}
 
         (= :tip (:op parsed))
-        {:result (str "Tip: $" (fmt/format-number (:tip result) effective-fmt)
+        {:result (str "Bill: $" (fmt/format-number (:bill parsed) effective-fmt)
+                      ", Tip: $" (fmt/format-number (:tip result) effective-fmt)
+                      " (" (fmt/format-number (:percent parsed) effective-fmt) "%)"
                       ", Total: $" (fmt/format-number (:total result) effective-fmt))}
 
         (= :modulo (:op parsed))
