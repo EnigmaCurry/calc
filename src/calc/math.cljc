@@ -274,8 +274,11 @@
        :else
        x)
      :cljs
-     (let [^js d (->dec x)]
-       (if (.isInteger d)
-         (.toNumber d)
-         (let [^js s (.toSignificantDigits d 12)]
-           (.toNumber s))))))
+     (let [^js d (->dec x)
+           n (.toNumber d)]
+       (if (js/isFinite n)
+         (if (.isInteger d)
+           n
+           (let [^js s (.toSignificantDigits d 12)]
+             (.toNumber s)))
+         (.toString d)))))
