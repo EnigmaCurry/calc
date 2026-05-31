@@ -147,10 +147,14 @@
     }
 
     pre.preview-result {
-      white-space: pre;
+      white-space: pre-wrap;
+      word-break: break-word;
       margin: 0;
       font-family: inherit;
       font-size: inherit;
+      padding-left: 1.5em;
+      text-indent: -1.5em;
+      border-left: 2px solid var(--accent);
     }
 
     .preview-error {
@@ -276,6 +280,7 @@
       right: 0;
       bottom: 0;
       overflow-y: auto;
+      overflow-x: hidden;
       padding: 1rem;
       display: flex;
       flex-direction: column;
@@ -339,11 +344,15 @@
     }
 
     pre.log-result {
-      white-space: pre;
+      white-space: pre-wrap;
+      word-break: break-word;
       margin: 0;
       font-family: inherit;
       font-size: inherit;
       width: 100%;
+      padding-left: 1.5em;
+      text-indent: -1.5em;
+      border-left: 2px solid var(--accent);
     }
 
     .log-entry:has(pre.log-result) {
