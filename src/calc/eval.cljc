@@ -359,8 +359,9 @@
   "Build a row for an exact percentage."
   [bill pct]
   (let [tip (round-up-penny
-             (u/safe-div (* (u/->bigdec pct) (u/->bigdec bill)) (u/->bigdec 100)))]
-    (tip-row bill tip (str (u/normalize-number pct) "%"))))
+             (u/safe-div (* (u/->bigdec pct) (u/->bigdec bill)) (u/->bigdec 100)))
+        display-pct (calc-pct tip bill)]
+    (tip-row bill tip (str display-pct "%"))))
 
 (defn- find-round-amount
   "Find the smallest round cash amount (multiple of $20/$10/$5/$1) in [min-val, max-val].
