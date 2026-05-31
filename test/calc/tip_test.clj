@@ -1,5 +1,6 @@
 (ns calc.tip-test
   (:require [clojure.test :refer [deftest testing is are]]
+            [clojure.string :as str]
             [calc.parser :as parser]
             [calc.eval :as ev]
             [calc.cli :as cli]))
@@ -140,12 +141,12 @@
       ;; 20% row
       (is (= "20%" (:label (nth rows 1))))
       (is (= 17N (:tip (nth rows 1))))
-      ;; Round tip row (includes percent in label)
-      (is (re-find #"Round tip" (:label (nth rows 2))))
+      ;; Round tip row
+      (is (re-find #"\d+\.?\d*%" (:label (nth rows 2))))
       (is (= 20N (:tip (nth rows 2))))
       (is (= 105N (:total (nth rows 2))))
       ;; Round total row
-      (is (re-find #"Round total" (:label (nth rows 3))))
+      (is (re-find #"\d+\.?\d*%" (:label (nth rows 3))))
       (is (= 25N (:tip (nth rows 3))))
       (is (= 110N (:total (nth rows 3))))))
 
@@ -163,7 +164,7 @@
           rows (:rows r)]
       ;; 15%, 20%, and one round row ($150)
       (is (= 3 (count rows)))
-      (is (re-find #"Round tip" (:label (nth rows 2))))
+      (is (re-find #"\d+\.?\d*%" (:label (nth rows 2))))
       (is (= 30N (:tip (nth rows 2))))
       (is (= 150N (:total (nth rows 2)))))))
 
@@ -175,17 +176,14 @@
   (testing "explicit percent shows exact + round tip"
     (let [{:keys [result]} (cli/process-request-text "tip $85 18%" nil)]
       (is (re-find #"Bill: \$85\.00" result))
-      (is (re-find #"18%" result))
-      (is (re-find #"Round tip" result)))))
+      (is (re-find #"18%" result)))))
 
 (deftest end-to-end-round-tip
-  (testing "$85 shows 15%, 20%, round tip, round total"
+  (testing "$85 shows 15%, 20%, and round-amount rows"
     (let [{:keys [result]} (cli/process-request-text "tip $85" nil)]
       (is (re-find #"Bill: \$85\.00" result))
       (is (re-find #"15%" result))
-      (is (re-find #"20%" result))
-      (is (re-find #"Round tip" result))
-      (is (re-find #"Round total" result))))
+      (is (re-find #"20%" result))))
 
   (testing "tip $50 table"
     (let [{:keys [result]} (cli/process-request-text "tip $50" nil)]
@@ -214,3 +212,12 @@
     (let [{:keys [result]} (cli/process-request-text "tip $29.99 18%" nil)]
       (is (re-find #"Bill: \$29\.99" result))
       (is (re-find #"Tip \$5\.40" result)))))
+
+(deftest tip-colon-alignment
+  (testing "all colons are aligned in output rows"
+    (let [{:keys [result]} (cli/process-request-text "tip $85" nil)
+          lines (str/split-lines result)
+          colon-positions (map #(.indexOf ^String % ":") lines)]
+      ;; Every line's colon should be at the same position
+      (is (apply = colon-positions)
+          (str "Colons not aligned: " (pr-str (zipmap lines colon-positions)))))))

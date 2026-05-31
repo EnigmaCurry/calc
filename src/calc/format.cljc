@@ -192,11 +192,15 @@
     :tip (let [money-opts (assoc fmt-opts :round 2)
                rows (:rows result)
                bill-str (str "$" (format-number (:bill result) money-opts))
+               labels (map :label rows)
+               max-len (apply max (count "Bill") (map count labels))
+               pad (fn [s] (let [n (- max-len (count s))]
+                             (str (apply str (repeat n " ")) s)))
                fmt-row (fn [{:keys [label tip total]}]
-                         (str label ": "
+                         (str (pad label) ": "
                               "Tip $" (format-number tip money-opts)
                               " -> Total $" (format-number total money-opts)))]
-           (str "Bill: " bill-str "\n"
+           (str (pad "Bill") ": " bill-str "\n"
                 (str/join "\n" (map fmt-row rows))))
 
     :tax (let [money-opts (assoc fmt-opts :round 2)]

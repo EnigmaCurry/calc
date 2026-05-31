@@ -382,7 +382,7 @@
         max-tip (* bill-d (/ (double max-pct) 100.0))]
     (when-let [tip (find-round-amount min-tip max-tip)]
       (let [pct (calc-pct tip bill)]
-        (tip-row bill tip (str "Round tip " pct "%"))))))
+        (tip-row bill tip (str pct "%"))))))
 
 (defn- round-total-row
   "Find a round total amount where the tip falls between min-pct% and max-pct%."
@@ -393,7 +393,7 @@
     (when-let [total (find-round-amount min-total max-total)]
       (let [tip (u/normalize-number (- (u/->bigdec total) (u/->bigdec bill)))
             pct (calc-pct tip bill)]
-        (tip-row bill tip (str "Round total " pct "%"))))))
+        (tip-row bill tip (str pct "%"))))))
 
 (defn- dedupe-rows
   "Remove rows with duplicate totals, keeping the first occurrence."
