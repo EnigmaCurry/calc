@@ -1,5 +1,6 @@
 (require '[babashka.fs :as fs]
-         '[clojure.edn :as edn])
+         '[clojure.edn :as edn]
+         '[clojure.set :as set])
 
 (def results-dir ".test-results")
 
@@ -27,5 +28,19 @@
   (println (format "  %-16s %6d %6d %6d %6d" "Total" (:test totals) (:pass totals) (:fail totals) (:error totals)))
   (println)
 
-  (when any-failures?
-    (System/exit 1)))
+  (let [by-platform (into {} (map (juxt :platform identity) results))
+        bb-names  (set (:test-names (by-platform "Babashka")))
+        jvm-names (set (:test-names (by-platform "JVM")))
+        parity-fail? (and (seq bb-names) (seq jvm-names) (not= bb-names jvm-names))
+        bb-only  (sort (set/difference bb-names jvm-names))
+        jvm-only (sort (set/difference jvm-names bb-names))]
+    (when parity-fail?
+      (when (seq bb-only)
+        (println "  Babashka only:")
+        (doseq [n bb-only] (println "    -" n)))
+      (when (seq jvm-only)
+        (println "  JVM only:")
+        (doseq [n jvm-only] (println "    -" n)))
+      (println))
+    (when (or any-failures? parity-fail?)
+      (System/exit 1))))
