@@ -6,7 +6,7 @@
 (def results
   (->> (fs/glob results-dir "*.edn")
        (map (comp edn/read-string slurp str))
-       (sort-by :platform)))
+       (sort-by #(case (:platform %) "Babashka" 0 "JVM" 1 "ClojureScript" 2 3))))
 
 (when (empty? results)
   (println "No test results found.")
