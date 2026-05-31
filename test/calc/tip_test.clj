@@ -109,6 +109,27 @@
     (is (= {:op :tip :percent 25N :bill 50N}
            (parser/parse-request "tip 50 25")))))
 
+(deftest parses-tip-two-dollar-amounts
+  (testing "'tip $X $Y' — bill is X, total is Y, computes percent"
+    (let [r (parser/parse-request "tip $40 $55")]
+      (is (= :tip (:op r)))
+      (is (= 40N (:bill r)))
+      (is (= 37.5 (:percent r)))))
+
+  (testing "total must be greater than bill"
+    (is (= {:error :unparseable :phrase "tip $55 $40"}
+           (parser/parse-request "tip $55 $40"))))
+
+  (testing "equal amounts are rejected"
+    (is (= {:error :unparseable :phrase "tip $50 $50"}
+           (parser/parse-request "tip $50 $50"))))
+
+  (testing "works with decimal amounts"
+    (let [r (parser/parse-request "tip $85.50 $100")]
+      (is (= :tip (:op r)))
+      (is (= 85.50M (:bill r)))
+      (is (number? (:percent r))))))
+
 ;; ==========================================================================
 ;; Eval tests
 ;; ==========================================================================
@@ -177,6 +198,14 @@
     (let [{:keys [result]} (cli/process-request-text "tip $85 18%" nil)]
       (is (re-find #"\$85\.00" result))
       (is (re-find #"18%" result)))))
+
+(deftest end-to-end-tip-two-dollar-amounts
+  (testing "$40 bill with $55 total"
+    (let [{:keys [result]} (cli/process-request-text "tip $40 $55" nil)]
+      (is (re-find #"\$40\.00" result))
+      (is (re-find #"\$15\.00" result))
+      (is (re-find #"\$55\.00" result))
+      (is (re-find #"37\.5%" result)))))
 
 (deftest end-to-end-round-tip
   (testing "$85 shows 15%, 20%, and round-amount rows"

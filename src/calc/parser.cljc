@@ -1030,6 +1030,13 @@
        (when-let [[pct _] (parse-percentage-number (strip-dollar pct-str))]
          {:op :tip :percent pct :bill bill})))
 
+   ;; Brief form: "tip $X $Y" (two dollar amounts: bill then total)
+   (when-let [[_ bill-str total-str] (re-matches #"(?i)^tip\s+\$(\S+)\s+\$(\S+)$" s)]
+     (when-let [[bill _] (parse-percentage-number bill-str)]
+       (when-let [[total _] (parse-percentage-number total-str)]
+         (when (> total bill)
+           {:op :tip :percent (* (/ (double (- total bill)) (double bill)) 100.0) :bill bill}))))
+
    ;; Brief form: "tip $Y N" (dollar bill then bare number percent)
    (when-let [[_ bill-str pct-str] (re-matches #"(?i)^tip\s+\$(\S+)\s+(\S+)$" s)]
      (when-let [[bill _] (parse-percentage-number bill-str)]
