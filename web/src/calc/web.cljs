@@ -8,6 +8,13 @@
             [calc.parser :as parser]
             [clojure.string :as str]))
 
+(defn wrap-continuation
+  "Prefix continuation lines with ↪ for visual indication."
+  [s]
+  (let [lines (str/split (str s) #"\n")]
+    (str/join "\n" (cons (first lines)
+                         (map #(str "↪ " %) (rest lines))))))
+
 (defn format-unit-label
   "Format an exponent-map unit like {:ft 2} as 'ft²'."
   [unit]
@@ -464,7 +471,7 @@
          [:div.setting-row
           [:label.setting-label (str "Zoom: " (.toFixed (js/Number pending) 1))]
           [:input {:type "range"
-                   :min 0.8 :max 3.0 :step 0.1
+                   :min 0.8 :max 2.0 :step 0.1
                    :value pending
                    :style {:width "100%"}
                    :on-change (fn [e]
@@ -792,7 +799,7 @@
             [:span.preview-error (:error preview)]
 
             (and (:result preview) (str/includes? (str (:result preview)) "\n"))
-            [:pre.preview-result (:result preview)]
+            [:pre.preview-result (wrap-continuation (:result preview))]
 
             (:target preview)
             [:span.preview-result (str "= " (:result preview) " " (:target preview))]
@@ -860,7 +867,7 @@
                      [:span.log-error (str "\u2192 " error)]
 
                      (and result (str/includes? (str result) "\n"))
-                     [:pre.log-result result]
+                     [:pre.log-result (wrap-continuation result)]
 
                      target
                      [:span.log-result (str "= " result " " target)]

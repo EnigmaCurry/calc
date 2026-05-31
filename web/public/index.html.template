@@ -152,9 +152,6 @@
       margin: 0;
       font-family: inherit;
       font-size: inherit;
-      padding-left: 1.5em;
-      text-indent: -1.5em;
-      border-left: 2px solid var(--accent);
     }
 
     .preview-error {
@@ -350,9 +347,6 @@
       font-family: inherit;
       font-size: inherit;
       width: 100%;
-      padding-left: 1.5em;
-      text-indent: -1.5em;
-      border-left: 2px solid var(--accent);
     }
 
     .log-entry:has(pre.log-result) {
