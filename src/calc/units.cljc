@@ -416,7 +416,7 @@
             :aliases ["kv" "kilovolt" "kilovolts"]}
    :A      {:dim {:current 1} :scale (->bigdec 1)
             :name "amps" :short "A" :auto-scale true
-            :aliases ["amp" "amps" "ampere" "amperes"]}
+            :aliases ["A" "amp" "amps" "ampere" "amperes"]}
    :mA     {:dim {:current 1} :scale (->bigdec 0.001)
             :name "mA" :short "mA" :auto-scale true
             :aliases ["ma" "milliamp" "milliamps" "milliampere" "milliamperes"]}

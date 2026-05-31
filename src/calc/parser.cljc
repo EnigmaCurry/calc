@@ -431,13 +431,14 @@
    "sixteenth"  #?(:clj 1/16 :cljs 0.0625)})
 
 (defn parse-number-at [tokens i]
-  (let [t (some-> (nth tokens i nil) str/lower-case)
+  (let [raw (nth tokens i nil)
+        t (some-> raw str/lower-case)
         t2 (some-> (nth tokens (inc i) nil) str/lower-case)]
     (cond
-      (and (#{"a" "an"} t) (contains? ordinal-fractions t2))
+      (and (#{"a" "an"} raw) (contains? ordinal-fractions t2))
       [(ordinal-fractions t2) (+ i 2)]
 
-      (#{"a" "an"} t)
+      (#{"a" "an"} raw)
       [1 (inc i)]
 
       (contains? ordinal-fractions t)
@@ -541,7 +542,7 @@
 
 (defn parse-unit-product [tokens]
   (let [tokens (->> tokens
-                    (remove #(#{"a" "an"} (str/lower-case %)))
+                    (remove #(#{"a" "an"} %))
                     join-compound-tokens)
         components (map parse-component-token tokens)]
     (simple-unit-result components)))
@@ -675,7 +676,7 @@
    Returns {:value N :unit U} or nil."
   [seg-tokens]
   (when-let [[value j] (parse-number-at seg-tokens 0)]
-    (let [j (if (#{"a" "an"} (some-> (nth seg-tokens j nil) str/lower-case))
+    (let [j (if (#{"a" "an"} (nth seg-tokens j nil))
               (inc j)
               j)]
       (if (>= j (count seg-tokens))
@@ -721,7 +722,7 @@
                                                 {:error :expected-number
                                                  :token (nth tokens i nil)})))
                   ;; Allows "half a gallon"
-                  j (if (#{"a" "an"} (some-> (nth tokens j nil) str/lower-case))
+                  j (if (#{"a" "an"} (nth tokens j nil))
                       (inc j)
                       j)
                   next-i (next-number-index tokens j)

@@ -84,7 +84,20 @@
   (testing "60 mph * 2 hours auto-selects unit"
     (let [{:keys [result]} (cli/process-request-text "60 mph * 2 hours" nil)]
       (is (some? result))
-      (is (not (clojure.string/includes? result "Error"))))))
+      (is (not (clojure.string/includes? result "Error")))))
+
+  (testing "15V * 2.46A = 36.9 watts"
+    (let [{:keys [result]} (cli/process-request-text "15V*2.46A" nil)]
+      (is (= "36.9 watts" result))))
+
+  (testing "15 V * 2.46 A = 36.9 watts (spaced)"
+    (let [{:keys [result]} (cli/process-request-text "15 V * 2.46 A" nil)]
+      (is (= "36.9 watts" result))))
+
+  (testing "voltage * current with explicit target"
+    (let [{:keys [result target]} (cli/process-request-text "15V * 2.46A in watts" nil)]
+      (is (= "36.9" result))
+      (is (= "W" target)))))
 
 (deftest evaluates-division
   (testing "100 MB / 100 Mbps in seconds = 8"
@@ -100,7 +113,16 @@
   (testing "100 MB / 100 Mbps auto-selects unit"
     (let [{:keys [result]} (cli/process-request-text "100 MB / 100 Mbps" nil)]
       (is (some? result))
-      (is (not (clojure.string/includes? result "Error"))))))
+      (is (not (clojure.string/includes? result "Error")))))
+
+  (testing "37W / 15V auto-selects amps"
+    (let [{:keys [result]} (cli/process-request-text "37W/15V" nil)]
+      (is (clojure.string/includes? result "amps"))))
+
+  (testing "watts / volts with explicit target"
+    (let [{:keys [result target]} (cli/process-request-text "37W / 15V in amps" nil)]
+      (is (some? result))
+      (is (= "A" target)))))
 
 (deftest rejects-incompatible-unit-addition
   (testing "1 hour + 5 meters is incompatible"

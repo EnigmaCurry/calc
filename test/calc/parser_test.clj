@@ -717,6 +717,14 @@
       (is (= expected (parser/parse-request "12V * 1amp")))
       (is (= expected (parser/parse-request "12V*1 amp")))))
 
+  (testing "uppercase A is parsed as amps, not article"
+    (let [req (parser/parse-request "15V*2.46A")]
+      (is (= :A (:unit (second (:terms (:quantity req))))))))
+
+  (testing "lowercase a remains an article"
+    (let [req (parser/parse-request "half a gallon in liters")]
+      (is (= :gal (:unit (:quantity req))))))
+
   (testing "unit-first with scalar second is qty arithmetic"
     (is (= {:op :convert
             :quantity {:qty-expr true
