@@ -372,9 +372,22 @@
                   (.append asb (str "\n  → " display))
                   (.style asb AttributedStyle/DEFAULT)
                   (.toAttributedString asb))
-                (AttributedString. text)))
-            (catch Exception _
-              (AttributedString. text))))))
+                (if error
+                  (let [asb (AttributedStringBuilder.)]
+                    (.append asb text)
+                    (.style asb (.foreground AttributedStyle/DEFAULT AttributedStyle/RED))
+                    (.append asb (str "\n  ✗ " error))
+                    (.style asb AttributedStyle/DEFAULT)
+                    (.toAttributedString asb))
+                  (AttributedString. text))))
+            (catch Exception e
+              (let [msg (.getMessage e)
+                    asb (AttributedStringBuilder.)]
+                (.append asb text)
+                (.style asb (.foreground AttributedStyle/DEFAULT AttributedStyle/RED))
+                (.append asb (str "\n  ✗ " (or msg "Error")))
+                (.style asb AttributedStyle/DEFAULT)
+                (.toAttributedString asb)))))))
     (setErrorPattern [_ _])
     (setErrorIndex [_ _])))
 
