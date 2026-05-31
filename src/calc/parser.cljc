@@ -202,11 +202,16 @@
                           (recur (inc j))
                           j))
                   word (str/lower-case (subs s i end))]
-              (if (#{"sqrt" "cbrt" "root"
-                     "sin" "cos" "tan" "asin" "acos" "atan"
-                     "arcsin" "arccos" "arctan"} word)
+              (cond
+                (#{"sqrt" "cbrt" "root"
+                   "sin" "cos" "tan" "asin" "acos" "atan"
+                   "arcsin" "arccos" "arctan"} word)
                 (recur end (conj tokens [:fn word]))
-                nil))
+
+                (#{"rad" "radians" "deg" "degrees"} word)
+                (recur end (conj tokens [:angle (if (#{"rad" "radians"} word) :rad :deg)]))
+
+                :else nil))
 
             (or (digit? ch) (= ch "."))
             (let [end (loop [j (inc i)]
@@ -291,20 +296,29 @@
 (defn- math-deg->rad [x]
   (* (double x) (/ Math/PI 180.0)))
 
-(def ^:private math-trig-fns
-  {"sin" #(Math/sin (math-deg->rad %))
-   "cos" #(Math/cos (math-deg->rad %))
-   "tan" #(Math/tan (math-deg->rad %))
-   "asin" #(* (/ 180.0 Math/PI) (Math/asin %))
-   "acos" #(* (/ 180.0 Math/PI) (Math/acos %))
-   "atan" #(* (/ 180.0 Math/PI) (Math/atan %))
-   "arcsin" #(* (/ 180.0 Math/PI) (Math/asin %))
-   "arccos" #(* (/ 180.0 Math/PI) (Math/acos %))
-   "arctan" #(* (/ 180.0 Math/PI) (Math/atan %))})
+(def ^:private forward-math-trig
+  #{"sin" "cos" "tan"})
 
-(defn- math-trig-eval [fname v]
+(def ^:private inverse-math-trig
+  #{"asin" "acos" "atan" "arcsin" "arccos" "arctan"})
+
+(def ^:private math-trig-fns
+  {"sin" #(Math/sin %) "cos" #(Math/cos %) "tan" #(Math/tan %)
+   "asin" #(Math/asin %) "acos" #(Math/acos %) "atan" #(Math/atan %)
+   "arcsin" #(Math/asin %) "arccos" #(Math/acos %) "arctan" #(Math/atan %)})
+
+(defn- math-trig-eval
+  "Evaluate a trig function. angle-mode is :deg (default) or :rad."
+  [fname v angle-mode]
   (let [f (get math-trig-fns fname)
-        result (f (double v))
+        mode (or angle-mode :deg)
+        input (if (forward-math-trig fname)
+                (if (= mode :rad) (double v) (math-deg->rad v))
+                (double v))
+        raw-result (f input)
+        result (if (inverse-math-trig fname)
+                 (if (= mode :rad) raw-result (* (/ 180.0 Math/PI) raw-result))
+                 raw-result)
         ;; Clean up floating point noise
         rounded (Math/round (* result 1e10))]
     (if (< (Math/abs result) 1e-14)
@@ -353,16 +367,26 @@
                  ("sin" "cos" "tan" "asin" "acos" "atan"
                   "arcsin" "arccos" "arctan")
                  (when-let [[v p1] (math-parse-expr tokens (inc npos))]
-                   (when (and (< p1 (count tokens))
-                              (= :rp (first (nth tokens p1))))
-                     [(math-trig-eval fname v) (inc p1)]))
+                   ;; Check for optional angle mode before closing paren
+                   (let [[mode p2] (if (and (< p1 (count tokens))
+                                            (= :angle (first (nth tokens p1))))
+                                     [(second (nth tokens p1)) (inc p1)]
+                                     [nil p1])]
+                     (when (and (< p2 (count tokens))
+                                (= :rp (first (nth tokens p2))))
+                       [(math-trig-eval fname v mode) (inc p2)])))
 
                  nil)
 
                ;; Bare trig: sin 45, cos 60 (no parens, consume next factor)
+               ;; Check for optional angle mode suffix: sin 45 rad, cos 60 deg
                (contains? math-trig-fns fname)
                (when-let [[v p1] (math-parse-factor tokens npos)]
-                 [(math-trig-eval fname v) p1])
+                 (let [[mode p2] (if (and (< p1 (count tokens))
+                                          (= :angle (first (nth tokens p1))))
+                                   [(second (nth tokens p1)) (inc p1)]
+                                   [nil p1])]
+                   [(math-trig-eval fname v mode) p2]))
 
                :else nil))
       :lp  (when-let [[v npos] (math-parse-expr tokens (inc pos))]
@@ -424,11 +448,24 @@
             [acc p]))
         [acc p]))))
 
+(defn- standalone-trig?
+  "True when tokens represent a single trig call with no binary operators
+   and no nested function calls, e.g. sin(30), asin 0.5, cos 45 deg.
+   These should be handled by parse-trig (which tracks angle mode and
+   attaches unit labels) rather than parse-math."
+  [tokens]
+  (and (seq tokens)
+       (= :fn (first (first tokens)))
+       (contains? math-trig-fns (second (first tokens)))
+       (not (some #(= :op (first %)) tokens))
+       ;; If there are nested function calls, it's a compound expression
+       (<= (count (filter #(= :fn (first %)) tokens)) 1)))
+
 (defn parse-math
   "Evaluate a simple arithmetic expression string. Returns a number or nil."
   [s]
   (when-let [tokens (math-tokenize (str/trim s))]
-    (when (seq tokens)
+    (when (and (seq tokens) (not (standalone-trig? tokens)))
       (let [[v pos] (math-parse-expr tokens 0)]
         (when (and v (= pos (count tokens)))
           v)))))

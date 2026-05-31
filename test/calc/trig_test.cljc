@@ -332,22 +332,23 @@
       (is (= "1" result)))))
 
 (deftest e2e-inverse-trig
-  (testing "asin 0.5 returns 30 degrees"
+  (testing "asin 0.5 returns 30 degrees with degree symbol"
     (let [{:keys [result]} (th/evaluate "asin 0.5" nil)]
-      (is (str/starts-with? result "30"))))
+      (is (= "30°" result))))
 
-  (testing "arccos 0.5 returns 60 degrees"
+  (testing "arccos 0.5 returns 60 degrees with degree symbol"
     (let [{:keys [result]} (th/evaluate "arccos 0.5" nil)]
-      (is (str/starts-with? result "60"))))
+      (is (= "60°" result))))
 
-  (testing "atan 1 returns 45 degrees"
+  (testing "atan 1 returns 45 degrees with degree symbol"
     (let [{:keys [result]} (th/evaluate "atan 1" nil)]
-      (is (str/starts-with? result "45"))))
+      (is (= "45°" result))))
 
-  (testing "asin 0.5 in radians"
+  (testing "asin 0.5 in radians shows rad label"
     (let [{:keys [result]} (th/evaluate "asin 0.5 in radians" nil)]
       (is (some? result))
-      (is (str/starts-with? result "0.523")))))
+      (is (str/starts-with? result "0.523"))
+      (is (str/ends-with? result "rad")))))
 
 (deftest e2e-degree-radian-conversion
   (testing "180 degrees in radians"
@@ -377,13 +378,9 @@
 ;; ==========================================================================
 
 (deftest trig-in-math-expressions
-  (testing "sin(45) in parenthesised form"
-    (are [expr expected] (th/approx== expected (parser/parse-math expr))
-      "sin(30)"    0.5
-      "sin(90)"    1.0
-      "cos(60)"    0.5
-      "cos(0)"     1.0
-      "tan(45)"    1.0))
+  (testing "standalone trig goes through parse-trig, not parse-math"
+    (is (nil? (parser/parse-math "sin(30)"))
+        "standalone trig should not match parse-math"))
 
   (testing "trig composed with arithmetic"
     (are [expr expected] (th/approx== expected (parser/parse-math expr))
@@ -393,15 +390,6 @@
       "sin(90) - cos(0)"     0.0
       "tan(45) + 1"          2.0
       "sin(30) ^ 2"          0.25))
-
-  (testing "inverse trig in math expressions (returns degrees)"
-    (are [expr expected] (th/approx== expected (parser/parse-math expr))
-      "asin(0.5)"      30.0
-      "acos(0.5)"      60.0
-      "atan(1)"        45.0
-      "arcsin(0.5)"    30.0
-      "arccos(0.5)"    60.0
-      "arctan(1)"      45.0))
 
   (testing "trig composed with trig"
     (are [expr expected] (th/approx== expected (parser/parse-math expr))
@@ -425,11 +413,30 @@
       (is (some? r))
       (is (th/approx== 2.0 r)))))
 
+(deftest trig-with-angle-mode-in-math
+  (testing "rad/deg suffix in compound math expressions"
+    (let [r (parser/parse-math "cos 32 rad / sin 45 rad")]
+      (is (some? r))
+      (is (th/approx== (/ (Math/cos 32) (Math/sin 45)) r)))
+
+    (let [r (parser/parse-math "sin(1 rad) + cos(0 rad)")]
+      (is (some? r))
+      (is (th/approx== (+ (Math/sin 1) (Math/cos 0)) r)))
+
+    (let [r (parser/parse-math "sin 30 deg + cos 60 deg")]
+      (is (some? r))
+      (is (th/approx== 1.0 r)))))
+
 (deftest e2e-trig-compound-expressions
-  (testing "cos 32 / sin 45"
+  (testing "cos 32 / sin 45 (degrees, default)"
     (let [{:keys [result]} (th/evaluate "cos 32 / sin 45" nil)]
       (is (some? result))
       (is (str/starts-with? result "1.19"))))
+
+  (testing "cos 32 rad / sin 45 rad (radians, explicit)"
+    (let [{:keys [result]} (th/evaluate "cos 32 rad / sin 45 rad" nil)]
+      (is (some? result))
+      (is (str/starts-with? result "0.980"))))
 
   (testing "sin(45) + cos(60)"
     (let [{:keys [result]} (th/evaluate "sin(45) + cos(60)" nil)]
