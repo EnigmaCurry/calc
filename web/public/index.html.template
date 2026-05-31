@@ -328,6 +328,13 @@
       white-space: pre-line;
     }
 
+    pre.log-result {
+      white-space: pre;
+      font-family: monospace;
+      margin: 0;
+      font-size: inherit;
+    }
+
     .log-error {
       color: var(--red);
     }

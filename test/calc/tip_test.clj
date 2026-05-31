@@ -175,20 +175,20 @@
 (deftest end-to-end-tip-explicit
   (testing "explicit percent shows exact + round tip"
     (let [{:keys [result]} (cli/process-request-text "tip $85 18%" nil)]
-      (is (re-find #"Bill: \$85\.00" result))
+      (is (re-find #"\$85\.00" result))
       (is (re-find #"18%" result)))))
 
 (deftest end-to-end-round-tip
   (testing "$85 shows 15%, 20%, and round-amount rows"
     (let [{:keys [result]} (cli/process-request-text "tip $85" nil)]
-      (is (re-find #"Bill: \$85\.00" result))
+      (is (re-find #"\$85\.00" result))
       (is (re-find #"15%" result))
       (is (re-find #"20%" result))))
 
   (testing "tip $50 table"
     (let [{:keys [result]} (cli/process-request-text "tip $50" nil)]
-      (is (re-find #"Bill: \$50\.00" result))
-      (is (re-find #"Tip \$10\.00" result)))))
+      (is (re-find #"\$50\.00" result))
+      (is (re-find #"\$10\.00" result)))))
 
 ;; ==========================================================================
 ;; Money formatting — always show two decimal places
@@ -197,27 +197,44 @@
 (deftest tip-money-format-two-decimals
   (testing "tip amounts always show exactly two decimal places"
     (let [{:keys [result]} (cli/process-request-text "tip $42" nil)]
-      (is (re-find #"Bill: \$42\.00" result))
+      (is (re-find #"\$42\.00" result))
       ;; 15% of $42 = $6.30, not $6.3
-      (is (re-find #"Tip \$6\.30" result))
+      (is (re-find #"\$6\.30" result))
       ;; 20% of $42 = $8.40, not $8.4
-      (is (re-find #"Tip \$8\.40" result))))
+      (is (re-find #"\$8\.40" result))))
 
   (testing "whole dollar tips still show .00"
     (let [{:keys [result]} (cli/process-request-text "tip $50" nil)]
-      (is (re-find #"Tip \$7\.50" result))   ;; 15% of $50
-      (is (re-find #"Tip \$10\.00" result)))) ;; 20% of $50
+      (is (re-find #"\$7\.50" result))    ;; 15% of $50
+      (is (re-find #"\$10\.00" result)))) ;; 20% of $50
 
   (testing "penny-precise tip amounts"
     (let [{:keys [result]} (cli/process-request-text "tip $29.99 18%" nil)]
-      (is (re-find #"Bill: \$29\.99" result))
-      (is (re-find #"Tip \$5\.40" result)))))
+      (is (re-find #"\$29\.99" result))
+      (is (re-find #"\$5\.40" result)))))
 
-(deftest tip-colon-alignment
+(deftest tip-column-alignment
   (testing "all colons are aligned in output rows"
     (let [{:keys [result]} (cli/process-request-text "tip $85" nil)
           lines (str/split-lines result)
           colon-positions (map #(.indexOf ^String % ":") lines)]
-      ;; Every line's colon should be at the same position
       (is (apply = colon-positions)
-          (str "Colons not aligned: " (pr-str (zipmap lines colon-positions)))))))
+          (str "Colons not aligned: " (pr-str (zipmap lines colon-positions))))))
+
+  (testing "decimal points are aligned in tip and total columns"
+    (let [{:keys [result]} (cli/process-request-text "tip $42" nil)
+          lines (str/split-lines result)
+          ;; Find decimal positions in each "Tip $X.XX" amount
+          tip-dots (keep #(let [i (.indexOf ^String % "Tip")]
+                            (when (pos? i)
+                              (.indexOf ^String % "." i)))
+                         lines)
+          ;; Find decimal positions in each "Total $X.XX" amount
+          total-dots (keep #(let [i (.indexOf ^String % "Total")]
+                              (when (pos? i)
+                                (.indexOf ^String % "." i)))
+                           lines)]
+      (is (apply = tip-dots)
+          (str "Tip decimals not aligned: " tip-dots))
+      (is (apply = total-dots)
+          (str "Total decimals not aligned: " total-dots)))))

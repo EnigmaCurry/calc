@@ -784,6 +784,9 @@
                      target
                      [:span.log-result (str "= " result " " target)]
 
+                     (str/includes? result "\n")
+                     [:pre.log-result result]
+
                      :else
                      [:span.log-result (str "= " result)]))
                  [:button.log-delete
