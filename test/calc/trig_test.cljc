@@ -382,8 +382,16 @@
     (is (nil? (parser/parse-math "sin(30)"))
         "standalone trig should not match parse-math"))
 
+  (testing "compound trig returns annotated map"
+    (let [r (parser/parse-math "cos 32 / sin 45")]
+      (is (map? r))
+      (is (= "cos 32° / sin 45°" (:trig-expr r))))
+    (let [r (parser/parse-math "cos 32 rad / sin 45 rad")]
+      (is (map? r))
+      (is (= "cos 32 rad / sin 45 rad" (:trig-expr r)))))
+
   (testing "trig composed with arithmetic"
-    (are [expr expected] (th/approx== expected (parser/parse-math expr))
+    (are [expr expected] (th/approx== expected (parser/math-value (parser/parse-math expr)))
       "sin(45) + cos(60)"    1.2071067811865476
       "sin(30) * 2"          1.0
       "2 * cos(60)"          1.0
@@ -392,61 +400,66 @@
       "sin(30) ^ 2"          0.25))
 
   (testing "trig composed with trig"
-    (are [expr expected] (th/approx== expected (parser/parse-math expr))
+    (are [expr expected] (th/approx== expected (parser/math-value (parser/parse-math expr)))
       "sin(30) + cos(60)"    1.0
       "sin(45) * sin(45)"    0.5
       "asin(sin(30))"        30.0)))
 
 (deftest trig-bare-form-in-compound-expressions
   (testing "bare trig with operators (no parens)"
-    (let [r (parser/parse-math "cos 32 / sin 45")]
+    (let [r (parser/math-value (parser/parse-math "cos 32 / sin 45"))]
       (is (some? r))
       (is (th/approx== (/ (Math/cos (Math/toRadians 32))
                           (Math/sin (Math/toRadians 45)))
                        r)))
 
-    (let [r (parser/parse-math "sin 30 + cos 60")]
+    (let [r (parser/math-value (parser/parse-math "sin 30 + cos 60"))]
       (is (some? r))
       (is (th/approx== 1.0 r)))
 
-    (let [r (parser/parse-math "tan 45 * 2")]
+    (let [r (parser/math-value (parser/parse-math "tan 45 * 2"))]
       (is (some? r))
       (is (th/approx== 2.0 r)))))
 
 (deftest trig-with-angle-mode-in-math
   (testing "rad/deg suffix in compound math expressions"
-    (let [r (parser/parse-math "cos 32 rad / sin 45 rad")]
+    (let [r (parser/math-value (parser/parse-math "cos 32 rad / sin 45 rad"))]
       (is (some? r))
       (is (th/approx== (/ (Math/cos 32) (Math/sin 45)) r)))
 
-    (let [r (parser/parse-math "sin(1 rad) + cos(0 rad)")]
+    (let [r (parser/math-value (parser/parse-math "sin(1 rad) + cos(0 rad)"))]
       (is (some? r))
       (is (th/approx== (+ (Math/sin 1) (Math/cos 0)) r)))
 
-    (let [r (parser/parse-math "sin 30 deg + cos 60 deg")]
+    (let [r (parser/math-value (parser/parse-math "sin 30 deg + cos 60 deg"))]
       (is (some? r))
       (is (th/approx== 1.0 r)))))
 
 (deftest e2e-trig-compound-expressions
-  (testing "cos 32 / sin 45 (degrees, default)"
+  (testing "cos 32 / sin 45 shows degree annotation"
     (let [{:keys [result]} (th/evaluate "cos 32 / sin 45" nil)]
-      (is (some? result))
-      (is (str/starts-with? result "1.19"))))
+      (is (str/includes? result "cos 32°"))
+      (is (str/includes? result "sin 45°"))
+      (is (str/includes? result "1.19"))))
 
-  (testing "cos 32 rad / sin 45 rad (radians, explicit)"
+  (testing "cos 32 rad / sin 45 rad preserves rad annotation"
     (let [{:keys [result]} (th/evaluate "cos 32 rad / sin 45 rad" nil)]
-      (is (some? result))
-      (is (str/starts-with? result "0.980"))))
+      (is (str/includes? result "cos 32 rad"))
+      (is (str/includes? result "sin 45 rad"))
+      (is (str/includes? result "0.980"))))
 
-  (testing "sin(45) + cos(60)"
+  (testing "sin(45) + cos(60) shows degree annotation"
     (let [{:keys [result]} (th/evaluate "sin(45) + cos(60)" nil)]
-      (is (some? result))
-      (is (str/starts-with? result "1.207"))))
+      (is (str/includes? result "sin(45°)"))
+      (is (str/includes? result "cos(60°)"))
+      (is (str/includes? result "1.207"))))
 
   (testing "sin 30 + cos 60"
     (let [{:keys [result]} (th/evaluate "sin 30 + cos 60" nil)]
-      (is (= "1" result))))
+      (is (str/includes? result "sin 30°"))
+      (is (str/includes? result "= 1"))))
 
   (testing "2 * sin(30)"
     (let [{:keys [result]} (th/evaluate "2 * sin(30)" nil)]
-      (is (= "1" result)))))
+      (is (str/includes? result "sin(30°)"))
+      (is (str/includes? result "= 1")))))

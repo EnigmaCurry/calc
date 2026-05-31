@@ -461,14 +461,45 @@
        ;; If there are nested function calls, it's a compound expression
        (<= (count (filter #(= :fn (first %)) tokens)) 1)))
 
+(defn- annotate-trig-expr
+  "Annotate a trig expression string with explicit angle markers.
+   'cos 32 / sin 45'       → 'cos 32° / sin 45°'
+   'cos 32 rad / sin 45 rad' → unchanged (already explicit)
+   'sin(45) + cos(60)'     → 'sin(45°) + cos(60°)'"
+  [s]
+  (-> s
+      ;; Bare form: sin 30 → sin 30°, sin 30 rad → sin 30 rad (unchanged)
+      (str/replace #"(?i)\b(a?(?:rc)?(?:sin|cos|tan))\s+(\d+(?:\.\d+)?)(\s+(?:rad|radians|deg|degrees)\b)?"
+                   (fn [[_ fname num mode]]
+                     (if mode
+                       (str fname " " num mode)
+                       (str fname " " num "°"))))
+      ;; Paren form: sin(30) → sin(30°), sin(30 rad) → sin(30 rad)
+      (str/replace #"(?i)\b(a?(?:rc)?(?:sin|cos|tan))\((\d+(?:\.\d+)?)\s*((?:rad|radians|deg|degrees))?\)"
+                   (fn [[_ fname num mode]]
+                     (if mode
+                       (str fname "(" num " " mode ")")
+                       (str fname "(" num "°)"))))
+      str/trim))
+
 (defn parse-math
-  "Evaluate a simple arithmetic expression string. Returns a number or nil."
+  "Evaluate a simple arithmetic expression string. Returns a number or nil.
+   When the expression contains trig functions, returns a map
+   {:value N :trig-expr \"annotated string\"} instead of a bare number."
   [s]
   (when-let [tokens (math-tokenize (str/trim s))]
     (when (and (seq tokens) (not (standalone-trig? tokens)))
       (let [[v pos] (math-parse-expr tokens 0)]
         (when (and v (= pos (count tokens)))
-          v)))))
+          (if (some #(and (= :fn (first %))
+                         (contains? math-trig-fns (second %))) tokens)
+            {:math-value v :trig-expr (annotate-trig-expr (str/trim s))}
+            v))))))
+
+(defn math-value
+  "Extract the numeric value from a parse-math result (bare number or trig map)."
+  [result]
+  (if (map? result) (:math-value result) result))
 
 (defn evaluate-math-exprs
   "Replace parenthesised arithmetic expressions in `s` with their values.
@@ -476,7 +507,7 @@
   [s]
   (let [result (str/replace s #"(?<![A-Za-z])\(([^()]+)\)"
                             (fn [[match inner]]
-                              (if-let [v (parse-math inner)]
+                              (if-let [v (math-value (parse-math inner))]
                                 (str v)
                                 match)))]
     (if (= result s)
@@ -495,13 +526,13 @@
         (if (and tok (numeric-token? tok))
           (recur (inc j) (conj parts tok))
           (when (>= (count parts) 3)
-            (when-let [v (parse-math (str/join " " parts))]
+            (when-let [v (math-value (parse-math (str/join " " parts)))]
               [v j])))
         ;; Expecting an operator (+, -, *)
         (if (and tok (= 1 (count tok)) (#{"+" "-" "*" "^" "%"} tok))
           (recur (inc j) (conj parts tok))
           (when (>= (count parts) 3)
-            (when-let [v (parse-math (str/join " " parts))]
+            (when-let [v (math-value (parse-math (str/join " " parts)))]
               [v j])))))))
 
 (def ordinal-fractions
@@ -539,8 +570,8 @@
             [(parse-number-token t) (inc i)]))
 
       ;; Single token containing math (no spaces): 2+2, 3*4-1
-      (and (some? t) (some? (parse-math t)))
-      [(parse-math t) (inc i)]
+      (and (some? t) (some? (math-value (parse-math t))))
+      [(math-value (parse-math t)) (inc i)]
 
       ;; Pi constant
       (= "pi" t)

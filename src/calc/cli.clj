@@ -157,7 +157,10 @@
 
 (defn process-request-text [input fmt-opts]
   (if-let [math-result (parser/parse-math input)]
-    {:result (fmt/format-number math-result (assoc (or fmt-opts {}) :original-expr input))}
+    (if (map? math-result)
+      {:result (str (:trig-expr math-result) " = "
+                    (fmt/format-number (:math-value math-result) (or fmt-opts {})))}
+      {:result (fmt/format-number math-result (assoc (or fmt-opts {}) :original-expr input))})
     (let [parsed (parser/parse-request input)
           effective-fmt (merge (:format parsed) fmt-opts)
           result (ev/convert-request parsed)]
@@ -537,8 +540,12 @@
 
         :else
         (if-let [math-result (parser/parse-math input)]
-          (println (fmt/format-number math-result (assoc (if numeric? (assoc (or fmt-opts {}) :numeric true) (or fmt-opts {}))
-                                                         :original-expr input)))
+          (if (map? math-result)
+            (println (str (:trig-expr math-result) " = "
+                          (fmt/format-number (:math-value math-result)
+                                             (if numeric? (assoc (or fmt-opts {}) :numeric true) (or fmt-opts {})))))
+            (println (fmt/format-number math-result (assoc (if numeric? (assoc (or fmt-opts {}) :numeric true) (or fmt-opts {}))
+                                                           :original-expr input))))
           (let [parsed (parser/parse-request input)]
             (when (and numeric? (= :auto (:to parsed)))
               (binding [*out* *err*]
