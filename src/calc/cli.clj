@@ -4,8 +4,10 @@
             [calc.format :as fmt]
             [clojure.string :as str]
             [calc.parser :as parser])
-  (:import (org.jline.reader LineReaderBuilder EndOfFileException UserInterruptException LineReader)
-           (org.jline.terminal TerminalBuilder))
+  (:import (org.jline.reader LineReaderBuilder EndOfFileException UserInterruptException LineReader Widget)
+           (org.jline.reader.impl LineReaderImpl)
+           (org.jline.terminal TerminalBuilder)
+           (org.jline.utils AttributedString AttributedStyle))
   (:gen-class))
 
 (def dim-labels u/dim-categories)
@@ -340,25 +342,76 @@
   (print "\033[2J\033[H")
   (flush))
 
+(defn- update-preview
+  "Evaluate the current buffer and display a live preview below the input line."
+  [^LineReaderImpl reader fmt-opts-atom]
+  (let [text (str/trim (str (.getBuffer reader)))]
+    (if (or (str/blank? text)
+            (str/starts-with? text "/")
+            (#{"exit" "quit" "help"} text))
+      (.setPost reader nil)
+      (try
+        (let [{:keys [error result target]} (process-request-text text @fmt-opts-atom)]
+          (if (and result (not error))
+            (let [display (if target (str result " " target) result)
+                  styled (AttributedString. (str "  → " display)
+                           (.foreground AttributedStyle/DEFAULT (int 2)))]
+              (.setPost reader
+                (reify java.util.function.Supplier
+                  (get [_] styled))))
+            (.setPost reader nil)))
+        (catch Exception _
+          (.setPost reader nil))))))
+
+(defn- install-preview-widgets
+  "Install widget wrappers that update the live preview after each edit."
+  [^LineReaderImpl reader fmt-opts-atom]
+  (let [widgets (.getWidgets reader)
+        wrap (fn [widget-name]
+               (when-let [original (get widgets widget-name)]
+                 (.put widgets widget-name
+                   (reify Widget
+                     (apply [_]
+                       (let [r (.apply original)]
+                         (update-preview reader fmt-opts-atom)
+                         r))))))
+        orig-accept (get widgets LineReader/ACCEPT_LINE)]
+    (doseq [wn [LineReader/SELF_INSERT
+                LineReader/BACKWARD_DELETE_CHAR
+                LineReader/DELETE_CHAR
+                LineReader/KILL_LINE
+                LineReader/BACKWARD_KILL_WORD
+                LineReader/KILL_WORD
+                LineReader/YANK
+                LineReader/TRANSPOSE_CHARS]]
+      (wrap wn))
+    (.put widgets LineReader/ACCEPT_LINE
+      (reify Widget
+        (apply [_]
+          (.setPost reader nil)
+          (.apply orig-accept))))))
+
 (defn repl
-  "Launch an interactive REPL with JLine readline support."
+  "Launch an interactive REPL with JLine readline support and live preview."
   []
   (let [terminal (-> (TerminalBuilder/builder) (.system true) (.build))
-        reader   (-> (LineReaderBuilder/builder) (.terminal terminal) (.build))]
+        reader   (-> (LineReaderBuilder/builder) (.terminal terminal) (.build))
+        fmt-opts (atom nil)]
     (.setVariable reader LineReader/HISTORY_FILE hist-path)
+    (install-preview-widgets reader fmt-opts)
     (println "calc — type '/help' for usage, Ctrl-D to exit")
-    (loop [fmt-opts nil]
+    (loop []
       (let [line (try (.readLine reader "calc> ")
                       (catch EndOfFileException _ ::eof)
                       (catch UserInterruptException _ ::interrupt))
-            next-opts
+            action
             (cond
               (= ::eof line) ::exit
-              (= ::interrupt line) fmt-opts
+              (= ::interrupt line) ::continue
               :else
               (let [input (str/trim line)]
                 (cond
-                  (str/blank? input) fmt-opts
+                  (str/blank? input) ::continue
 
                   (#{"exit" "quit"} input) ::exit
 
@@ -366,7 +419,7 @@
                   (let [[cmd arg] (parse-slash-command input)]
                     (case cmd
                       "help"
-                      (do (println (repl-help)) fmt-opts)
+                      (do (println (repl-help)) ::continue)
 
                       ("clear" "reset")
                       (do (clear-screen-and-history) ::restart)
@@ -374,41 +427,45 @@
                       "p"
                       (if (str/blank? arg)
                         (do (println "Precision cleared.")
-                            (dissoc (or fmt-opts {}) :round))
+                            (swap! fmt-opts dissoc :round)
+                            ::continue)
                         (try
                           (let [n (Long/parseLong (str/trim arg))]
                             (println (str "Precision set to " n " decimal places."))
-                            (-> (or fmt-opts {}) (dissoc :sig-figs) (assoc :round n)))
+                            (swap! fmt-opts #(-> (or % {}) (dissoc :sig-figs) (assoc :round n)))
+                            ::continue)
                           (catch NumberFormatException _
                             (println "Error: /p requires a number")
-                            fmt-opts)))
+                            ::continue)))
 
                       "s"
                       (if (str/blank? arg)
                         (do (println "Sig-figs cleared.")
-                            (dissoc (or fmt-opts {}) :sig-figs))
+                            (swap! fmt-opts dissoc :sig-figs)
+                            ::continue)
                         (try
                           (let [n (Long/parseLong (str/trim arg))]
                             (println (str "Sig-figs set to " n "."))
-                            (-> (or fmt-opts {}) (dissoc :round) (assoc :sig-figs n)))
+                            (swap! fmt-opts #(-> (or % {}) (dissoc :round) (assoc :sig-figs n)))
+                            ::continue)
                           (catch NumberFormatException _
                             (println "Error: /s requires a number")
-                            fmt-opts)))
+                            ::continue)))
 
                       ("quit" "exit")
                       ::exit
 
                       ;; unknown slash command
                       (do (println (str "Unknown command: /" cmd))
-                          fmt-opts)))
+                          ::continue)))
 
                   (= "help" input)
-                  (do (println (repl-help)) fmt-opts)
+                  (do (println (repl-help)) ::continue)
 
                   :else
                   (do
                     (try
-                      (let [{:keys [error result from target]} (process-request-text input fmt-opts)]
+                      (let [{:keys [error result from target]} (process-request-text input @fmt-opts)]
                         (if error
                           (println error)
                           (if (and from target)
@@ -416,11 +473,11 @@
                             (println result))))
                       (catch Exception e
                         (println "Error:" (.getMessage e))))
-                    fmt-opts))))]
+                    ::continue))))]
         (cond
-          (= ::exit next-opts) (.close terminal)
-          (= ::restart next-opts) (do (.close terminal) (repl))
-          :else (recur next-opts))))))
+          (= ::exit action) (.close terminal)
+          (= ::restart action) (do (.close terminal) (repl))
+          :else (recur))))))
 
 (defn process-stdin
   "Read lines from stdin and process each as a calc request."
