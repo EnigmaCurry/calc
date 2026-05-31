@@ -1051,6 +1051,57 @@
      (when-let [[bill _] (parse-percentage-number bill-str)]
        {:op :tip :percent 20N :bill bill}))))
 
+(defn parse-tax
+  "Try to parse a tax calculation expression. Returns a request map or nil.
+   Supports:
+     '10% tax on $50'               → {:op :tax :percent 10 :price 50}
+     'tax on $50 at 10%'            → same
+     'tax 10% $50' / 'tax $50 10%'  → same
+     'tax 50 10'                    → same (price then rate)"
+  [s]
+  (or
+   ;; "X% tax on Y" / "X percent tax on Y"
+   (when-let [[_ pct-str price-str] (re-matches #"(?i)^(.+?)\s+percent\s+tax\s+(?:on|for)\s+(.+)$" s)]
+     (when-let [[pct _] (parse-percentage-number (strip-dollar pct-str))]
+       (when-let [[price _] (parse-percentage-number (strip-dollar price-str))]
+         {:op :tax :percent pct :price price})))
+
+   ;; "tax X% on Y" / "tax X percent on Y"
+   (when-let [[_ pct-str price-str] (re-matches #"(?i)^(?:what\s+is\s+(?:the\s+)?)?tax\s+(.+?)\s+percent\s+(?:on|for)\s+(.+)$" s)]
+     (when-let [[pct _] (parse-percentage-number (strip-dollar pct-str))]
+       (when-let [[price _] (parse-percentage-number (strip-dollar price-str))]
+         {:op :tax :percent pct :price price})))
+
+   ;; "tax on Y at X%" / "what is the tax on Y at X%"
+   (when-let [[_ price-str pct-str] (re-matches #"(?i)^(?:what\s+is\s+(?:the\s+)?)?tax\s+(?:on|for)\s+(.+?)\s+at\s+(.+?)\s*percent$" s)]
+     (when-let [[pct _] (parse-percentage-number (strip-dollar pct-str))]
+       (when-let [[price _] (parse-percentage-number (strip-dollar price-str))]
+         {:op :tax :percent pct :price price})))
+
+   ;; Brief forms: "tax X percent $Y" (percent then dollar price)
+   (when-let [[_ pct-str price-str] (re-matches #"(?i)^tax\s+(.+?)\s+percent\s+\$(.+)$" s)]
+     (when-let [[pct _] (parse-percentage-number pct-str)]
+       (when-let [[price _] (parse-percentage-number price-str)]
+         {:op :tax :percent pct :price price})))
+
+   ;; Brief forms: "tax $Y X percent" or "tax N X percent" (price then percent)
+   (when-let [[_ price-str pct-str] (re-matches #"(?i)^tax\s+\$?(.+?)\s+(.+?)\s+percent$" s)]
+     (when-let [[price _] (parse-percentage-number (strip-dollar price-str))]
+       (when-let [[pct _] (parse-percentage-number (strip-dollar pct-str))]
+         {:op :tax :percent pct :price price})))
+
+   ;; Brief form: "tax $Y N" (dollar price then bare number rate)
+   (when-let [[_ price-str pct-str] (re-matches #"(?i)^tax\s+\$(\S+)\s+(\S+)$" s)]
+     (when-let [[price _] (parse-percentage-number price-str)]
+       (when-let [[pct _] (parse-percentage-number pct-str)]
+         {:op :tax :percent pct :price price})))
+
+   ;; Brief form: "tax N M" (two bare numbers: price then rate)
+   (when-let [[_ first-str second-str] (re-matches #"(?i)^tax\s+(\S+)\s+(\S+)$" s)]
+     (when-let [[first-val _] (parse-percentage-number first-str)]
+       (when-let [[second-val _] (parse-percentage-number second-str)]
+         {:op :tax :percent second-val :price first-val})))))
+
 (defn parse-request [phrase]
   (let [original phrase]
     (try
@@ -1058,11 +1109,15 @@
             [without-format format] (extract-format cleaned)
             [without-approx approx?] (extract-approx without-format)
             tip (parse-tip without-approx)
-            pct (when-not tip (parse-percentage without-approx))
-            root (when-not (or tip pct) (parse-root without-approx))
-            modulo (when-not (or tip pct root) (parse-modulo without-approx))]
+            tax (when-not tip (parse-tax without-approx))
+            pct (when-not (or tip tax) (parse-percentage without-approx))
+            root (when-not (or tip tax pct) (parse-root without-approx))
+            modulo (when-not (or tip tax pct root) (parse-modulo without-approx))]
         (if tip
           (cond-> tip
+            format (assoc :format format))
+        (if tax
+          (cond-> tax
             format (assoc :format format))
         (if pct
           (cond-> pct
@@ -1102,7 +1157,7 @@
                                      :to (parse-unit-phrase to-str)}
                               approx? (assoc :approx? true)
                               format (assoc :format format))]
-                request))))))))))
+                request)))))))))))
       #?(:clj (catch clojure.lang.ExceptionInfo ex
                 (or (parse-error original ex)
                     {:error :unparseable

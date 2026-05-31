@@ -334,6 +334,12 @@
         total (u/normalize-number (+ (u/->bigdec bill) (u/->bigdec tip)))]
     {:value tip :tip tip :total total}))
 
+(defn- evaluate-tax [{:keys [percent price]}]
+  (let [tax (u/normalize-number
+             (u/safe-div (* (u/->bigdec percent) (u/->bigdec price)) (u/->bigdec 100)))
+        total (u/normalize-number (+ (u/->bigdec price) (u/->bigdec tax)))]
+    {:value tax :tax tax :total total}))
+
 (defn- convert-to-mixed-units
   "Convert a single value+unit to a vector of mixed output units.
    E.g., 180 cm → [{:value 5 :unit-label \"ft\"} {:value 10.866... :unit-label \"in\"}]
@@ -399,6 +405,9 @@
 
      (= op :tip)
      (evaluate-tip request)
+
+     (= op :tax)
+     (evaluate-tax request)
 
      (not= op :convert)
      {:error :unsupported-operation

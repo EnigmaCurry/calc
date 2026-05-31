@@ -180,6 +180,12 @@
                       " (" (fmt/format-number (:percent parsed) effective-fmt) "%)"
                       ", Total: $" (fmt/format-number (:total result) effective-fmt))}
 
+        (= :tax (:op parsed))
+        {:result (str "Price: $" (fmt/format-number (:price parsed) effective-fmt)
+                      ", Tax: $" (fmt/format-number (:tax result) effective-fmt)
+                      " (" (fmt/format-number (:percent parsed) effective-fmt) "%)"
+                      ", Total: $" (fmt/format-number (:total result) effective-fmt))}
+
         (= :modulo (:op parsed))
         {:result (fmt/format-number (:value result) effective-fmt)}
 
