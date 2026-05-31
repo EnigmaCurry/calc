@@ -116,7 +116,10 @@
                 s))
 
             (m/dinteger? d)
-            (.toFixed d 0)
+            (let [s (.toFixed d 0)]
+              (if (> (count s) 20)
+                (.toExponential d)
+                s))
 
             :else
             (let [s (.toPrecision d 10)]
