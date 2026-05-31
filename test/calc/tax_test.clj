@@ -105,8 +105,18 @@
       10N  50N    5N    55N
       10N  100N   10N   110N
       8N   50N    4N    54N
-      6N   29.99M 1.7994M 31.7894M
+      6N   29.99M 1.80M   31.79M
       25N  40N    10N   50N))
+
+  (testing "tax rounds up to the penny"
+    (let [r (ev/convert-request {:op :tax :percent 0.2M :price 29.99M})]
+      (is (:ok? r))
+      (is (= 0.06M (:tax r)))       ;; exact: 0.05998, rounds up to 0.06
+      (is (= 30.05M (:total r))))
+    (let [r (ev/convert-request {:op :tax :percent 8.25M :price 99.99M})]
+      (is (:ok? r))
+      (is (= 8.25M (:tax r)))       ;; exact: 8.249175, rounds up to 8.25
+      (is (= 108.24M (:total r)))))
 
   (testing "tax with zero percent"
     (let [r (ev/convert-request {:op :tax :percent 0N :price 50N})]
@@ -137,4 +147,4 @@
 
   (testing "tax with decimals"
     (let [{:keys [result]} (cli/process-request-text "8.25 percent tax on $99.99" nil)]
-      (is (= "Price: $99.99, Tax: $8.249175 (8.25%), Total: $108.239175" result)))))
+      (is (= "Price: $99.99, Tax: $8.25 (8.25%), Total: $108.24" result)))))

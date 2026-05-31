@@ -1012,10 +1012,10 @@
        (when-let [[bill _] (parse-percentage-number (strip-dollar bill-str))]
          {:op :tip :percent pct :bill bill})))
 
-   ;; "tip on Y" (default 20%)
+   ;; "tip on Y" (default, round tip)
    (when-let [[_ bill-str] (re-matches #"(?i)^(?:what\s+is\s+(?:the\s+)?)?tip\s+(?:on|for)\s+(.+)$" s)]
      (when-let [[bill _] (parse-percentage-number (strip-dollar bill-str))]
-       {:op :tip :percent 20N :bill bill}))
+       {:op :tip :bill bill :round-tip true}))
 
    ;; Brief forms: "tip X percent $Y" (percent then dollar bill)
    (when-let [[_ pct-str bill-str] (re-matches #"(?i)^tip\s+(.+?)\s+percent\s+\$(.+)$" s)]
@@ -1035,10 +1035,10 @@
        (when-let [[pct _] (parse-percentage-number pct-str)]
          {:op :tip :percent pct :bill bill})))
 
-   ;; Brief form: "tip $Y" (dollar amount, default 20%)
+   ;; Brief form: "tip $Y" (dollar amount, round tip)
    (when-let [[_ bill-str] (re-matches #"(?i)^tip\s+\$(\S+)$" s)]
      (when-let [[bill _] (parse-percentage-number bill-str)]
-       {:op :tip :percent 20N :bill bill}))
+       {:op :tip :bill bill :round-tip true}))
 
    ;; Brief form: "tip N M" (two bare numbers: bill then percent)
    (when-let [[_ first-str second-str] (re-matches #"(?i)^tip\s+(\S+)\s+(\S+)$" s)]
@@ -1046,10 +1046,10 @@
        (when-let [[second-val _] (parse-percentage-number second-str)]
          {:op :tip :percent second-val :bill first-val})))
 
-   ;; Brief form: "tip N" (single bare number: bill at 20%)
+   ;; Brief form: "tip N" (single bare number, round tip)
    (when-let [[_ bill-str] (re-matches #"(?i)^tip\s+(\S+)$" s)]
      (when-let [[bill _] (parse-percentage-number bill-str)]
-       {:op :tip :percent 20N :bill bill}))))
+       {:op :tip :bill bill :round-tip true}))))
 
 (defn parse-tax
   "Try to parse a tax calculation expression. Returns a request map or nil.

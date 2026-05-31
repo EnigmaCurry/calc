@@ -283,7 +283,7 @@
     [["tip $50" "Bill: $50, Tip: $10 (20%), Total: $60"]
      ["tip 85.50 18" "Bill: $85.5, Tip: $15.39 (18%), Total: $100.89"]
      ["tip $100 15%" "Bill: $100, Tip: $15 (15%), Total: $115"]
-     ["tax 29.99 8.25" "Price: $29.99, Tax: $2.474175 (8.25%), Total: $32.464175"]
+     ["tax 29.99 8.25" "Price: $29.99, Tax: $2.48 (8.25%), Total: $32.47"]
      ["tax $50 10%" "Price: $50, Tax: $5 (10%), Total: $55"]]]
    ["Formatting"
     [["7 inches in feet as a fraction" "7/12 ft"]

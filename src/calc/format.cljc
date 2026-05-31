@@ -150,7 +150,7 @@
 
     :tip (str "Bill: $" (format-number (:bill parsed) fmt-opts)
               ", Tip: $" (format-number (:tip result) fmt-opts)
-              " (" (format-number (:percent parsed) fmt-opts) "%)"
+              " (" (format-number (:percent result) fmt-opts) "%)"
               ", Total: $" (format-number (:total result) fmt-opts))
 
     :tax (str "Price: $" (format-number (:price parsed) fmt-opts)

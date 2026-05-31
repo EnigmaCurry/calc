@@ -328,14 +328,45 @@
   (let [result (u/normalize-number (mod (u/->bigdec dividend) (u/->bigdec divisor)))]
     {:value result}))
 
-(defn- evaluate-tip [{:keys [percent bill]}]
-  (let [tip (u/normalize-number
-             (u/safe-div (* (u/->bigdec percent) (u/->bigdec bill)) (u/->bigdec 100)))
+(defn- round-up-penny
+  "Round a monetary value up to the nearest cent (ceiling)."
+  [x]
+  #?(:clj  (u/normalize-number (.setScale (u/->bigdec x) 2 java.math.RoundingMode/CEILING))
+     :cljs (u/normalize-number (/ (js/Math.ceil (* x 100)) 100))))
+
+(defn- find-round-tip
+  "Find a round cash-friendly tip between 20% and 30% of the bill.
+   Tries denominations $20, $10, $5, $1 in order, preferring rounder amounts.
+   For each, finds the smallest multiple >= 20% of the bill.
+   Returns the first one that also <= 30%. Falls back to ceiling of 20%."
+  [bill]
+  (let [bill-d  (double (u/->bigdec bill))
+        min-tip (* bill-d 0.20)
+        max-tip (* bill-d 0.30)]
+    (or (first
+         (for [denom [20 10 5 1]
+               :let [candidate (* denom
+                                  #?(:clj  (long (Math/ceil (/ min-tip denom)))
+                                     :cljs (js/Math.ceil (/ min-tip denom))))]
+               :when (<= candidate max-tip)]
+           (u/normalize-number (u/->bigdec candidate))))
+        ;; fallback: exact 20% rounded up to penny
+        (round-up-penny (u/safe-div (* (u/->bigdec bill) (u/->bigdec 20)) (u/->bigdec 100))))))
+
+(defn- evaluate-tip [{:keys [percent bill round-tip]}]
+  (let [tip (if round-tip
+              (find-round-tip bill)
+              (round-up-penny
+               (u/safe-div (* (u/->bigdec percent) (u/->bigdec bill)) (u/->bigdec 100))))
+        actual-pct (u/normalize-number
+                    #?(:clj  (.setScale (u/safe-div (* (u/->bigdec tip) (u/->bigdec 100)) (u/->bigdec bill))
+                                        1 java.math.RoundingMode/HALF_UP)
+                       :cljs (/ (js/Math.round (* (/ tip bill) 1000)) 10)))
         total (u/normalize-number (+ (u/->bigdec bill) (u/->bigdec tip)))]
-    {:value tip :tip tip :total total}))
+    {:value tip :tip tip :total total :percent actual-pct}))
 
 (defn- evaluate-tax [{:keys [percent price]}]
-  (let [tax (u/normalize-number
+  (let [tax (round-up-penny
              (u/safe-div (* (u/->bigdec percent) (u/->bigdec price)) (u/->bigdec 100)))
         total (u/normalize-number (+ (u/->bigdec price) (u/->bigdec tax)))]
     {:value tax :tax tax :total total}))
