@@ -781,11 +781,11 @@
                      error
                      [:span.log-error (str "\u2192 " error)]
 
+                     (and result (str/includes? (str result) "\n"))
+                     [:pre.log-result result]
+
                      target
                      [:span.log-result (str "= " result " " target)]
-
-                     (str/includes? result "\n")
-                     [:pre.log-result result]
 
                      :else
                      [:span.log-result (str "= " result)]))
