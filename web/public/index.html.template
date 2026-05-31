@@ -146,6 +146,13 @@
       white-space: pre-line;
     }
 
+    pre.preview-result {
+      white-space: pre;
+      margin: 0;
+      font-family: inherit;
+      font-size: inherit;
+    }
+
     .preview-error {
       color: var(--red);
       font-size: 0.85rem;

@@ -716,6 +716,9 @@
             (:error preview)
             [:span.preview-error (:error preview)]
 
+            (and (:result preview) (str/includes? (str (:result preview)) "\n"))
+            [:pre.preview-result (:result preview)]
+
             (:target preview)
             [:span.preview-result (str "= " (:result preview) " " (:target preview))]
 
