@@ -189,8 +189,19 @@
 
     :modulo (format-number (:value result) fmt-opts)
 
-    :trig (str (format-number (:value result) fmt-opts)
-               (when (:unit-label result) (:unit-label result)))
+    :trig (let [fn-name (name (:fn parsed))
+                inverse? (#{:asin :acos :atan} (:fn parsed))
+                ;; For forward trig, annotate input angle; for inverse, input is dimensionless
+                input-str (if inverse?
+                            (str fn-name " " (format-number (:value parsed) nil))
+                            (let [angle-suffix (if (= :rad (:angle-mode parsed)) " rad" "°")]
+                              (str fn-name " " (format-number (:value parsed) nil) angle-suffix)))
+                result-str (str (format-number (:value result) fmt-opts)
+                                (when (:unit-label result)
+                                  (if (= "°" (:unit-label result))
+                                    "°"
+                                    (str " " (:unit-label result)))))]
+            (str input-str " = " result-str))
 
     :tip (let [money-opts (assoc fmt-opts :round 2)
                rows (:rows result)

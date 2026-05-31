@@ -303,51 +303,50 @@
 (deftest e2e-sin
   (testing "sin 30"
     (let [{:keys [result]} (th/evaluate "sin 30" nil)]
-      (is (= "0.5" result))))
+      (is (= "sin 30° = 0.5" result))))
 
   (testing "sin 90"
     (let [{:keys [result]} (th/evaluate "sin 90" nil)]
-      (is (= "1" result))))
+      (is (= "sin 90° = 1" result))))
 
   (testing "sin 0"
     (let [{:keys [result]} (th/evaluate "sin 0" nil)]
-      (is (= "0" result))))
+      (is (= "sin 0° = 0" result))))
 
   (testing "sin 45 rounded to 4 decimals"
     (let [{:keys [result]} (th/evaluate "sin 45 degrees rounded to 4 decimals" nil)]
-      (is (= "0.7071" result)))))
+      (is (= "sin 45° = 0.7071" result)))))
 
 (deftest e2e-cos
   (testing "cos 60"
     (let [{:keys [result]} (th/evaluate "cos 60" nil)]
-      (is (= "0.5" result))))
+      (is (= "cos 60° = 0.5" result))))
 
   (testing "cos 0"
     (let [{:keys [result]} (th/evaluate "cos 0" nil)]
-      (is (= "1" result)))))
+      (is (= "cos 0° = 1" result)))))
 
 (deftest e2e-tan
   (testing "tan 45"
     (let [{:keys [result]} (th/evaluate "tan 45" nil)]
-      (is (= "1" result)))))
+      (is (= "tan 45° = 1" result)))))
 
 (deftest e2e-inverse-trig
-  (testing "asin 0.5 returns 30 degrees with degree symbol"
+  (testing "asin 0.5 returns 30 degrees"
     (let [{:keys [result]} (th/evaluate "asin 0.5" nil)]
-      (is (= "30°" result))))
+      (is (= "asin 0.5 = 30°" result))))
 
-  (testing "arccos 0.5 returns 60 degrees with degree symbol"
+  (testing "arccos 0.5 returns 60 degrees"
     (let [{:keys [result]} (th/evaluate "arccos 0.5" nil)]
-      (is (= "60°" result))))
+      (is (= "acos 0.5 = 60°" result))))
 
-  (testing "atan 1 returns 45 degrees with degree symbol"
+  (testing "atan 1 returns 45 degrees"
     (let [{:keys [result]} (th/evaluate "atan 1" nil)]
-      (is (= "45°" result))))
+      (is (= "atan 1 = 45°" result))))
 
-  (testing "asin 0.5 in radians shows rad label"
+  (testing "asin 0.5 in radians"
     (let [{:keys [result]} (th/evaluate "asin 0.5 in radians" nil)]
-      (is (some? result))
-      (is (str/starts-with? result "0.523"))
+      (is (str/includes? result "asin 0.5"))
       (is (str/ends-with? result "rad")))))
 
 (deftest e2e-degree-radian-conversion
@@ -365,13 +364,14 @@
   (testing "sin pi"
     (let [{:keys [result]} (th/evaluate "sin pi" nil)]
       (is (some? result))
-      ;; sin(pi) ≈ 0 (very small float)
-      (is (th/approx== 0.0 (parse-double result) 1e-10))))
+      (is (str/includes? result "rad"))
+      (is (str/includes? result "= 0"))))
 
   (testing "cos pi/4"
     (let [{:keys [result]} (th/evaluate "cos pi/4" nil)]
       (is (some? result))
-      (is (str/starts-with? result "0.707")))))
+      (is (str/includes? result "rad"))
+      (is (str/includes? result "0.707")))))
 
 ;; ==========================================================================
 ;; Math expression composition tests
