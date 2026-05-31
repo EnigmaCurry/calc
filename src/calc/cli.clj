@@ -357,7 +357,11 @@
                 (#{"exit" "quit" "help"} text))
           (AttributedString. text)
           (try
-            (let [{:keys [error result target]} (process-request-text (str/trim text) @fmt-opts)]
+            (let [trimmed (str/trim text)
+                  {:keys [error result target]}
+                  (if-let [preview (fmt/roll-preview trimmed)]
+                    {:result preview}
+                    (process-request-text trimmed @fmt-opts))]
               (if (and result (not error))
                 (let [display (if target (str result " " target) result)
                       asb (AttributedStringBuilder.)]

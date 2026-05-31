@@ -1,6 +1,7 @@
 (ns calc.format
   #?(:clj (:import [java.math BigDecimal MathContext RoundingMode]))
-  (:require [clojure.string :as str]))
+  (:require [clojure.string :as str]
+            [calc.dice :as dice]))
 
 ;; ---------------------------------------------------------------------------
 ;; Fraction formatting
@@ -135,6 +136,13 @@
     :unsupported-operation "Unsupported operation"
     :invalid-request "Invalid request"
     (str "Error: " (pr-str {:error error}))))
+
+(defn roll-preview
+  "If input is a roll command, return a preview string like 'Rolling 2d6 ...'
+   without actually rolling. Returns nil for non-roll input."
+  [input]
+  (when-let [expr (dice/roll-input? input)]
+    (str "Rolling " expr " ...")))
 
 (defn- format-roll-result
   "Format a dice roll result for display."

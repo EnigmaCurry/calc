@@ -167,13 +167,18 @@
 ;; Roll command parsing ("roll ...")
 ;; ============================================================================
 
-(defn parse-roll
-  "If input starts with 'roll ', parse the dice expression.
-   Returns {:op :roll :dice <parsed> :input <original>} or nil."
+(defn roll-input?
+  "Returns the dice expression string if input starts with 'roll ', else nil."
   [input]
   (let [s (str/trim input)
         lower (str/lower-case s)]
     (when (str/starts-with? lower "roll ")
-      (let [expr (str/trim (subs s 5))
-            parsed (parse-dice expr)]
-        {:op :roll :dice parsed :input expr}))))
+      (str/trim (subs s 5)))))
+
+(defn parse-roll
+  "If input starts with 'roll ', parse the dice expression.
+   Returns {:op :roll :dice <parsed> :input <original>} or nil."
+  [input]
+  (when-let [expr (roll-input? input)]
+    (let [parsed (parse-dice expr)]
+      {:op :roll :dice parsed :input expr})))

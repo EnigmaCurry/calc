@@ -590,7 +590,9 @@
         typing? (not (str/blank? input))
         preview (when (and typing?
                            (not (str/starts-with? (str/trim input) "/")))
-                  (evaluate input eff-fmt))]
+                  (if-let [rp (fmt/roll-preview (str/trim input))]
+                    {:result rp}
+                    (evaluate input eff-fmt)))]
     [:<>
      [:header
       [:h1 "calc"]

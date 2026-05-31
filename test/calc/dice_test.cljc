@@ -239,6 +239,20 @@
     (is (nil? (dice/parse-roll "d20")))))
 
 ;; ============================================================================
+;; Preview tests
+;; ============================================================================
+
+(deftest roll-preview-hides-result
+  (testing "roll preview shows teaser, not results"
+    (is (= "Rolling 2d6+3 ..." (fmt/roll-preview "roll 2d6+3")))
+    (is (= "Rolling d20 ..." (fmt/roll-preview "roll d20")))
+    (is (= "Rolling 4d6kh3 ..." (fmt/roll-preview "Roll 4d6kh3"))))
+
+  (testing "non-roll input returns nil"
+    (is (nil? (fmt/roll-preview "12 feet in yards")))
+    (is (nil? (fmt/roll-preview "d20")))))
+
+;; ============================================================================
 ;; Format tests
 ;; ============================================================================
 
