@@ -35,6 +35,14 @@ jobs:
         with:
           cli: latest
 
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.gitlibs
+          key: clojure-${{ hashFiles('deps.edn', 'web/shadow-cljs.edn') }}
+          restore-keys: clojure-
+
       - uses: extractions/setup-just@v2
 
       - name: Run JVM tests
