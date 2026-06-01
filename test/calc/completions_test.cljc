@@ -29,6 +29,9 @@
     (is (= "Length / Mass"  (c/dim-label {:length 1 :mass -1})))
     (is (= "Mass / Time"    (c/dim-label {:mass 1 :time -1})))
     (is (= "Area / Time^2"  (c/dim-label {:length 2 :time -2}))))
+  (testing "multi-step factoring for complex dimensions"
+    (is (= "Data / Electrical Potential · Time"
+           (c/dim-label {:data 1 :time 2 :mass -1 :length -2 :current 1}))))
   (testing "nil for non-map inputs"
     (is (nil? (c/dim-label nil)))
     (is (nil? (c/dim-label :temperature)))))

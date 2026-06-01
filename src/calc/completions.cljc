@@ -110,45 +110,75 @@
                 (if (> av 1) (str base "^" av) base))))
        (str/join " · ")))
 
+(defn- factor-dim
+  "Iteratively factor a dimension map into known categories.
+   At each step, picks the move (numer subtract or denom add) that
+   reduces the most dimension entries. Returns [numer-names denom-names remaining]."
+  [dim]
+  (loop [remaining dim, numers [], denoms [], iters 5]
+    (if (or (empty? remaining) (zero? iters))
+      [numers denoms remaining]
+      (let [moves
+            (concat
+             ;; Numerator: subtract category (exponents must fit, must have positive components)
+             (for [[cat-dim cat-name] u/dim-categories
+                   :when (some (fn [[_ v]] (pos? v)) cat-dim) ;; skip pure-negative (e.g. Frequency)
+                   :let [r (u/normalize-map (u/merge-dims remaining (negate-dim cat-dim)))]
+                   :when (< (count r) (count remaining))
+                   :when (every? (fn [[k v]]
+                                   (if (pos? v)
+                                     (<= v (get remaining k 0))
+                                     (>= v (get remaining k 0))))
+                                 cat-dim)]
+               {:type :numer :name cat-name :remainder r
+                :reduction (- (count remaining) (count r))})
+             ;; Denominator: add category (simplicity check only)
+             (for [[cat-dim cat-name] u/dim-categories
+                   :let [r (u/normalize-map (u/merge-dims remaining cat-dim))]
+                   :when (< (count r) (count remaining))]
+               {:type :denom :name cat-name :remainder r
+                :reduction (- (count remaining) (count r))}))
+            ;; Prefer numer over denom when reduction ties (more natural factoring)
+            best (last (sort-by (juxt :reduction
+                                      (fn [m] (if (= :numer (:type m)) 1 0)))
+                                moves))]
+        (if best
+          (recur (:remainder best)
+                 (if (= :numer (:type best)) (conj numers (:name best)) numers)
+                 (if (= :denom (:type best)) (conj denoms (:name best)) denoms)
+                 (dec iters))
+          [numers denoms remaining])))))
+
 (defn dim-label
   "Human-readable label for a dimension map.
-   Factors out known categories greedily:
+   Iteratively factors into known categories:
      {:length 1 :time -1 :mass -1} → 'Speed / Mass'
-     {:mass 1 :length -1} → 'Mass / Length'"
+     {:data 1 :time 2 :mass -1 :length -2 :current 1} → 'Data / Time · Electrical Potential'"
   [dim]
   (when (map? dim)
     (or
-     ;; Direct match
      (get u/dim-categories dim)
-     ;; Try to factor as known-category / remainder
-     (let [;; Find known categories whose subtraction leaves only negative remainder
-           numer-matches
-           (for [[cat-dim cat-name] u/dim-categories
-                 :let [remainder (u/normalize-map
-                                  (u/merge-dims dim (negate-dim cat-dim)))]
-                 ;; Category must not overshoot: each positive cat exponent
-                 ;; must be <= the source dim's value for that key
-                 :when (every? (fn [[k v]]
-                                 (if (pos? v)
-                                   (<= v (get dim k 0))
-                                   (>= v (get dim k 0))))
-                               cat-dim)
-                 :when (every? (fn [[_ v]] (neg? v)) remainder)]
-             {:name cat-name :remainder remainder :coverage (count cat-dim)})
-           best (last (sort-by :coverage numer-matches))]
-       (if best
-         (if (empty? (:remainder best))
-           (:name best)
-           (let [denom-dim (negate-dim (:remainder best))
-                 denom-name (or (get u/dim-categories denom-dim)
-                                (format-raw-dim denom-dim))]
-             (str (:name best) " / " denom-name)))
-         ;; Fallback: raw positive / negative labels
-         (let [pos (into {} (filter (fn [[_ v]] (pos? v)) dim))
-               neg (into {} (filter (fn [[_ v]] (neg? v)) dim))]
-           (if (seq neg)
-             (str (format-raw-dim pos) " / " (format-raw-dim (negate-dim neg)))
-             (format-raw-dim pos))))))))
+     (let [[numers denoms remaining] (factor-dim dim)]
+       (when (or (seq numers) (seq denoms))
+         ;; Incorporate any unfactored remainder by sign
+         (let [rem-pos (into {} (filter (fn [[_ v]] (pos? v)) remaining))
+               rem-neg (into {} (filter (fn [[_ v]] (neg? v)) remaining))
+               numer-parts (concat numers
+                                   (when (seq rem-pos) [(format-raw-dim rem-pos)]))
+               denom-parts (concat denoms
+                                   (when (seq rem-neg) [(format-raw-dim (negate-dim rem-neg))]))
+               numer-str (when (seq numer-parts) (str/join " · " numer-parts))
+               denom-str (when (seq denom-parts) (str/join " · " denom-parts))]
+           (cond
+             (and numer-str denom-str) (str numer-str " / " denom-str)
+             numer-str numer-str
+             :else nil))))
+     ;; Raw fallback for unfactorable dims
+     (let [pos (into {} (filter (fn [[_ v]] (pos? v)) dim))
+           neg (into {} (filter (fn [[_ v]] (neg? v)) dim))]
+       (if (seq neg)
+         (str (format-raw-dim pos) " / " (format-raw-dim (negate-dim neg)))
+         (format-raw-dim pos))))))
 
 ;; ============================================================================
 ;; Token classification helpers
@@ -224,10 +254,27 @@
 ;; Context detection
 ;; ============================================================================
 
-(defn- find-source-dim
-  "Walk prior words backwards to find a unit (including compounds) and return its dimension."
+(defn- join-slash-compounds
+  "Reconstruct compound expressions from words separated by '/'.
+   ['MBps' '/' 'V'] → ['MBps/V']
+   ['12' 'MBps' '/' 'V'] → ['12' 'MBps/V']"
   [words]
-  (some compound-dim (reverse words)))
+  (loop [ws words, result []]
+    (if (empty? ws)
+      result
+      (if (and (>= (count ws) 3)
+               (= "/" (second ws))
+               (not (number-token? (first ws))))
+        ;; Join word/word and continue (handles A / B / C chains)
+        (recur (cons (str (first ws) "/" (nth ws 2)) (drop 3 ws))
+               result)
+        (recur (rest ws) (conj result (first ws)))))))
+
+(defn- find-source-dim
+  "Walk prior words backwards to find a unit (including compounds) and return its dimension.
+   Joins space-separated '/' expressions first: 'MBps / V' → 'MBps/V'."
+  [words]
+  (some compound-dim (reverse (join-slash-compounds words))))
 
 ;; ============================================================================
 ;; Compound suggestion generation
