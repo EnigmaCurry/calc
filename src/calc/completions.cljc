@@ -448,8 +448,8 @@
                           entries
                           (filter #(prefix-match? prefix (:text %)) entries)))]
     (cond
-      ;; Slash commands
-      (and (seq prefix) (str/starts-with? prefix "/"))
+      ;; Slash commands (only as the first word)
+      (and (empty? prior) (seq prefix) (str/starts-with? prefix "/"))
       (vec (filter-prefix slash-commands))
 
       ;; Compound prefix: "fps/p" → complete denominator
