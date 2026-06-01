@@ -506,7 +506,7 @@
                   {:text "tip $35 22%"  :group "Examples" :desc "exact tip"       :hint true}
                   {:text "tip $35 $42"  :group "Examples" :desc "tip to reach total" :hint true}]
           "tax"  [{:text "tax $100 8.5%" :group "Examples" :desc "sales tax"      :hint true}
-                  {:text "tax $100 $108.50" :group "Examples" :desc "find tax rate" :hint true}]
+                  {:text "tax 8.5% on $100" :group "Examples" :desc "verbose form"  :hint true}]
           "roll" [{:text "roll 2d6"     :group "Examples" :desc "roll two six-sided dice" :hint true}
                   {:text "roll 2d6+3"   :group "Examples" :desc "roll with modifier"      :hint true}
                   {:text "roll 4d6kh3"  :group "Examples" :desc "keep highest 3"          :hint true}]
