@@ -818,16 +818,19 @@
         comps (when show-completions (current-completions input))
         dim-hint (when show-completions (completions/target-dim-hint input))]
     (when (seq comps)
-      (into [:div.completion-dropdown
-             (when dim-hint
-               [:div.completion-hint (str "Expected: " dim-hint)])]
-            (for [element (flatten-with-headers (map-indexed vector comps))]
-              (case (first element)
-                :group ^{:key (str "g-" (second element))}
-                       [:div.completion-group (second element)]
-                :item (let [[_ idx entry] element]
-                        ^{:key (str "i-" idx)}
-                        (completion-item-view idx entry comp-index))))))))
+      (let [elements (flatten-with-headers (map-indexed vector comps))
+            children (for [element elements]
+                       (case (first element)
+                         :group ^{:key (str "g-" (second element))}
+                                [:div.completion-group (second element)]
+                         :item (let [[_ idx entry] element]
+                                 ^{:key (str "i-" idx)}
+                                 (completion-item-view idx entry comp-index))))]
+        (into [:div.completion-dropdown]
+              (if dim-hint
+                (cons ^{:key "hint"} [:div.completion-hint (str "Expected: " dim-hint)]
+                      children)
+                children))))))
 
 (defn app []
   (let [{:keys [input history menu-open]} @state
