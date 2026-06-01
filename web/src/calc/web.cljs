@@ -917,22 +917,31 @@
 
      [:main {:ref #(reset! log-ref %)}
       (when preview
-        [:div.preview-bar
-         [:span.preview-spacer {:aria-hidden "true"} "calc"]
-         [:span.preview-answer
-          (cond
-            (:error preview)
-            [:span.preview-error (:error preview)]
+        (let [has-completions? (and (:show-completions @state)
+                                    (seq (current-completions input)))
+              incomplete? (and (seq input) (= \space (last input)))]
+          [:div.preview-bar
+           [:span.preview-spacer {:aria-hidden "true"} "calc"]
+           [:span.preview-answer
+            (cond
+              (and (:error preview) has-completions?)
+              nil
 
-            (and (:result preview) (str/includes? (str (:result preview)) "\n"))
-            [multiline-result (:result preview) "preview-result"]
+              (and (:error preview) incomplete?)
+              [:span.preview-warning "keep typing\u2026"]
 
-            (:target preview)
-            [:span.preview-result (str "= " (:result preview) " " (:target preview))]
+              (:error preview)
+              [:span.preview-error (:error preview)]
 
-            :else
-            [:span.preview-result (str "= " (:result preview))])]
-         [:button.convert {:on-click evaluate!} "="]])
+              (and (:result preview) (str/includes? (str (:result preview)) "\n"))
+              [multiline-result (:result preview) "preview-result"]
+
+              (:target preview)
+              [:span.preview-result (str "= " (:result preview) " " (:target preview))]
+
+              :else
+              [:span.preview-result (str "= " (:result preview))])]
+           [:button.convert {:on-click evaluate!} "="]]))
       (case (:page @state)
         :help [help-page]
         :settings [settings-page]

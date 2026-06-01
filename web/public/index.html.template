@@ -223,6 +223,12 @@
       font-size: 0.85rem;
     }
 
+    .preview-warning {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-style: italic;
+    }
+
     button.convert {
       padding: 0.4rem 0.75rem;
       font-size: 0.9rem;
