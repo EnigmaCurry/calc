@@ -351,27 +351,36 @@
                   (Math/abs (* v (compound-si-scale w)))))]
           (or result (recur (dec i))))))))
 
+(defn- closeness-tier
+  "Assign a tiered group label based on magnitude closeness to 1.0.
+   JLine sorts groups alphabetically, so '1' < '2' < '3' gives correct ordering."
+  [closeness]
+  (cond
+    (< closeness 1.5) "1 ◆ Best"
+    (< closeness 3.0) "2 ◇ Good"
+    (< closeness 5.0) "3 · OK"
+    :else              "4 · Far"))
+
 (defn- sort-by-closeness
-  "Sort candidates by how close source_si / target_scale is to 1.0.
-   Falls back to alphabetical for candidates without computable scale."
+  "Assign tiered group labels based on how close source_si / target_scale is to 1.0.
+   JLine's GROUP option sorts by group name, giving magnitude-based ordering."
   [source-si candidates]
   (if source-si
-    (let [scored (map (fn [entry]
-                        (let [scale (or
-                                     ;; Simple unit from vocabulary
-                                     (when-let [uk (:canonical entry)]
-                                       (when-let [info (get u/unit-defs uk)]
-                                         (when-not (:temperature info)
-                                           (to-double (:scale info)))))
-                                     ;; Compound or special form: compute from text
-                                     (compound-si-scale (:text entry)))
-                              closeness (if scale
-                                          (Math/abs (#?(:clj Math/log10 :cljs js/Math.log10)
-                                                     (/ source-si scale)))
-                                          1e9)]
-                          (assoc entry :closeness closeness)))
-                      candidates)]
-      (vec (map #(dissoc % :closeness) (sort-by :closeness scored))))
+    (->> candidates
+         (map (fn [entry]
+                (let [scale (or
+                              (when-let [uk (:canonical entry)]
+                                (when-let [info (get u/unit-defs uk)]
+                                  (when-not (:temperature info)
+                                    (to-double (:scale info)))))
+                              (compound-si-scale (:text entry)))
+                      closeness (if scale
+                                  (Math/abs (#?(:clj Math/log10 :cljs js/Math.log10)
+                                              (/ source-si scale)))
+                                  1e9)]
+                  (assoc entry :group (closeness-tier closeness)))))
+         (sort-by :text)
+         vec)
     (vec (sort-by :text candidates))))
 
 ;; ============================================================================

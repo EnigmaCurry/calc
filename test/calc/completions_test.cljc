@@ -91,8 +91,8 @@
   (testing "compound source filters to compound targets"
     (let [results (c/complete "34 mph/gram in ")]
       (is (pos? (count results)))
-      ;; All results should have compound group labels like "Speed / Mass"
-      (is (every? #(clojure.string/includes? (:group %) " / ") results)))))
+      ;; All compound results should have magnitude tier group labels
+      (is (every? #(re-find #"^[1-4] " (:group %)) results)))))
 
 
 (deftest complete-compound-denom-test

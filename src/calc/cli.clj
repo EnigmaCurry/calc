@@ -451,6 +451,7 @@
     (.setOpt reader LineReader$Option/MENU_COMPLETE)
     (.setOpt reader LineReader$Option/AUTO_LIST)
     (.setOpt reader LineReader$Option/AUTO_MENU)
+    (.setOpt reader LineReader$Option/GROUP)
     (.setVariable reader LineReader/HISTORY_FILE hist-path)
     (let [widgets (.getWidgets reader)
           ^Widget orig-accept (get widgets LineReader/ACCEPT_LINE)]
