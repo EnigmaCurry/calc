@@ -427,6 +427,7 @@
     (.setOpt reader LineReader$Option/AUTO_MENU)
     (.setOpt reader LineReader$Option/GROUP)
     (.setOpt reader LineReader$Option/LIST_ROWS_FIRST)
+    (.setOpt reader LineReader$Option/ERASE_LINE_ON_FINISH)
     (.setVariable reader LineReader/HISTORY_FILE hist-path)
     (let [widgets (.getWidgets reader)
           ^Widget orig-accept (get widgets LineReader/ACCEPT_LINE)]
@@ -434,6 +435,8 @@
         (reify Widget
           (apply [_]
             (reset! accepting true)
+            ;; Clear completion menu before accepting
+            (.callWidget reader LineReader/CLEAR)
             (.apply orig-accept)))))
     (println "calc — type '/help' for usage, Ctrl-D to exit")
     (loop []
