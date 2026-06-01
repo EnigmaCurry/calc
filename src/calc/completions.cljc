@@ -126,6 +126,13 @@
            (for [[cat-dim cat-name] u/dim-categories
                  :let [remainder (u/normalize-map
                                   (u/merge-dims dim (negate-dim cat-dim)))]
+                 ;; Category must not overshoot: each positive cat exponent
+                 ;; must be <= the source dim's value for that key
+                 :when (every? (fn [[k v]]
+                                 (if (pos? v)
+                                   (<= v (get dim k 0))
+                                   (>= v (get dim k 0))))
+                               cat-dim)
                  :when (every? (fn [[_ v]] (neg? v)) remainder)]
              {:name cat-name :remainder remainder :coverage (count cat-dim)})
            best (last (sort-by :coverage numer-matches))]
