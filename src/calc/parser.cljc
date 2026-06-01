@@ -1417,7 +1417,7 @@
    "octal" :octal "oct" :octal
    "decimal" :decimal "dec" :decimal
    "hex" :hex "hexadecimal" :hex
-   "sexagesimal" :sexagesimal})
+   "sexagesimal" :sexagesimal "sex" :sexagesimal})
 
 (defn- parse-base-literal
   "Try to parse a base-prefixed literal or sexagesimal colon notation.
