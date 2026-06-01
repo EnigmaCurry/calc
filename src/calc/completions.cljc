@@ -357,10 +357,14 @@
   [source-si candidates]
   (if source-si
     (let [scored (map (fn [entry]
-                        (let [scale (when-let [uk (:canonical entry)]
-                                      (when-let [info (get u/unit-defs uk)]
-                                        (when-not (:temperature info)
-                                          (to-double (:scale info)))))
+                        (let [scale (or
+                                     ;; Simple unit from vocabulary
+                                     (when-let [uk (:canonical entry)]
+                                       (when-let [info (get u/unit-defs uk)]
+                                         (when-not (:temperature info)
+                                           (to-double (:scale info)))))
+                                     ;; Compound or special form: compute from text
+                                     (compound-si-scale (:text entry)))
                               closeness (if scale
                                           (Math/abs (#?(:clj Math/log10 :cljs js/Math.log10)
                                                      (/ source-si scale)))
@@ -468,7 +472,8 @@
                      (->> vocabulary filter-prefix (sort-by :text) vec))
             ;; Generate compound suggestions when no simple vocab matches
             compounds (when (and src-dim (empty? simple))
-                        (generate-compound-suggestions src-dim prefix))]
+                        (sort-by-closeness source-si
+                          (generate-compound-suggestions src-dim prefix)))]
         (vec (concat simple compounds)))
 
       ;; After a unit (including compounds like "mph/gram") → suggest connectors
