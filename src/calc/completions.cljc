@@ -444,12 +444,17 @@
                          [parts ""]
                          [(vec (butlast parts)) (or (last parts) "")])
         dedup-canonical (fn [entries]
-                         (let [;; Group by canonical key (or text for nil-canonical entries)
-                               grouped (group-by #(or (:canonical %) (:text %)) entries)]
-                           (map (fn [[_ vs]]
-                                  ;; Prefer shortest text among matches
-                                  (first (sort-by (comp count :text) vs)))
-                                grouped)))
+                         (let [grouped (group-by #(or (:canonical %) (:text %)) entries)
+                               prefer (fn [vs]
+                                        (let [singular-set
+                                              (into #{}
+                                                    (keep (fn [v]
+                                                            (when-let [uk (:canonical v)]
+                                                              (:singular (get u/unit-defs uk)))))
+                                                    vs)]
+                                          (or (first (filter #(singular-set (:text %)) vs))
+                                              (first vs))))]
+                           (map (fn [[_ vs]] (prefer vs)) grouped)))
         filter-prefix (fn [entries]
                         (if (str/blank? prefix)
                           (dedup-canonical entries)

@@ -33,8 +33,11 @@
                    (pr-str (distinct units)))))))))
 
 (deftest no-lowercase-alias-collisions
-  (testing "lowercased aliases do not collide across different units (except intentional case-sensitive data units)"
-    (let [alias-pairs (for [[unit-key {:keys [aliases]}] u/unit-defs
+  (testing "lowercased aliases do not collide across different units (except intentional case-sensitive aliases)"
+    (let [;; Known cross-dimension case-sensitive aliases:
+          ;; "H" (henry) vs "h" (hour) — disambiguated by case in the parser
+          known-exceptions #{"h"}
+          alias-pairs (for [[unit-key {:keys [aliases]}] u/unit-defs
                             alias aliases]
                         [(str/lower-case alias) unit-key])
           grouped (group-by first alias-pairs)]
@@ -44,7 +47,8 @@
                               (when (:temperature (get u/unit-defs %))
                                 :temperature))
                          units)]
-          (when (> (count units) 1)
+          (when (and (> (count units) 1)
+                     (not (contains? known-exceptions lc-alias)))
             (is (apply = dims)
                 (str "lowercased alias \"" lc-alias "\" maps to units in different dimensions: "
                      (pr-str (zipmap units dims))))))))))
