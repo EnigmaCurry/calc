@@ -6,6 +6,7 @@
             [calc.eval :as ev]
             [calc.format :as fmt]
             [calc.parser :as parser]
+            [calc.completions :as completions]
             [clojure.string :as str]))
 
 (defn multiline-result
@@ -235,7 +236,10 @@
                         :zoom (or (load-zoom) (default-zoom))
                         :precision initial-precision
                         :page :calc
-                        :copied-idx nil}))
+                        :copied-idx nil
+                        :completions []
+                        :comp-index -1
+                        :dim-hint nil}))
 
 (defn effective-fmt-opts
   "Merge default settings with session overrides. Session wins."
@@ -684,40 +688,126 @@
           (save-history! (:history @state))
           (js/setTimeout scroll-log-to-top 0))))))
 
+(defn on-input-change [e]
+  (let [val (.. e -target -value)]
+    (swap! state assoc
+           :input val
+           :hist-index -1
+           :completions (completions/complete val)
+           :comp-index -1
+           :dim-hint (completions/target-dim-hint val))))
+
+(defn accept-completion
+  "Replace the current prefix in :input with the completion text, add a trailing space."
+  [completion-text]
+  (let [input (:input @state)
+        buf (or input "")
+        trimmed (str/trim buf)
+        at-space? (and (seq buf) (= \space (last buf)))
+        parts (if (str/blank? trimmed) [] (str/split trimmed #"\s+"))
+        prefix (if at-space? "" (or (last parts) ""))
+        base (if at-space?
+               buf
+               (let [idx (str/last-index-of buf prefix)]
+                 (if idx (subs buf 0 idx) buf)))
+        new-input (str base completion-text " ")]
+    (swap! state assoc
+           :input new-input
+           :completions (completions/complete new-input)
+           :comp-index -1
+           :dim-hint (completions/target-dim-hint new-input))
+    (when-let [el (.querySelector js/document ".input-wrapper input")]
+      (js/setTimeout
+       (fn []
+         (.focus el)
+         (let [len (count new-input)]
+           (.setSelectionRange el len len)))
+       0))))
+
 (defn on-keydown [e]
   (let [key (.-key e)
-        {:keys [history hist-index saved-input input]} @state]
+        {:keys [history hist-index saved-input input completions comp-index]} @state
+        has-completions? (seq completions)]
     (case key
-      "Enter"
-      (do (evaluate!)
-          (swap! state assoc :hist-index -1 :saved-input ""))
+      "Tab"
+      (when has-completions?
+        (.preventDefault e)
+        (if (= comp-index -1)
+          (swap! state assoc :comp-index 0)
+          (let [dir (if (.-shiftKey e) -1 1)
+                new-idx (mod (+ comp-index dir) (count completions))]
+            (swap! state assoc :comp-index new-idx))))
 
-      "ArrowUp"
-      (let [max-idx (dec (count history))
-            new-idx (min (inc hist-index) max-idx)]
-        (when (and (seq history) (not= new-idx hist-index))
-          (.preventDefault e)
-          (when (= hist-index -1)
-            (swap! state assoc :saved-input input))
-          (swap! state assoc
-                 :hist-index new-idx
-                 :input (:input (nth history new-idx)))))
+      "Enter"
+      (if (and has-completions? (>= comp-index 0))
+        (do (.preventDefault e)
+            (accept-completion (:text (nth completions comp-index))))
+        (do (evaluate!)
+            (swap! state assoc :hist-index -1 :saved-input ""
+                   :completions [] :comp-index -1 :dim-hint nil)))
 
       "ArrowDown"
-      (when (>= hist-index 0)
-        (.preventDefault e)
-        (let [new-idx (dec hist-index)]
-          (if (neg? new-idx)
-            (swap! state assoc :hist-index -1 :input saved-input)
+      (if has-completions?
+        (do (.preventDefault e)
+            (swap! state assoc :comp-index
+                   (min (inc (max comp-index -1)) (dec (count completions)))))
+        (when (>= hist-index 0)
+          (.preventDefault e)
+          (let [new-idx (dec hist-index)]
+            (if (neg? new-idx)
+              (swap! state assoc :hist-index -1 :input saved-input)
+              (swap! state assoc
+                     :hist-index new-idx
+                     :input (:input (nth history new-idx)))))))
+
+      "ArrowUp"
+      (if has-completions?
+        (do (.preventDefault e)
+            (swap! state assoc :comp-index (max (dec comp-index) 0)))
+        (let [max-idx (dec (count history))
+              new-idx (min (inc hist-index) max-idx)]
+          (when (and (seq history) (not= new-idx hist-index))
+            (.preventDefault e)
+            (when (= hist-index -1)
+              (swap! state assoc :saved-input input))
             (swap! state assoc
                    :hist-index new-idx
                    :input (:input (nth history new-idx))))))
 
       "Escape"
       (do (.preventDefault e)
-          (swap! state assoc :input "" :hist-index -1))
+          (if has-completions?
+            (swap! state assoc :completions [] :comp-index -1 :dim-hint nil)
+            (swap! state assoc :input "" :hist-index -1)))
 
       nil)))
+
+(defn completion-dropdown []
+  (let [{:keys [completions comp-index dim-hint]} @state]
+    (when (seq completions)
+      [:div.completion-dropdown
+       (when dim-hint
+         [:div.completion-hint (str "Expected: " dim-hint)])
+       (let [items-with-idx (map-indexed vector completions)
+             grouped (partition-by (fn [[_ item]] (:group item)) items-with-idx)]
+         (for [group grouped
+               :let [group-name (:group (second (first group)))]]
+           ^{:key group-name}
+           [:<>
+            [:div.completion-group group-name]
+            (for [[abs-idx item] group]
+              ^{:key (str (:text item) "-" abs-idx)}
+              [:div.completion-item
+               {:class (when (= abs-idx comp-index) "highlighted")
+                :ref (fn [el]
+                       (when (and el (= abs-idx comp-index))
+                         (.scrollIntoView el #js {:block "nearest"})))
+                :on-mouse-down (fn [e]
+                                 (.preventDefault e)
+                                 (accept-completion (:text item)))}
+               [:span.completion-text (:text item)]
+               (when (:desc item)
+                 [:span.completion-desc (:desc item)])])]))])))
 
 (defn app []
   (let [{:keys [input history menu-open]} @state
@@ -734,9 +824,15 @@
        [:input (cond-> {:type "text"
                         :value input
                         :auto-focus true
-                        :on-change #(swap! state assoc :input (.. % -target -value) :hist-index -1)
-                        :on-key-down on-keydown}
+                        :auto-complete "off"
+                        :on-change on-input-change
+                        :on-key-down on-keydown
+                        :on-blur (fn [_]
+                                   (js/setTimeout
+                                    #(swap! state assoc :completions [] :comp-index -1 :dim-hint nil)
+                                    150))}
                  (empty? history) (assoc :placeholder "e.g. 100GB / 900Mbps"))]
+       [completion-dropdown]
        (let [clear-fn (fn [e]
                         (.preventDefault e)
                         (.stopPropagation e)
