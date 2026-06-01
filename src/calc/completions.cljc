@@ -286,9 +286,11 @@
 
 (defn- find-source-dim
   "Walk prior words backwards to find a unit (including compounds) and return its dimension.
-   Joins space-separated '/' expressions first: 'MBps / V' → 'MBps/V'."
+   Strips number tokens and joins space-separated '/' expressions first:
+   '10 volt / 56 ampere' → 'volt/ampere'."
   [words]
-  (some compound-dim (reverse (join-slash-compounds words))))
+  (let [non-numbers (remove #(or (number-token? %) (percent-token? %)) words)]
+    (some compound-dim (reverse (join-slash-compounds non-numbers)))))
 
 ;; ============================================================================
 ;; Magnitude-aware sorting
