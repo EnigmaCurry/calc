@@ -407,15 +407,16 @@
     (complete [_ _reader line candidates]
       (let [buf (.line line)
             results (completions/complete buf)]
-        (doseq [{:keys [text group desc]} results]
+        ;; Use zero-padded index as sort key to preserve our custom ordering
+        (doseq [[idx {:keys [text group desc]}] (map-indexed vector results)]
           (.add candidates
-                (Candidate. text   ;; value (inserted into buffer)
-                            text   ;; display string
-                            group  ;; group header
-                            desc   ;; description (shown right-aligned)
-                            nil    ;; suffix
-                            nil    ;; key
-                            true   ;; complete (add space after)
+                (Candidate. text                        ;; value
+                            text                        ;; display
+                            group                       ;; group
+                            desc                        ;; description
+                            nil                         ;; suffix
+                            (format "%06d" idx)         ;; key (preserves sort order)
+                            true                        ;; complete
                             )))))))
 
 (defn repl
@@ -434,8 +435,6 @@
     (.setOpt reader LineReader$Option/MENU_COMPLETE)
     (.setOpt reader LineReader$Option/AUTO_LIST)
     (.setOpt reader LineReader$Option/AUTO_MENU)
-    (.setOpt reader LineReader$Option/GROUP)
-    (.setOpt reader LineReader$Option/LIST_ROWS_FIRST)
     (.setVariable reader LineReader/HISTORY_FILE hist-path)
     (let [widgets (.getWidgets reader)
           ^Widget orig-accept (get widgets LineReader/ACCEPT_LINE)]

@@ -402,7 +402,7 @@
 (defn- complete-compound-denom
   "Complete the denominator of a compound prefix like 'fps/p'.
    If target-dim is known, filter denominators to produce matching compounds."
-  [numer denom-prefix target-dim]
+  [numer denom-prefix target-dim source-si]
   (let [numer-dim (token-dim numer)
         numer-group (when numer-dim
                       (get u/dim-categories numer-dim "Other"))
@@ -421,8 +421,7 @@
          (map #(assoc % :text (str numer "/" (:text %))
                         :group (str (or numer-group "Compound")
                                     " / " (:group %))))
-         (sort-by :text)
-         vec)))
+         (sort-by-closeness source-si))))
 
 ;; ============================================================================
 ;; Main completion function
@@ -453,11 +452,13 @@
       (let [slash-idx (str/index-of prefix "/")
             numer (subs prefix 0 slash-idx)
             denom-prefix (subs prefix (inc slash-idx))
-            ;; Determine target dim if we're after a connector
-            target-dim (when (and (seq prior) (connector-token? (last prior)))
-                         (find-source-dim (butlast prior)))]
-        (when (seq denom-prefix)  ;; only suggest after at least 1 char of denominator
-          (complete-compound-denom numer denom-prefix target-dim)))
+            ;; Determine target dim and source magnitude if after a connector
+            before-connector (when (and (seq prior) (connector-token? (last prior)))
+                               (butlast prior))
+            target-dim (when before-connector (find-source-dim before-connector))
+            source-si (when before-connector (source-si-value before-connector))]
+        (when (seq denom-prefix)
+          (complete-compound-denom numer denom-prefix target-dim source-si)))
 
       ;; After "in"/"to" → suggest target units, dimension-filtered, magnitude-sorted
       (and (seq prior) (connector-token? (last prior)))
