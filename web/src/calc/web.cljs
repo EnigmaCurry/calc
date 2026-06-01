@@ -237,9 +237,8 @@
                         :precision initial-precision
                         :page :calc
                         :copied-idx nil
-                        :completions []
                         :comp-index -1
-                        :dim-hint nil}))
+                        :show-completions false}))
 
 (defn effective-fmt-opts
   "Merge default settings with session overrides. Session wins."
@@ -691,15 +690,19 @@
 
 (def ^:private max-web-completions 20)
 
+(defn current-completions
+  "Derive completions from the current input. Always fresh, never stale."
+  [input]
+  (vec (take max-web-completions (completions/complete input))))
+
 (defn on-input-change [e]
   (when-let [t @blur-timer] (js/clearTimeout t) (reset! blur-timer nil))
   (let [val (.. e -target -value)]
     (swap! state assoc
            :input val
            :hist-index -1
-           :completions (vec (take max-web-completions (completions/complete val)))
            :comp-index -1
-           :dim-hint (completions/target-dim-hint val))))
+           :show-completions true)))
 
 (defn accept-completion
   "Replace the current prefix in :input with the completion text, add a trailing space."
@@ -717,9 +720,8 @@
         new-input (str base completion-text " ")]
     (swap! state assoc
            :input new-input
-           :completions (vec (take max-web-completions (completions/complete new-input)))
            :comp-index -1
-           :dim-hint (completions/target-dim-hint new-input))
+           :show-completions true)
     (when-let [el (.querySelector js/document ".input-wrapper input")]
       (js/setTimeout
        (fn []
@@ -730,8 +732,9 @@
 
 (defn on-keydown [e]
   (let [key (.-key e)
-        {:keys [history hist-index saved-input input completions comp-index]} @state
-        has-completions? (seq completions)]
+        {:keys [history hist-index saved-input input comp-index show-completions]} @state
+        comps (when show-completions (current-completions input))
+        has-completions? (seq comps)]
     (case key
       "Tab"
       (when has-completions?
@@ -739,22 +742,22 @@
         (if (= comp-index -1)
           (swap! state assoc :comp-index 0)
           (let [dir (if (.-shiftKey e) -1 1)
-                new-idx (mod (+ comp-index dir) (count completions))]
+                new-idx (mod (+ comp-index dir) (count comps))]
             (swap! state assoc :comp-index new-idx))))
 
       "Enter"
       (if (and has-completions? (>= comp-index 0))
         (do (.preventDefault e)
-            (accept-completion (:text (nth completions comp-index))))
+            (accept-completion (:text (nth comps comp-index))))
         (do (evaluate!)
             (swap! state assoc :hist-index -1 :saved-input ""
-                   :completions [] :comp-index -1 :dim-hint nil)))
+                   :comp-index -1 :show-completions false)))
 
       "ArrowDown"
       (if has-completions?
         (do (.preventDefault e)
             (swap! state assoc :comp-index
-                   (min (inc (max comp-index -1)) (dec (count completions)))))
+                   (min (inc (max comp-index -1)) (dec (count comps)))))
         (when (>= hist-index 0)
           (.preventDefault e)
           (let [new-idx (dec hist-index)]
@@ -781,18 +784,20 @@
       "Escape"
       (do (.preventDefault e)
           (if has-completions?
-            (swap! state assoc :completions [] :comp-index -1 :dim-hint nil)
+            (swap! state assoc :comp-index -1 :show-completions false)
             (swap! state assoc :input "" :hist-index -1)))
 
       nil)))
 
 (defn completion-dropdown []
-  (let [{:keys [completions comp-index dim-hint]} @state]
-    (when (seq completions)
+  (let [{:keys [input comp-index show-completions]} @state
+        comps (when show-completions (current-completions input))
+        dim-hint (when show-completions (completions/target-dim-hint input))]
+    (when (seq comps)
       [:div.completion-dropdown
        (when dim-hint
          [:div.completion-hint (str "Expected: " dim-hint)])
-       (let [items-with-idx (map-indexed vector completions)
+       (let [items-with-idx (map-indexed vector comps)
              grouped (partition-by (fn [[_ item]] (:group item)) items-with-idx)]
          (for [group grouped
                :let [group-name (:group (second (first group)))]]
@@ -837,7 +842,7 @@
                                            (js/setTimeout
                                             (fn []
                                               (reset! blur-timer nil)
-                                              (swap! state assoc :completions [] :comp-index -1 :dim-hint nil))
+                                              (swap! state assoc :comp-index -1 :show-completions false))
                                             150)))}
                  (empty? history) (assoc :placeholder "e.g. 100GB / 900Mbps"))]
        [completion-dropdown]
