@@ -789,34 +789,45 @@
 
       nil)))
 
+(defn- completion-item-view [abs-idx item comp-index]
+  [:div.completion-item
+   {:class (when (= abs-idx comp-index) "highlighted")
+    :ref (fn [el]
+           (when (and el (= abs-idx comp-index))
+             (.scrollIntoView el #js {:block "nearest"})))
+    :on-mouse-down (fn [e]
+                     (.preventDefault e)
+                     (accept-completion (:text item)))}
+   [:span.completion-text (:text item)]
+   (when (:desc item)
+     [:span.completion-desc (:desc item)])])
+
+(defn- flatten-with-headers [indexed-comps]
+  (loop [items indexed-comps, prev-group nil, result []]
+    (if (empty? items)
+      result
+      (let [[idx entry] (first items)
+            group (:group entry)
+            result (if (= group prev-group)
+                     result
+                     (conj result [:group group]))]
+        (recur (rest items) group (conj result [:item idx entry]))))))
+
 (defn completion-dropdown []
   (let [{:keys [input comp-index show-completions]} @state
         comps (when show-completions (current-completions input))
         dim-hint (when show-completions (completions/target-dim-hint input))]
     (when (seq comps)
-      [:div.completion-dropdown
-       (when dim-hint
-         [:div.completion-hint (str "Expected: " dim-hint)])
-       (let [items-with-idx (map-indexed vector comps)
-             grouped (partition-by (fn [[_ item]] (:group item)) items-with-idx)]
-         (for [group grouped
-               :let [group-name (:group (second (first group)))]]
-           ^{:key group-name}
-           [:<>
-            [:div.completion-group group-name]
-            (for [[abs-idx item] group]
-              ^{:key (str (:text item) "-" abs-idx)}
-              [:div.completion-item
-               {:class (when (= abs-idx comp-index) "highlighted")
-                :ref (fn [el]
-                       (when (and el (= abs-idx comp-index))
-                         (.scrollIntoView el #js {:block "nearest"})))
-                :on-mouse-down (fn [e]
-                                 (.preventDefault e)
-                                 (accept-completion (:text item)))}
-               [:span.completion-text (:text item)]
-               (when (:desc item)
-                 [:span.completion-desc (:desc item)])])]))])))
+      (into [:div.completion-dropdown
+             (when dim-hint
+               [:div.completion-hint (str "Expected: " dim-hint)])]
+            (for [element (flatten-with-headers (map-indexed vector comps))]
+              (case (first element)
+                :group ^{:key (str "g-" (second element))}
+                       [:div.completion-group (second element)]
+                :item (let [[_ idx entry] element]
+                        ^{:key (str "i-" idx)}
+                        (completion-item-view idx entry comp-index))))))))
 
 (defn app []
   (let [{:keys [input history menu-open]} @state
