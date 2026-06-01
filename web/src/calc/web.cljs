@@ -693,7 +693,10 @@
 (defn current-completions
   "Derive completions from the current input. Always fresh, never stale."
   [input]
-  (vec (take max-web-completions (completions/complete input))))
+  (->> (completions/complete input)
+       (take max-web-completions)
+       (sort-by (juxt :group :text))
+       vec))
 
 (defn on-input-change [e]
   (when-let [t @blur-timer] (js/clearTimeout t) (reset! blur-timer nil))
