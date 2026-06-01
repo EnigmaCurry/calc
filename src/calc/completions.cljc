@@ -181,10 +181,11 @@
                 :when (contains? dim->unit-names numer-dim)
                 numer (get dim->unit-names numer-dim)
                 denom denom-units
-                :let [text (str (:text numer) "/" (:text denom))]
+                :let [text (str (:text numer) "/" (:text denom))
+                      group (str (:group numer) " / " (:group denom))]
                 :when (or (str/blank? prefix)
                           (prefix-match? prefix text))]
-            {:text text :group "Compound" :desc nil})]
+            {:text text :group group :desc nil})]
       (->> results distinct (sort-by :text) vec))))
 
 (defn- complete-compound-denom
@@ -192,6 +193,8 @@
    If target-dim is known, filter denominators to produce matching compounds."
   [numer denom-prefix target-dim]
   (let [numer-dim (token-dim numer)
+        numer-group (when numer-dim
+                      (get u/dim-categories numer-dim "Other"))
         ;; If we know the target dim, compute what denominator dim is needed:
         ;; target = numer/denom → denom-dim = numer-dim - target-dim
         needed-denom-dim (when (and numer-dim target-dim (map? target-dim))
@@ -205,7 +208,8 @@
          (filter #(or (str/blank? denom-prefix)
                       (prefix-match? denom-prefix (:text %))))
          (map #(assoc % :text (str numer "/" (:text %))
-                        :group "Compound"))
+                        :group (str (or numer-group "Compound")
+                                    " / " (:group %))))
          (sort-by :text)
          vec)))
 
