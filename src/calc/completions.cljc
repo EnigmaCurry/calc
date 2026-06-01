@@ -487,8 +487,8 @@
       (vec (filter-prefix [{:text "in" :group "Connector" :desc nil}
                            {:text "to" :group "Connector" :desc nil}]))
 
-      ;; After a number → suggest all units
-      (and (seq prior) (number-token? (last prior)))
+      ;; After a number → suggest units (only when typing a prefix)
+      (and (seq prior) (number-token? (last prior)) (seq prefix))
       (->> vocabulary filter-prefix (sort-by :text) vec)
 
       ;; Typing with a non-empty prefix → suggest matching units
