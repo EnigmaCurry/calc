@@ -974,10 +974,11 @@
          (when (seq history)
            [:div.log
             (for [[idx {:keys [input from target result error]}] (map-indexed vector history)]
-              (let [result-text (cond
-                                  error error
-                                  target (str result " " target)
-                                  :else (str result))
+              (let [result-text (str (or from input) " = "
+                                     (cond
+                                       error error
+                                       target (str result " " target)
+                                       :else (str result)))
                     copied? (= idx (:copied-idx @state))
                     on-press-start (fn [e]
                                      (when-not (.. e -target -classList (contains "log-delete"))
