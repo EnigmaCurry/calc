@@ -355,3 +355,28 @@
   (testing "what is form"
     (let [{:keys [result]} (th/evaluate "what is 255 in binary" nil)]
       (is (= "0b11111111" result)))))
+
+;; ==========================================================================
+;; Standalone base literals (no target, default to decimal)
+;; ==========================================================================
+
+(deftest end-to-end-standalone-literals
+  (testing "standalone hex literal"
+    (let [{:keys [result]} (th/evaluate "0xff" nil)]
+      (is (= "255" result))))
+
+  (testing "standalone binary literal"
+    (let [{:keys [result]} (th/evaluate "0b1010" nil)]
+      (is (= "10" result))))
+
+  (testing "standalone octal literal"
+    (let [{:keys [result]} (th/evaluate "0o377" nil)]
+      (is (= "255" result))))
+
+  (testing "standalone sexagesimal literal"
+    (let [{:keys [result]} (th/evaluate "0:00:02" nil)]
+      (is (= "2" result))))
+
+  (testing "standalone sexagesimal larger"
+    (let [{:keys [result]} (th/evaluate "1:30:45" nil)]
+      (is (= "5445" result)))))

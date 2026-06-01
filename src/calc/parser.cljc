@@ -1508,26 +1508,33 @@
      '255 in base 7'           → {:op :base-convert :value 255 :from-base :decimal :to-base 7}"
   [_cleaned-s original-phrase]
   (let [s (clean-phrase-light original-phrase)]
-    (when-let [[qty-str to-str] (split-request s)]
-      (let [to-base (parse-base-target to-str)]
-        (when to-base
-          (or
-           ;; Try base-prefixed literal on quantity side (0xff, 0b1010, 0o377, H:M:S)
-           (when-let [[value from-base] (parse-base-literal qty-str)]
-             {:op :base-convert :value (long value) :from-base from-base :to-base to-base})
+    (or
+     ;; With target: "X in/to Y"
+     (when-let [[qty-str to-str] (split-request s)]
+       (let [to-base (parse-base-target to-str)]
+         (when to-base
+           (or
+            ;; Try base-prefixed literal on quantity side (0xff, 0b1010, 0o377, H:M:S)
+            (when-let [[value from-base] (parse-base-literal qty-str)]
+              {:op :base-convert :value (long value) :from-base from-base :to-base to-base})
 
-           ;; Try base-name suffix on quantity side (ff hex, 377 octal)
-           (when-let [[value from-base] (parse-value-with-base-suffix qty-str)]
-             {:op :base-convert :value (long value) :from-base from-base :to-base to-base})
+            ;; Try base-name suffix on quantity side (ff hex, 377 octal)
+            (when-let [[value from-base] (parse-value-with-base-suffix qty-str)]
+              {:op :base-convert :value (long value) :from-base from-base :to-base to-base})
 
-           ;; Plain decimal number
-           (let [trimmed (str/trim qty-str)]
-             (when (re-matches #"\d+" trimmed)
-               {:op :base-convert
-                :value (long (#?(:clj BigInteger. :cljs js/parseInt)
-                              trimmed #?(:clj 10 :cljs 10)))
-                :from-base :decimal
-                :to-base to-base}))))))))
+            ;; Plain decimal number
+            (let [trimmed (str/trim qty-str)]
+              (when (re-matches #"\d+" trimmed)
+                {:op :base-convert
+                 :value (long (#?(:clj BigInteger. :cljs js/parseInt)
+                               trimmed #?(:clj 10 :cljs 10)))
+                 :from-base :decimal
+                 :to-base to-base}))))))
+
+     ;; Standalone base literal (no target): "0xff", "0b1010", "1:30:45"
+     ;; Default to decimal output
+     (when-let [[value from-base] (parse-base-literal s)]
+       {:op :base-convert :value (long value) :from-base from-base :to-base :decimal}))))
 
 (defn parse-request [phrase]
   (let [original phrase]
