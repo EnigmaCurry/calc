@@ -250,6 +250,7 @@
 (defonce log-ref (atom nil))
 (defonce suppress-menu (atom false))
 (defonce press-timer (atom nil))
+(defonce blur-timer (atom nil))
 (def long-press-ms 400)
 
 (defn scroll-log-to-top []
@@ -689,6 +690,7 @@
           (js/setTimeout scroll-log-to-top 0))))))
 
 (defn on-input-change [e]
+  (when-let [t @blur-timer] (js/clearTimeout t) (reset! blur-timer nil))
   (let [val (.. e -target -value)]
     (swap! state assoc
            :input val
@@ -828,9 +830,13 @@
                         :on-change on-input-change
                         :on-key-down on-keydown
                         :on-blur (fn [_]
-                                   (js/setTimeout
-                                    #(swap! state assoc :completions [] :comp-index -1 :dim-hint nil)
-                                    150))}
+                                   (when-let [t @blur-timer] (js/clearTimeout t))
+                                   (reset! blur-timer
+                                           (js/setTimeout
+                                            (fn []
+                                              (reset! blur-timer nil)
+                                              (swap! state assoc :completions [] :comp-index -1 :dim-hint nil))
+                                            150)))}
                  (empty? history) (assoc :placeholder "e.g. 100GB / 900Mbps"))]
        [completion-dropdown]
        (let [clear-fn (fn [e]
