@@ -7,6 +7,7 @@
             [calc.completions :as completions])
   (:import (org.jline.reader LineReaderBuilder EndOfFileException UserInterruptException
                              LineReader LineReader$Option Widget Highlighter Completer Candidate)
+           (org.jline.reader.impl LineReaderImpl)
            (org.jline.terminal TerminalBuilder)
            (org.jline.utils AttributedString AttributedStringBuilder AttributedStyle))
   (:gen-class))
@@ -350,29 +351,13 @@
   (print "\033[2J\033[H")
   (flush))
 
-;; Sort-prefix approach: JLine sorts candidates by value alphabetically.
-;; We prepend a sort index (e.g. "000001\u200B") to the value so JLine sorts
-;; by our magnitude ordering. The display shows the clean text.
-;; The ACCEPT_LINE widget strips the prefix before the text is committed.
-(def ^:private sort-sep
-  "Zero-width space used as separator between sort key and actual value."
-  "\u200b")
-
-(defn- strip-sort-prefix
-  "Remove sort key prefix from buffer text."
-  [^String s]
-  (let [idx (.indexOf s sort-sep)]
-    (if (>= idx 0)
-      (subs s (inc idx))
-      s)))
 
 (defn- make-preview-highlighter
   "Create a Highlighter that appends a live preview line below the input."
   [fmt-opts accepting]
   (reify Highlighter
     (highlight [_ _ buf]
-      (let [raw (str buf)
-            text (strip-sort-prefix raw)]
+      (let [text (str buf)]
         (if (or @accepting
                 (str/blank? text)
                 (str/starts-with? text "/")
@@ -418,12 +403,9 @@
     (setErrorIndex [_ _])))
 
 (defn- make-candidate
-  "Create a Candidate whose value has a sort prefix for magnitude ordering."
+  "Create a Candidate with a sort key for ordering."
   [text group desc ^String sort-key]
-  (let [prefixed-value (str sort-key sort-sep text)]
-    (Candidate. prefixed-value  ;; value (used for sorting AND insertion)
-                text             ;; display (what user sees in menu)
-                group desc nil nil true)))
+  (Candidate. text text group desc nil sort-key true))
 
 (defn- make-completer
   "Create a JLine Completer backed by the completion engine."
@@ -442,11 +424,18 @@
   (let [fmt-opts (atom nil)
         accepting (atom false)
         terminal (-> (TerminalBuilder/builder) (.system true) (.build))
-        reader   (-> (LineReaderBuilder/builder)
-                     (.terminal terminal)
-                     (.completer (make-completer))
-                     (.highlighter (make-preview-highlighter fmt-opts accepting))
-                     (.build))]
+        reader   (proxy [LineReaderImpl] [terminal "calc" (java.util.HashMap.)]
+                   (getCandidateComparator [case-insensitive word]
+                     (reify java.util.Comparator
+                       (compare [_ a b]
+                         (let [ka (.key ^Candidate a)
+                               kb (.key ^Candidate b)]
+                           (if (and ka kb)
+                             (.compareTo ^String ka ^String kb)
+                             (.compareTo ^String (.value ^Candidate a)
+                                         ^String (.value ^Candidate b))))))))]
+    (.setCompleter reader (make-completer))
+    (.setHighlighter reader (make-preview-highlighter fmt-opts accepting))
     ;; MENU_COMPLETE: Tab cycles through an interactive menu overlay (never prints
     ;; a static list into scrollback).  The menu is dismissed cleanly on Enter.
     (.setOpt reader LineReader$Option/MENU_COMPLETE)
@@ -459,12 +448,6 @@
         (reify Widget
           (apply [_]
             (reset! accepting true)
-            ;; Strip sort prefix from buffer before accepting
-            (let [buf (.getBuffer reader)
-                  text (str buf)]
-              (when (.contains text sort-sep)
-                (.clear buf)
-                (.write buf (strip-sort-prefix text))))
             (.apply orig-accept)))))
     (println "calc — type '/help' for usage, Ctrl-D to exit")
     (loop []
