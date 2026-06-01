@@ -400,16 +400,27 @@
     (setErrorPattern [_ _])
     (setErrorIndex [_ _])))
 
+(def ^:private proxy-candidate?
+  "Test once at load time whether Candidate proxying works (fails in Babashka)."
+  (try
+    (proxy [Candidate] ["" "" nil nil nil nil true]
+      (compareTo [_] 0))
+    true
+    (catch Throwable _ false)))
+
 (defn- make-candidate
-  "Create a Candidate that sorts by index rather than alphabetically."
+  "Create a Candidate that sorts by index rather than alphabetically.
+   Falls back to standard Candidate on Babashka where proxy isn't supported."
   [text group desc ^String sort-key]
-  (proxy [Candidate] [text text group desc nil sort-key true]
-    (compareTo [^Candidate other]
-      (let [my-key (.key ^Candidate this)
-            other-key (.key ^Candidate other)]
-        (if (and my-key other-key)
-          (.compareTo my-key other-key)
-          (.compareTo (.value ^Candidate this) (.value ^Candidate other)))))))
+  (if proxy-candidate?
+    (proxy [Candidate] [text text group desc nil sort-key true]
+      (compareTo [^Candidate other]
+        (let [my-key (.key ^Candidate this)
+              other-key (.key ^Candidate other)]
+          (if (and my-key other-key)
+            (.compareTo my-key other-key)
+            (.compareTo (.value ^Candidate this) (.value ^Candidate other))))))
+    (Candidate. text text group desc nil sort-key true)))
 
 (defn- make-completer
   "Create a JLine Completer backed by the completion engine."
