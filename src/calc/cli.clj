@@ -400,6 +400,17 @@
     (setErrorPattern [_ _])
     (setErrorIndex [_ _])))
 
+(defn- make-candidate
+  "Create a Candidate that sorts by index rather than alphabetically."
+  [text group desc ^String sort-key]
+  (proxy [Candidate] [text text group desc nil sort-key true]
+    (compareTo [^Candidate other]
+      (let [my-key (.key ^Candidate this)
+            other-key (.key ^Candidate other)]
+        (if (and my-key other-key)
+          (.compareTo my-key other-key)
+          (.compareTo (.value ^Candidate this) (.value ^Candidate other)))))))
+
 (defn- make-completer
   "Create a JLine Completer backed by the completion engine."
   []
@@ -407,17 +418,9 @@
     (complete [_ _reader line candidates]
       (let [buf (.line line)
             results (completions/complete buf)]
-        ;; Use zero-padded index as sort key to preserve our custom ordering
         (doseq [[idx {:keys [text group desc]}] (map-indexed vector results)]
           (.add candidates
-                (Candidate. text                        ;; value
-                            text                        ;; display
-                            group                       ;; group
-                            desc                        ;; description
-                            nil                         ;; suffix
-                            (format "%06d" idx)         ;; key (preserves sort order)
-                            true                        ;; complete
-                            )))))))
+                (make-candidate text group desc (format "%06d" idx))))))))
 
 (defn repl
   "Launch an interactive REPL with JLine readline support and live preview."
