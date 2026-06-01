@@ -74,6 +74,9 @@
       (str/replace #"[?]" "")
       (str/replace #"," "")
       (str/replace #"~\s*" "~ ")
+      ;; Expand abutted "in" to "inch" so standalone "in" is always a connector.
+      ;; 12in → 12 inch, 3.5in → 3.5 inch (but 12inch, 12inches unchanged)
+      (str/replace #"(?i)(\d)in\b" "$1 inch")
       ;; 12ft -> 12 ft, 100kg -> 100 kg
       ;; But preserve ordinals like 4th, 2nd, 3rd, 5th etc.
       ;; And preserve scientific notation like 10E9, 3.5e-12

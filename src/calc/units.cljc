@@ -50,7 +50,7 @@
             :aliases ["yd" "yard" "yards"]}
    :in     {:dim {:length 1} :scale (->bigdec 0.0254)
             :name "inches" :short "in"
-            :aliases ["in" "inch" "inches"]}
+            :aliases ["inch" "inches"]}
    :mi     {:dim {:length 1} :scale (->bigdec 1609.344)
             :name "miles" :short "mi" :auto-scale true
             :aliases ["mi" "mile" "miles"]}
