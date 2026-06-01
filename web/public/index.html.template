@@ -192,6 +192,17 @@
       margin-left: 1rem;
     }
 
+    .completion-hint-item {
+      cursor: default;
+      opacity: 0.7;
+    }
+    .completion-hint-item:hover {
+      background: inherit;
+    }
+    .completion-hint-item .completion-text {
+      color: var(--text-muted);
+    }
+
     .preview-bar {
       position: sticky;
       top: -1rem;

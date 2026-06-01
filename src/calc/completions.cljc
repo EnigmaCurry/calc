@@ -496,6 +496,22 @@
       (and (empty? prior) (seq prefix) (str/starts-with? prefix "/"))
       (vec (filter-prefix slash-commands))
 
+      ;; Usage hints for tip/tax/roll commands
+      (let [first-word (str/lower-case (or (first parts) ""))]
+        (and (seq parts)
+             (contains? #{"tip" "tax" "roll"} first-word)))
+      (let [cmd (str/lower-case (first parts))]
+        (case cmd
+          "tip"  [{:text "tip $35"      :group "Examples" :desc "round tip table" :hint true}
+                  {:text "tip $35 22%"  :group "Examples" :desc "exact tip"       :hint true}
+                  {:text "tip $35 $42"  :group "Examples" :desc "tip to reach total" :hint true}]
+          "tax"  [{:text "tax $100 8.5%" :group "Examples" :desc "sales tax"      :hint true}
+                  {:text "tax $100 $108.50" :group "Examples" :desc "find tax rate" :hint true}]
+          "roll" [{:text "roll 2d6"     :group "Examples" :desc "roll two six-sided dice" :hint true}
+                  {:text "roll 2d6+3"   :group "Examples" :desc "roll with modifier"      :hint true}
+                  {:text "roll 4d6kh3"  :group "Examples" :desc "keep highest 3"          :hint true}]
+          []))
+
       ;; Compound prefix: "fps/p" → complete denominator
       (and (seq prefix) (str/includes? prefix "/"))
       (let [slash-idx (str/index-of prefix "/")

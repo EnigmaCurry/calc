@@ -760,7 +760,8 @@
   (let [key (.-key e)
         {:keys [history hist-index saved-input input comp-index show-completions]} @state
         comps (when show-completions (current-completions input))
-        has-completions? (seq comps)]
+        all-hints? (and (seq comps) (every? :hint comps))
+        has-completions? (and (seq comps) (not all-hints?))]
     (case key
       "Tab"
       (when has-completions?
@@ -816,17 +817,22 @@
       nil)))
 
 (defn- completion-item-view [abs-idx item comp-index]
-  [:div.completion-item
-   {:class (when (= abs-idx comp-index) "highlighted")
-    :ref (fn [el]
-           (when (and el (= abs-idx comp-index))
-             (.scrollIntoView el #js {:block "nearest"})))
-    :on-mouse-down (fn [e]
-                     (.preventDefault e)
-                     (accept-completion (:text item)))}
-   [:span.completion-text (:text item)]
-   (when (:desc item)
-     [:span.completion-desc (:desc item)])])
+  (if (:hint item)
+    [:div.completion-item.completion-hint-item
+     [:span.completion-text (:text item)]
+     (when (:desc item)
+       [:span.completion-desc (:desc item)])]
+    [:div.completion-item
+     {:class (when (= abs-idx comp-index) "highlighted")
+      :ref (fn [el]
+             (when (and el (= abs-idx comp-index))
+               (.scrollIntoView el #js {:block "nearest"})))
+      :on-mouse-down (fn [e]
+                       (.preventDefault e)
+                       (accept-completion (:text item)))}
+     [:span.completion-text (:text item)]
+     (when (:desc item)
+       [:span.completion-desc (:desc item)])]))
 
 (defn- flatten-with-headers [indexed-comps]
   (loop [items indexed-comps, prev-group nil, result []]
