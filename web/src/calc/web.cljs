@@ -942,7 +942,9 @@
       (when preview
         (let [has-completions? (and (:show-completions @state)
                                     (seq (current-completions input)))
-              incomplete? (and (seq input) (= \space (last input)))]
+              incomplete? (and (seq input)
+                              (or (= \space (last input))
+                                  (re-find #"\d%$" input)))]
           [:div.preview-bar
            [:span.preview-spacer {:aria-hidden "true"} "calc"]
            [:span.preview-answer
