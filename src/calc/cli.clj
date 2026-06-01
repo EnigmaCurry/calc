@@ -3,8 +3,11 @@
             [calc.eval :as ev]
             [calc.format :as fmt]
             [clojure.string :as str]
-            [calc.parser :as parser])
-  (:import (org.jline.reader LineReaderBuilder EndOfFileException UserInterruptException LineReader Widget Highlighter)
+            [calc.parser :as parser]
+            [calc.completions :as completions])
+  (:import (org.jline.reader LineReaderBuilder EndOfFileException UserInterruptException
+                             LineReader LineReader$Option Widget Highlighter Completer Candidate)
+           (org.jline.reader.impl LineReaderImpl)
            (org.jline.terminal TerminalBuilder)
            (org.jline.utils AttributedString AttributedStringBuilder AttributedStyle))
   (:gen-class))
@@ -348,6 +351,7 @@
   (print "\033[2J\033[H")
   (flush))
 
+
 (defn- make-preview-highlighter
   "Create a Highlighter that appends a live preview line below the input."
   [fmt-opts accepting]
@@ -359,37 +363,60 @@
                 (str/starts-with? text "/")
                 (#{"exit" "quit" "help"} text))
           (AttributedString. text)
-          (try
-            (let [trimmed (str/trim text)
-                  {:keys [error result target]}
-                  (or (fmt/roll-preview trimmed)
-                      (process-request-text trimmed @fmt-opts))]
-              (if (and result (not error))
-                (let [display (if target (str result " " target) result)
-                      asb (AttributedStringBuilder.)]
-                  (.append asb text)
-                  (.style asb (.foreground AttributedStyle/DEFAULT (int 2)))
-                  (.append asb (str "\n  → " display))
-                  (.style asb AttributedStyle/DEFAULT)
-                  (.toAttributedString asb))
-                (if error
-                  (let [asb (AttributedStringBuilder.)]
-                    (.append asb text)
-                    (.style asb (.foreground AttributedStyle/DEFAULT AttributedStyle/RED))
-                    (.append asb (str "\n  ✗ " error))
-                    (.style asb AttributedStyle/DEFAULT)
-                    (.toAttributedString asb))
-                  (AttributedString. text))))
-            (catch Exception e
-              (let [msg (.getMessage e)
+          (let [hint (completions/target-dim-hint text)]
+            (try
+              (let [trimmed (str/trim text)
+                    {:keys [error result target]}
+                    (or (fmt/roll-preview trimmed)
+                        (process-request-text trimmed @fmt-opts))
                     asb (AttributedStringBuilder.)]
                 (.append asb text)
-                (.style asb (.foreground AttributedStyle/DEFAULT AttributedStyle/RED))
-                (.append asb (str "\n  ✗ " (or msg "Error")))
-                (.style asb AttributedStyle/DEFAULT)
-                (.toAttributedString asb)))))))
+                ;; Always show dimension hint when in target-unit phase
+                (when hint
+                  (.style asb (.foreground AttributedStyle/DEFAULT AttributedStyle/CYAN))
+                  (.append asb (str "\n  ▸ " hint))
+                  (.style asb AttributedStyle/DEFAULT))
+                (cond
+                  (and result (not error))
+                  (let [display (if target (str result " " target) result)]
+                    (.style asb (.foreground AttributedStyle/DEFAULT (int 2)))
+                    (.append asb (str "\n  → " display))
+                    (.style asb AttributedStyle/DEFAULT))
+
+                  (and error (not hint))
+                  (do (.style asb (.foreground AttributedStyle/DEFAULT AttributedStyle/RED))
+                      (.append asb (str "\n  ✗ " error))
+                      (.style asb AttributedStyle/DEFAULT)))
+                (.toAttributedString asb))
+              (catch Exception e
+                (let [msg (.getMessage e)
+                      asb (AttributedStringBuilder.)]
+                  (.append asb text)
+                  (if hint
+                    (do (.style asb (.foreground AttributedStyle/DEFAULT AttributedStyle/CYAN))
+                        (.append asb (str "\n  ▸ " hint)))
+                    (do (.style asb (.foreground AttributedStyle/DEFAULT AttributedStyle/RED))
+                        (.append asb (str "\n  ✗ " (or msg "Error")))))
+                  (.style asb AttributedStyle/DEFAULT)
+                  (.toAttributedString asb))))))))
     (setErrorPattern [_ _])
     (setErrorIndex [_ _])))
+
+(defn- make-candidate
+  "Create a Candidate with a sort key for ordering."
+  [text group desc ^String sort-key]
+  (Candidate. text text group desc nil sort-key true))
+
+(defn- make-completer
+  "Create a JLine Completer backed by the completion engine."
+  []
+  (reify Completer
+    (complete [_ _reader line candidates]
+      (let [buf (.line line)
+            results (completions/complete buf)]
+        (doseq [[idx {:keys [text group desc]}] (map-indexed vector results)]
+          (.add candidates
+                (make-candidate text group desc (format "%06d" idx))))))))
 
 (defn repl
   "Launch an interactive REPL with JLine readline support and live preview."
@@ -397,10 +424,33 @@
   (let [fmt-opts (atom nil)
         accepting (atom false)
         terminal (-> (TerminalBuilder/builder) (.system true) (.build))
-        reader   (-> (LineReaderBuilder/builder)
-                     (.terminal terminal)
-                     (.highlighter (make-preview-highlighter fmt-opts accepting))
-                     (.build))]
+        reader   (try
+                   ;; JVM: subclass LineReaderImpl to override sort order
+                   (let [r (proxy [LineReaderImpl] [terminal "calc" (java.util.HashMap.)]
+                             (getCandidateComparator [case-insensitive word]
+                               (reify java.util.Comparator
+                                 (compare [_ a b]
+                                   (let [ka (.key ^Candidate a)
+                                         kb (.key ^Candidate b)]
+                                     (if (and ka kb)
+                                       (.compareTo ^String ka ^String kb)
+                                       (.compareTo ^String (.value ^Candidate a)
+                                                   ^String (.value ^Candidate b))))))))]
+                     (.setCompleter r (make-completer))
+                     (.setHighlighter r (make-preview-highlighter fmt-opts accepting))
+                     r)
+                   (catch Throwable _
+                     ;; Babashka: fall back to builder (alphabetical sort)
+                     (-> (LineReaderBuilder/builder)
+                         (.terminal terminal)
+                         (.completer (make-completer))
+                         (.highlighter (make-preview-highlighter fmt-opts accepting))
+                         (.build))))]
+    ;; MENU_COMPLETE: Tab cycles through an interactive menu overlay (never prints
+    ;; a static list into scrollback).  The menu is dismissed cleanly on Enter.
+    (.setOpt reader LineReader$Option/MENU_COMPLETE)
+    (.setOpt reader LineReader$Option/AUTO_LIST)
+    (.setOpt reader LineReader$Option/AUTO_MENU)
     (.setVariable reader LineReader/HISTORY_FILE hist-path)
     (let [widgets (.getWidgets reader)
           ^Widget orig-accept (get widgets LineReader/ACCEPT_LINE)]

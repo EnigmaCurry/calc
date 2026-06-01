@@ -74,6 +74,9 @@
       (str/replace #"[?]" "")
       (str/replace #"," "")
       (str/replace #"~\s*" "~ ")
+      ;; Expand abutted "in" to "inch" so standalone "in" is always a connector.
+      ;; 12in → 12 inch, 3.5in → 3.5 inch (but 12inch, 12inches unchanged)
+      (str/replace #"(?i)(\d)in\b" "$1 inch")
       ;; 12ft -> 12 ft, 100kg -> 100 kg
       ;; But preserve ordinals like 4th, 2nd, 3rd, 5th etc.
       ;; And preserve scientific notation like 10E9, 3.5e-12
@@ -1408,6 +1411,134 @@
        (when-let [[second-val _] (parse-percentage-number second-str)]
          {:op :tax :percent second-val :price first-val})))))
 
+;; ---------------------------------------------------------------------------
+;; Base conversion (binary, octal, decimal, hex, sexagesimal, arbitrary)
+;; ---------------------------------------------------------------------------
+
+(def ^:private base-names
+  {"binary" :binary "bin" :binary
+   "octal" :octal "oct" :octal
+   "decimal" :decimal "dec" :decimal
+   "hex" :hex "hexadecimal" :hex
+   "sexagesimal" :sexagesimal "sex" :sexagesimal})
+
+(defn- parse-base-literal
+  "Try to parse a base-prefixed literal or sexagesimal colon notation.
+   Returns [integer-value from-base] or nil.
+   Handles spaces inserted by clean-phrase (e.g. '0x ff' from '0xff')."
+  [s]
+  (let [s (str/trim s)]
+    (cond
+      ;; 0x/0X hex prefix (with optional space from clean-phrase)
+      (re-matches #"(?i)^0x\s*[0-9a-f]+$" s)
+      (let [digits (str/replace (str/replace s #"(?i)^0x\s*" "") #"\s+" "")]
+        [(#?(:clj BigInteger. :cljs js/parseInt)
+          digits #?(:clj 16 :cljs 16))
+         :hex])
+
+      ;; 0b/0B binary prefix (with optional space)
+      (re-matches #"(?i)^0b\s*[01]+$" s)
+      (let [digits (str/replace (str/replace s #"(?i)^0b\s*" "") #"\s+" "")]
+        [(#?(:clj BigInteger. :cljs js/parseInt)
+          digits #?(:clj 2 :cljs 2))
+         :binary])
+
+      ;; 0o/0O octal prefix (with optional space)
+      (re-matches #"(?i)^0o\s*[0-7]+$" s)
+      (let [digits (str/replace (str/replace s #"(?i)^0o\s*" "") #"\s+" "")]
+        [(#?(:clj BigInteger. :cljs js/parseInt)
+          digits #?(:clj 8 :cljs 8))
+         :octal])
+
+      ;; Sexagesimal: H:MM:SS or M:SS (colon-separated digits)
+      (re-matches #"^\d+:\d{2}:\d{2}$" s)
+      (let [[h m sec] (map parse-long-str (str/split s #":"))]
+        [(+ (* h 3600) (* m 60) sec) :sexagesimal])
+
+      :else nil)))
+
+(defn- parse-base-target
+  "Parse a target base name from a string. Returns a base keyword or integer, or nil.
+   Handles: 'hex', 'binary', 'base 7', 'base 16', etc."
+  [s]
+  (let [s (str/trim (str/lower-case s))]
+    (or (get base-names s)
+        (when-let [[_ n] (re-matches #"base\s+(\d+)" s)]
+          (let [b (parse-long-str n)]
+            (when (>= b 2) b))))))
+
+(defn- parse-value-with-base-suffix
+  "Parse 'ff hex', '11111111 binary', '377 octal' — value followed by base name.
+   Returns [integer-value from-base remaining-str] or nil."
+  [s]
+  (let [tokens (str/split (str/trim s) #"\s+")
+        n (count tokens)]
+    (when (>= n 2)
+      (let [last-token (str/lower-case (last tokens))
+            base-kw (get base-names last-token)]
+        (when (and base-kw (not= base-kw :decimal) (not= base-kw :sexagesimal))
+          (let [value-str (str/join " " (butlast tokens))
+                radix (case base-kw :hex 16 :binary 2 :octal 8 nil)]
+            (when radix
+              (try
+                (let [digits (str/replace value-str #"\s+" "")
+                      v (#?(:clj BigInteger. :cljs js/parseInt)
+                         digits #?(:clj radix :cljs radix))]
+                  [v base-kw])
+                #?(:clj (catch Exception _ nil)
+                   :cljs (catch :default _ nil))))))))))
+
+(defn- clean-phrase-light
+  "Minimal cleaning for base conversion detection: strip ? and , collapse whitespace.
+   Does NOT insert spaces between digits and letters (preserves 0xff, 0b1010, etc.)."
+  [s]
+  (-> s
+      str/trim
+      (str/replace #"[?]" "")
+      (str/replace #"," "")
+      (str/replace #"\s+" " ")
+      str/trim))
+
+(defn parse-base-convert
+  "Try to parse a base conversion expression. Returns a request map or nil.
+   Uses light cleaning to preserve base prefixes (0x, 0b, 0o).
+   Supports:
+     '255 in hex'              → {:op :base-convert :value 255 :from-base :decimal :to-base :hex}
+     '0xff in decimal'         → {:op :base-convert :value 255 :from-base :hex :to-base :decimal}
+     '0b1010 in hex'           → {:op :base-convert :value 10 :from-base :binary :to-base :hex}
+     'ff hex in decimal'       → {:op :base-convert :value 255 :from-base :hex :to-base :decimal}
+     '1:30:45 in decimal'      → {:op :base-convert :value 5445 :from-base :sexagesimal :to-base :decimal}
+     '255 in base 7'           → {:op :base-convert :value 255 :from-base :decimal :to-base 7}"
+  [_cleaned-s original-phrase]
+  (let [s (clean-phrase-light original-phrase)]
+    (or
+     ;; With target: "X in/to Y"
+     (when-let [[qty-str to-str] (split-request s)]
+       (let [to-base (parse-base-target to-str)]
+         (when to-base
+           (or
+            ;; Try base-prefixed literal on quantity side (0xff, 0b1010, 0o377, H:M:S)
+            (when-let [[value from-base] (parse-base-literal qty-str)]
+              {:op :base-convert :value (long value) :from-base from-base :to-base to-base})
+
+            ;; Try base-name suffix on quantity side (ff hex, 377 octal)
+            (when-let [[value from-base] (parse-value-with-base-suffix qty-str)]
+              {:op :base-convert :value (long value) :from-base from-base :to-base to-base})
+
+            ;; Plain decimal number
+            (let [trimmed (str/trim qty-str)]
+              (when (re-matches #"\d+" trimmed)
+                {:op :base-convert
+                 :value (long (#?(:clj BigInteger. :cljs js/parseInt)
+                               trimmed #?(:clj 10 :cljs 10)))
+                 :from-base :decimal
+                 :to-base to-base}))))))
+
+     ;; Standalone base literal (no target): "0xff", "0b1010", "1:30:45"
+     ;; Default to decimal output
+     (when-let [[value from-base] (parse-base-literal s)]
+       {:op :base-convert :value (long value) :from-base from-base :to-base :decimal}))))
+
 (defn parse-request [phrase]
   (let [original phrase]
     (if-let [roll (dice/parse-roll phrase)]
@@ -1421,14 +1552,18 @@
             cleaned (if full-math pre-cleaned (evaluate-math-exprs pre-cleaned))
             [without-format format] (extract-format cleaned)
             [without-approx approx?] (extract-approx without-format)
-            tip (parse-tip without-approx)
-            tax (when-not tip (parse-tax without-approx))
-            pct (when-not (or tip tax) (parse-percentage without-approx))
-            root (when-not (or tip tax pct) (parse-root without-approx))
-            modulo (when-not (or tip tax pct root) (parse-modulo without-approx))
-            trig (when-not (or tip tax pct root modulo) (parse-trig without-approx))
+            base-conv (parse-base-convert without-approx original)
+            tip (when-not base-conv (parse-tip without-approx))
+            tax (when-not (or base-conv tip) (parse-tax without-approx))
+            pct (when-not (or base-conv tip tax) (parse-percentage without-approx))
+            root (when-not (or base-conv tip tax pct) (parse-root without-approx))
+            modulo (when-not (or base-conv tip tax pct root) (parse-modulo without-approx))
+            trig (when-not (or base-conv tip tax pct root modulo) (parse-trig without-approx))
             math (or (when full-math {:op :math-expr :value full-math})
-                     (when-not (or tip tax pct root modulo trig) (parse-standalone-math without-approx)))]
+                     (when-not (or base-conv tip tax pct root modulo trig) (parse-standalone-math without-approx)))]
+        (if base-conv
+          (cond-> base-conv
+            format (assoc :format format))
         (if tip
           (cond-> tip
             format (assoc :format format))
@@ -1479,7 +1614,7 @@
                                      :to (parse-unit-phrase to-str)}
                               approx? (assoc :approx? true)
                               format (assoc :format format))]
-                request)))))))))))))
+                request))))))))))))))
       #?(:clj (catch clojure.lang.ExceptionInfo ex
                 (or (parse-error original ex)
                     {:error :unparseable

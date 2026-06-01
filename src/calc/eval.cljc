@@ -460,6 +460,38 @@
                       (round-total-row bill percent (+ (m/dec->double percent) 10))])))]
       {:value (:tip exact-row) :rows rows :bill bill})))
 
+;; ============================================================================
+;; Base conversion
+;; ============================================================================
+
+(defn- int->base-str
+  "Convert an integer to a string in the given base (2-36). Uses lowercase."
+  [n base]
+  #?(:clj  (.toString (BigInteger/valueOf (long n)) (int base))
+     :cljs (.toString (js/Number n) base)))
+
+(defn- format-base-result
+  "Format an integer value as a string in the target base with appropriate prefix."
+  [value to-base]
+  (cond
+    (= to-base :decimal) (str value)
+    (= to-base :hex) (str "0x" (int->base-str value 16))
+    (= to-base :binary) (str "0b" (int->base-str value 2))
+    (= to-base :octal) (str "0o" (int->base-str value 8))
+    (= to-base :sexagesimal)
+    (let [total (long value)
+          h (quot total 3600)
+          remainder (mod total 3600)
+          m (quot remainder 60)
+          s (mod remainder 60)]
+      #?(:clj  (format "%d:%02d:%02d" h m s)
+         :cljs (str h ":" (when (< m 10) "0") m ":" (when (< s 10) "0") s)))
+    (integer? to-base) (int->base-str value to-base)
+    :else (str value)))
+
+(defn- evaluate-base-convert [{:keys [value to-base]}]
+  {:value (format-base-result value to-base)})
+
 (defn- evaluate-tax [{:keys [percent price]}]
   (let [tax (round-up-penny
              (m/ddiv (m/d* (m/->dec percent) (m/->dec price)) (m/->dec 100)))
@@ -537,6 +569,9 @@
 
      (= op :tax)
      (evaluate-tax request)
+
+     (= op :base-convert)
+     (evaluate-base-convert request)
 
      (= op :math-expr)
      {:value (u/normalize-number (:value request))}
