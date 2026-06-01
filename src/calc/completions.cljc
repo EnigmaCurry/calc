@@ -288,6 +288,89 @@
   (some compound-dim (reverse (join-slash-compounds words))))
 
 ;; ============================================================================
+;; Magnitude-aware sorting
+;; ============================================================================
+
+(defn- to-double [x]
+  #?(:clj (double x) :cljs x))
+
+(defn- token-si-scale
+  "Get the SI scale factor as a double for a unit token. Returns nil for unresolvable."
+  [token]
+  (try
+    (or
+     (when-let [uk (resolve-unit token)]
+       (when-let [info (get u/unit-defs uk)]
+         (when-not (:temperature info)
+           (to-double (:scale info)))))
+     (when-let [um (or (get parser/special-unit-forms token)
+                        (get parser/special-unit-forms (str/lower-case token)))]
+       (to-double (:scale (u/unit-spec um))))
+     (let [[base exp] (parse-unit-exponent token)]
+       (when (and (not= exp 1) (resolve-unit base))
+         (to-double (:scale (u/unit-spec {(resolve-unit base) exp})))))
+     (let [stripped (strip-number-prefix token)]
+       (when (not= stripped token)
+         (token-si-scale stripped))))
+    (catch #?(:clj Exception :cljs :default) _ nil)))
+
+(defn- compound-si-scale
+  "Get SI scale for a potentially compound token like 'mph/gram'."
+  [token]
+  (if (str/includes? token "/")
+    (let [parts (str/split token #"/")
+          scales (map token-si-scale parts)]
+      (when (every? some? scales)
+        (reduce / scales)))
+    (token-si-scale token)))
+
+(defn- parse-double [s]
+  (try
+    (#?(:clj Double/parseDouble :cljs js/parseFloat) (str/replace s "," ""))
+    (catch #?(:clj Exception :cljs :default) _ nil)))
+
+(defn- source-si-value
+  "Compute |source_value * source_scale| in SI base units as a double.
+   Scans words backwards for a number+unit pair."
+  [words]
+  (let [joined (join-slash-compounds words)]
+    (loop [i (dec (count joined))]
+      (when (>= i 0)
+        (let [w (nth joined i)
+              stripped (strip-number-prefix w)
+              result
+              (cond
+                ;; Abutted: "12ft"
+                (and (not= stripped w) (compound-si-scale stripped))
+                (when-let [v (parse-double (subs w 0 (- (count w) (count stripped))))]
+                  (Math/abs (* v (compound-si-scale stripped))))
+
+                ;; Standalone unit with preceding number
+                (and (compound-si-scale w) (> i 0) (number-token? (nth joined (dec i))))
+                (when-let [v (parse-double (nth joined (dec i)))]
+                  (Math/abs (* v (compound-si-scale w)))))]
+          (or result (recur (dec i))))))))
+
+(defn- sort-by-closeness
+  "Sort candidates by how close source_si / target_scale is to 1.0.
+   Falls back to alphabetical for candidates without computable scale."
+  [source-si candidates]
+  (if source-si
+    (let [scored (map (fn [entry]
+                        (let [scale (when-let [uk (:canonical entry)]
+                                      (when-let [info (get u/unit-defs uk)]
+                                        (when-not (:temperature info)
+                                          (to-double (:scale info)))))
+                              closeness (if scale
+                                          (Math/abs (#?(:clj Math/log10 :cljs js/Math.log10)
+                                                     (/ source-si scale)))
+                                          1e9)]
+                          (assoc entry :closeness closeness)))
+                      candidates)]
+      (vec (map #(dissoc % :closeness) (sort-by :closeness scored))))
+    (vec (sort-by :text candidates))))
+
+;; ============================================================================
 ;; Compound suggestion generation
 ;; ============================================================================
 
@@ -372,15 +455,16 @@
         (when (seq denom-prefix)  ;; only suggest after at least 1 char of denominator
           (complete-compound-denom numer denom-prefix target-dim)))
 
-      ;; After "in"/"to" → suggest target units, dimension-filtered
+      ;; After "in"/"to" → suggest target units, dimension-filtered, magnitude-sorted
       (and (seq prior) (connector-token? (last prior)))
-      (let [src-dim (find-source-dim (butlast prior))
+      (let [before-connector (butlast prior)
+            src-dim (find-source-dim before-connector)
+            source-si (source-si-value before-connector)
             simple (if src-dim
                      (->> vocabulary
                           (filter #(= src-dim (:dim %)))
                           filter-prefix
-                          (sort-by :text)
-                          vec)
+                          (sort-by-closeness source-si))
                      (->> vocabulary filter-prefix (sort-by :text) vec))
             ;; Generate compound suggestions when no simple vocab matches
             compounds (when (and src-dim (empty? simple))
