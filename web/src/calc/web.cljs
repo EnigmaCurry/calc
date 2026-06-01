@@ -839,7 +839,7 @@
                      (conj result [:group group]))]
         (recur (rest items) group (conj result [:item idx entry]))))))
 
-(defn completion-dropdown []
+(defn completion-dropdown [preview]
   (let [{:keys [input comp-index show-completions]} @state
         comps (when show-completions (current-completions input))
         dim-hint (when show-completions (completions/target-dim-hint input))]
@@ -851,12 +851,24 @@
                                 [:div.completion-group (second element)]
                          :item (let [[_ idx entry] element]
                                  ^{:key (str "i-" idx)}
-                                 (completion-item-view idx entry comp-index))))]
-        (into [:div.completion-dropdown]
-              (if dim-hint
-                (cons ^{:key "hint"} [:div.completion-hint (str "Expected: " dim-hint)]
-                      children)
-                children))))))
+                                 (completion-item-view idx entry comp-index))))
+            preview-el (when (and preview (not (:error preview)))
+                         [:div.completion-preview
+                          {:key "preview"}
+                          (cond
+                            (and (:result preview) (str/includes? (str (:result preview)) "\n"))
+                            [multiline-result (:result preview) "preview-result"]
+                            (:target preview)
+                            [:span.preview-result (str "= " (:result preview) " " (:target preview))]
+                            :else
+                            [:span.preview-result (str "= " (:result preview))])])]
+        [:div.completion-dropdown
+         (into [:div.completion-items]
+               (if dim-hint
+                 (cons ^{:key "hint"} [:div.completion-hint (str "Expected: " dim-hint)]
+                       children)
+                 children))
+         preview-el]))))
 
 (defn app []
   (let [{:keys [input history menu-open]} @state
@@ -885,7 +897,7 @@
                                               (swap! state assoc :comp-index -1 :show-completions false))
                                             150)))}
                  (empty? history) (assoc :placeholder "e.g. 100GB / 900Mbps"))]
-       [completion-dropdown]
+       [completion-dropdown preview]
        (let [clear-fn (fn [e]
                         (.preventDefault e)
                         (.stopPropagation e)
@@ -939,34 +951,30 @@
                 (str "#" sha)])))]])
 
      [:main {:ref #(reset! log-ref %)}
-      (when preview
-        (let [has-completions? (and (:show-completions @state)
-                                    (seq (current-completions input)))
-              incomplete? (and (seq input)
-                              (or (= \space (last input))
-                                  (re-find #"\d%$" input)))]
-          [:div.preview-bar
-           [:span.preview-spacer {:aria-hidden "true"} "calc"]
-           [:span.preview-answer
-            (cond
-              (and (:error preview) has-completions?)
-              nil
+      (let [has-completions? (and (:show-completions @state)
+                                  (seq (current-completions input)))]
+        (when (and preview (not has-completions?))
+          (let [incomplete? (and (seq input)
+                                (or (= \space (last input))
+                                    (re-find #"\d%$" input)))]
+            [:div.preview-bar
+             [:span.preview-spacer {:aria-hidden "true"} "calc"]
+             [:span.preview-answer
+              (cond
+                (:error preview)
+                (if incomplete?
+                  [:span.preview-warning "keep typing\u2026"]
+                  [:span.preview-error (:error preview)])
 
-              (and (:error preview) incomplete?)
-              [:span.preview-warning "keep typing\u2026"]
+                (and (:result preview) (str/includes? (str (:result preview)) "\n"))
+                [multiline-result (:result preview) "preview-result"]
 
-              (:error preview)
-              [:span.preview-error (:error preview)]
+                (:target preview)
+                [:span.preview-result (str "= " (:result preview) " " (:target preview))]
 
-              (and (:result preview) (str/includes? (str (:result preview)) "\n"))
-              [multiline-result (:result preview) "preview-result"]
-
-              (:target preview)
-              [:span.preview-result (str "= " (:result preview) " " (:target preview))]
-
-              :else
-              [:span.preview-result (str "= " (:result preview))])]
-           [:button.convert {:on-click evaluate!} "="]]))
+                :else
+                [:span.preview-result (str "= " (:result preview))])]
+             [:button.convert {:on-click evaluate!} "="]])))
       (case (:page @state)
         :help [help-page]
         :settings [settings-page]

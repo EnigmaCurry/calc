@@ -117,14 +117,29 @@
       top: 100%;
       left: 0;
       right: 0;
-      max-height: 300px;
-      overflow-y: auto;
+      max-height: 350px;
+      display: flex;
+      flex-direction: column;
       background: var(--surface);
       border: 1px solid var(--border);
       border-top: none;
       border-radius: 0 0 6px 6px;
       z-index: 20;
       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    .completion-items {
+      overflow-y: auto;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .completion-preview {
+      border-top: 1px solid var(--border);
+      padding: 0.4rem 0.75rem;
+      font-family: "SF Mono", "Fira Code", "Fira Mono", monospace;
+      font-size: 0.85rem;
+      flex-shrink: 0;
     }
 
     .completion-hint {
