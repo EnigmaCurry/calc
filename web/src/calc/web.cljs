@@ -195,6 +195,18 @@
       (.removeItem js/localStorage "calc-hide-examples"))
     (catch :default _ nil)))
 
+(defn load-completions-enabled []
+  (try
+    (not= "false" (.getItem js/localStorage "calc-completions"))
+    (catch :default _ true)))
+
+(defn save-completions-enabled! [v]
+  (try
+    (if v
+      (.removeItem js/localStorage "calc-completions")
+      (.setItem js/localStorage "calc-completions" "false"))
+    (catch :default _ nil)))
+
 (defn mobile? []
   (and js/window.matchMedia
        (.-matches (.matchMedia js/window "(max-width: 480px)"))))
@@ -238,7 +250,8 @@
                         :page :calc
                         :copied-idx nil
                         :comp-index -1
-                        :show-completions false}))
+                        :show-completions false
+                        :completions-enabled (load-completions-enabled)}))
 
 (defn effective-fmt-opts
   "Merge default settings with session overrides. Session wins."
@@ -507,7 +520,17 @@
                    (let [v (not (:hide-examples @state))]
                      (swap! state assoc :hide-examples v)
                      (save-hide-examples! v)))}]
-        "Hide examples cloud"]]]
+        "Hide examples cloud"]
+      [:div.setting-row
+       [:label.setting-label
+        [:input {:type "checkbox"
+                 :checked (:completions-enabled @state)
+                 :on-change
+                 (fn [_]
+                   (let [v (not (:completions-enabled @state))]
+                     (swap! state assoc :completions-enabled v :show-completions false)
+                     (save-completions-enabled! v)))}]
+        "Autocomplete suggestions"]]]]
      [:div.settings-section
       [:h3 "Default Formatting"]
       [:p.group-desc
@@ -705,7 +728,7 @@
            :input val
            :hist-index -1
            :comp-index -1
-           :show-completions true)))
+           :show-completions (:completions-enabled @state))))
 
 (defn accept-completion
   "Replace the current prefix in :input with the completion text, add a trailing space."
