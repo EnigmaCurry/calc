@@ -1399,6 +1399,13 @@
        (when-let [[pct _] (parse-percentage-number (strip-dollar pct-str))]
          {:op :tax :percent pct :price price})))
 
+   ;; Brief form: "tax $X $Y" (two dollar amounts: price then total)
+   (when-let [[_ price-str total-str] (re-matches #"(?i)^tax\s+\$(\S+)\s+\$(\S+)$" s)]
+     (when-let [[price _] (parse-percentage-number price-str)]
+       (when-let [[total _] (parse-percentage-number total-str)]
+         (when (> total price)
+           {:op :tax :percent (* (/ (double (- total price)) (double price)) 100.0) :price price}))))
+
    ;; Brief form: "tax $Y N" (dollar price then bare number rate)
    (when-let [[_ price-str pct-str] (re-matches #"(?i)^tax\s+\$(\S+)\s+(\S+)$" s)]
      (when-let [[price _] (parse-percentage-number price-str)]
