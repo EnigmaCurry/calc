@@ -689,13 +689,15 @@
           (save-history! (:history @state))
           (js/setTimeout scroll-log-to-top 0))))))
 
+(def ^:private max-web-completions 20)
+
 (defn on-input-change [e]
   (when-let [t @blur-timer] (js/clearTimeout t) (reset! blur-timer nil))
   (let [val (.. e -target -value)]
     (swap! state assoc
            :input val
            :hist-index -1
-           :completions (completions/complete val)
+           :completions (vec (take max-web-completions (completions/complete val)))
            :comp-index -1
            :dim-hint (completions/target-dim-hint val))))
 
@@ -715,7 +717,7 @@
         new-input (str base completion-text " ")]
     (swap! state assoc
            :input new-input
-           :completions (completions/complete new-input)
+           :completions (vec (take max-web-completions (completions/complete new-input)))
            :comp-index -1
            :dim-hint (completions/target-dim-hint new-input))
     (when-let [el (.querySelector js/document ".input-wrapper input")]
