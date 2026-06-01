@@ -424,18 +424,28 @@
   (let [fmt-opts (atom nil)
         accepting (atom false)
         terminal (-> (TerminalBuilder/builder) (.system true) (.build))
-        reader   (proxy [LineReaderImpl] [terminal "calc" (java.util.HashMap.)]
-                   (getCandidateComparator [case-insensitive word]
-                     (reify java.util.Comparator
-                       (compare [_ a b]
-                         (let [ka (.key ^Candidate a)
-                               kb (.key ^Candidate b)]
-                           (if (and ka kb)
-                             (.compareTo ^String ka ^String kb)
-                             (.compareTo ^String (.value ^Candidate a)
-                                         ^String (.value ^Candidate b))))))))]
-    (.setCompleter reader (make-completer))
-    (.setHighlighter reader (make-preview-highlighter fmt-opts accepting))
+        reader   (try
+                   ;; JVM: subclass LineReaderImpl to override sort order
+                   (let [r (proxy [LineReaderImpl] [terminal "calc" (java.util.HashMap.)]
+                             (getCandidateComparator [case-insensitive word]
+                               (reify java.util.Comparator
+                                 (compare [_ a b]
+                                   (let [ka (.key ^Candidate a)
+                                         kb (.key ^Candidate b)]
+                                     (if (and ka kb)
+                                       (.compareTo ^String ka ^String kb)
+                                       (.compareTo ^String (.value ^Candidate a)
+                                                   ^String (.value ^Candidate b))))))))]
+                     (.setCompleter r (make-completer))
+                     (.setHighlighter r (make-preview-highlighter fmt-opts accepting))
+                     r)
+                   (catch Throwable _
+                     ;; Babashka: fall back to builder (alphabetical sort)
+                     (-> (LineReaderBuilder/builder)
+                         (.terminal terminal)
+                         (.completer (make-completer))
+                         (.highlighter (make-preview-highlighter fmt-opts accepting))
+                         (.build))))]
     ;; MENU_COMPLETE: Tab cycles through an interactive menu overlay (never prints
     ;; a static list into scrollback).  The menu is dismissed cleanly on Enter.
     (.setOpt reader LineReader$Option/MENU_COMPLETE)
