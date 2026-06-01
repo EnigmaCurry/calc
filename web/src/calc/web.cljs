@@ -6,6 +6,7 @@
             [calc.eval :as ev]
             [calc.format :as fmt]
             [calc.parser :as parser]
+            [calc.completions :as completions]
             [clojure.string :as str]))
 
 (defn multiline-result
@@ -194,6 +195,18 @@
       (.removeItem js/localStorage "calc-hide-examples"))
     (catch :default _ nil)))
 
+(defn load-completions-enabled []
+  (try
+    (not= "false" (.getItem js/localStorage "calc-completions"))
+    (catch :default _ true)))
+
+(defn save-completions-enabled! [v]
+  (try
+    (if v
+      (.removeItem js/localStorage "calc-completions")
+      (.setItem js/localStorage "calc-completions" "false"))
+    (catch :default _ nil)))
+
 (defn mobile? []
   (and js/window.matchMedia
        (.-matches (.matchMedia js/window "(max-width: 480px)"))))
@@ -235,7 +248,10 @@
                         :zoom (or (load-zoom) (default-zoom))
                         :precision initial-precision
                         :page :calc
-                        :copied-idx nil}))
+                        :copied-idx nil
+                        :comp-index -1
+                        :show-completions false
+                        :completions-enabled (load-completions-enabled)}))
 
 (defn effective-fmt-opts
   "Merge default settings with session overrides. Session wins."
@@ -246,6 +262,7 @@
 (defonce log-ref (atom nil))
 (defonce suppress-menu (atom false))
 (defonce press-timer (atom nil))
+(defonce blur-timer (atom nil))
 (def long-press-ms 400)
 
 (defn scroll-log-to-top []
@@ -293,6 +310,7 @@
    "tip $50"
    "tip 85.50 20"
    "tax 29.99 8.25"
+   "download 10GB 1Gbps"
    "roll 2d6"])
 
 (def unit-groups units/unit-groups)
@@ -353,6 +371,10 @@
      ["tip $100 15%" "15% exact + round total option"]
      ["tax 29.99 8.25" "Price: $29.99, Tax: $2.48 (8.25%), Total: $32.47"]
      ["tax $50 10%" "Price: $50, Tax: $5 (10%), Total: $55"]]]
+   ["Download Time"
+    [["download 10GB 1Gbps" "10 GB at 1 Gbps \u2192 1 min 20 s"]
+     ["download 1g 1g" "1 GB at 1 Gbps \u2192 8 s"]
+     ["upload 100MB 10Mbps" "100 MB at 10 Mbps \u2192 1 min 20 s"]]]
    ["Formatting"
     [["7 inches in feet as a fraction" "7/12 ft"]
      ["square root of 2 rounded to 4 decimals" "1.4142"]
@@ -503,7 +525,17 @@
                    (let [v (not (:hide-examples @state))]
                      (swap! state assoc :hide-examples v)
                      (save-hide-examples! v)))}]
-        "Hide examples cloud"]]]
+        "Hide examples cloud"]
+      [:div.setting-row
+       [:label.setting-label
+        [:input {:type "checkbox"
+                 :checked (:completions-enabled @state)
+                 :on-change
+                 (fn [_]
+                   (let [v (not (:completions-enabled @state))]
+                     (swap! state assoc :completions-enabled v :show-completions false)
+                     (save-completions-enabled! v)))}]
+        "Autocomplete suggestions"]]]]
      [:div.settings-section
       [:h3 "Default Formatting"]
       [:p.group-desc
@@ -684,40 +716,170 @@
           (save-history! (:history @state))
           (js/setTimeout scroll-log-to-top 0))))))
 
+(def ^:private max-web-completions 20)
+
+(defn current-completions
+  "Derive completions from the current input. Always fresh, never stale."
+  [input]
+  (->> (completions/complete input)
+       (take max-web-completions)
+       (sort-by (juxt :group :text))
+       vec))
+
+(defn on-input-change [e]
+  (when-let [t @blur-timer] (js/clearTimeout t) (reset! blur-timer nil))
+  (let [val (.. e -target -value)]
+    (swap! state assoc
+           :input val
+           :hist-index -1
+           :comp-index -1
+           :show-completions (:completions-enabled @state))))
+
+(defn accept-completion
+  "Replace the current prefix in :input with the completion text, add a trailing space."
+  [completion-text]
+  (let [input (:input @state)
+        buf (or input "")
+        trimmed (str/trim buf)
+        at-space? (and (seq buf) (= \space (last buf)))
+        parts (if (str/blank? trimmed) [] (str/split trimmed #"\s+"))
+        prefix (if at-space? "" (or (last parts) ""))
+        base (if at-space?
+               buf
+               (let [idx (str/last-index-of buf prefix)]
+                 (if idx (subs buf 0 idx) buf)))
+        new-input (str base completion-text " ")]
+    (swap! state assoc
+           :input new-input
+           :comp-index -1
+           :show-completions true)
+    (when-let [el (.querySelector js/document ".input-wrapper input")]
+      (js/setTimeout
+       (fn []
+         (.focus el)
+         (let [len (count new-input)]
+           (.setSelectionRange el len len)))
+       0))))
+
 (defn on-keydown [e]
   (let [key (.-key e)
-        {:keys [history hist-index saved-input input]} @state]
+        {:keys [history hist-index saved-input input comp-index show-completions]} @state
+        comps (when show-completions (current-completions input))
+        all-hints? (and (seq comps) (every? :hint comps))
+        has-completions? (and (seq comps) (not all-hints?))]
     (case key
-      "Enter"
-      (do (evaluate!)
-          (swap! state assoc :hist-index -1 :saved-input ""))
+      "Tab"
+      (when has-completions?
+        (.preventDefault e)
+        (if (= comp-index -1)
+          (swap! state assoc :comp-index 0)
+          (let [dir (if (.-shiftKey e) -1 1)
+                new-idx (mod (+ comp-index dir) (count comps))]
+            (swap! state assoc :comp-index new-idx))))
 
-      "ArrowUp"
-      (let [max-idx (dec (count history))
-            new-idx (min (inc hist-index) max-idx)]
-        (when (and (seq history) (not= new-idx hist-index))
-          (.preventDefault e)
-          (when (= hist-index -1)
-            (swap! state assoc :saved-input input))
-          (swap! state assoc
-                 :hist-index new-idx
-                 :input (:input (nth history new-idx)))))
+      "Enter"
+      (if (and has-completions? (>= comp-index 0))
+        (do (.preventDefault e)
+            (accept-completion (:text (nth comps comp-index))))
+        (do (evaluate!)
+            (swap! state assoc :hist-index -1 :saved-input ""
+                   :comp-index -1 :show-completions false)))
 
       "ArrowDown"
-      (when (>= hist-index 0)
-        (.preventDefault e)
-        (let [new-idx (dec hist-index)]
-          (if (neg? new-idx)
-            (swap! state assoc :hist-index -1 :input saved-input)
+      (if has-completions?
+        (do (.preventDefault e)
+            (swap! state assoc :comp-index
+                   (min (inc (max comp-index -1)) (dec (count comps)))))
+        (when (>= hist-index 0)
+          (.preventDefault e)
+          (let [new-idx (dec hist-index)]
+            (if (neg? new-idx)
+              (swap! state assoc :hist-index -1 :input saved-input)
+              (swap! state assoc
+                     :hist-index new-idx
+                     :input (:input (nth history new-idx)))))))
+
+      "ArrowUp"
+      (if has-completions?
+        (do (.preventDefault e)
+            (swap! state assoc :comp-index (max (dec comp-index) 0)))
+        (let [max-idx (dec (count history))
+              new-idx (min (inc hist-index) max-idx)]
+          (when (and (seq history) (not= new-idx hist-index))
+            (.preventDefault e)
+            (when (= hist-index -1)
+              (swap! state assoc :saved-input input))
             (swap! state assoc
                    :hist-index new-idx
                    :input (:input (nth history new-idx))))))
 
       "Escape"
       (do (.preventDefault e)
-          (swap! state assoc :input "" :hist-index -1))
+          (if has-completions?
+            (swap! state assoc :comp-index -1 :show-completions false)
+            (swap! state assoc :input "" :hist-index -1)))
 
       nil)))
+
+(defn- completion-item-view [abs-idx item comp-index]
+  (if (:hint item)
+    [:div.completion-item.completion-hint-item
+     [:span.completion-text (:text item)]
+     (when (:desc item)
+       [:span.completion-desc (:desc item)])]
+    [:div.completion-item
+     {:class (when (= abs-idx comp-index) "highlighted")
+      :ref (fn [el]
+             (when (and el (= abs-idx comp-index))
+               (.scrollIntoView el #js {:block "nearest"})))
+      :on-mouse-down (fn [e]
+                       (.preventDefault e)
+                       (accept-completion (:text item)))}
+     [:span.completion-text (:text item)]
+     (when (:desc item)
+       [:span.completion-desc (:desc item)])]))
+
+(defn- flatten-with-headers [indexed-comps]
+  (loop [items indexed-comps, prev-group nil, result []]
+    (if (empty? items)
+      result
+      (let [[idx entry] (first items)
+            group (:group entry)
+            result (if (= group prev-group)
+                     result
+                     (conj result [:group group]))]
+        (recur (rest items) group (conj result [:item idx entry]))))))
+
+(defn completion-dropdown [preview]
+  (let [{:keys [input comp-index show-completions]} @state
+        comps (when show-completions (current-completions input))
+        dim-hint (when show-completions (completions/target-dim-hint input))]
+    (when (seq comps)
+      (let [elements (flatten-with-headers (map-indexed vector comps))
+            children (for [element elements]
+                       (case (first element)
+                         :group ^{:key (str "g-" (second element))}
+                                [:div.completion-group (second element)]
+                         :item (let [[_ idx entry] element]
+                                 ^{:key (str "i-" idx)}
+                                 (completion-item-view idx entry comp-index))))
+            preview-el (when (and preview (not (:error preview)))
+                         [:div.completion-preview
+                          {:key "preview"}
+                          (cond
+                            (and (:result preview) (str/includes? (str (:result preview)) "\n"))
+                            [multiline-result (:result preview) "preview-result"]
+                            (:target preview)
+                            [:span.preview-result (str "= " (:result preview) " " (:target preview))]
+                            :else
+                            [:span.preview-result (str "= " (:result preview))])])]
+        [:div.completion-dropdown
+         (into [:div.completion-items]
+               (if dim-hint
+                 (cons ^{:key "hint"} [:div.completion-hint (str "Expected: " dim-hint)]
+                       children)
+                 children))
+         preview-el]))))
 
 (defn app []
   (let [{:keys [input history menu-open]} @state
@@ -734,9 +896,19 @@
        [:input (cond-> {:type "text"
                         :value input
                         :auto-focus true
-                        :on-change #(swap! state assoc :input (.. % -target -value) :hist-index -1)
-                        :on-key-down on-keydown}
+                        :auto-complete "off"
+                        :on-change on-input-change
+                        :on-key-down on-keydown
+                        :on-blur (fn [_]
+                                   (when-let [t @blur-timer] (js/clearTimeout t))
+                                   (reset! blur-timer
+                                           (js/setTimeout
+                                            (fn []
+                                              (reset! blur-timer nil)
+                                              (swap! state assoc :comp-index -1 :show-completions false))
+                                            150)))}
                  (empty? history) (assoc :placeholder "e.g. 100GB / 900Mbps"))]
+       [completion-dropdown preview]
        (let [clear-fn (fn [e]
                         (.preventDefault e)
                         (.stopPropagation e)
@@ -790,23 +962,30 @@
                 (str "#" sha)])))]])
 
      [:main {:ref #(reset! log-ref %)}
-      (when preview
-        [:div.preview-bar
-         [:span.preview-spacer {:aria-hidden "true"} "calc"]
-         [:span.preview-answer
-          (cond
-            (:error preview)
-            [:span.preview-error (:error preview)]
+      (let [has-completions? (and (:show-completions @state)
+                                  (seq (current-completions input)))]
+        (when (and preview (not has-completions?))
+          (let [incomplete? (and (seq input)
+                                (or (= \space (last input))
+                                    (re-find #"\d%$" input)))]
+            [:div.preview-bar
+             [:span.preview-spacer {:aria-hidden "true"} "calc"]
+             [:span.preview-answer
+              (cond
+                (:error preview)
+                (if incomplete?
+                  [:span.preview-warning "keep typing\u2026"]
+                  [:span.preview-error (:error preview)])
 
-            (and (:result preview) (str/includes? (str (:result preview)) "\n"))
-            [multiline-result (:result preview) "preview-result"]
+                (and (:result preview) (str/includes? (str (:result preview)) "\n"))
+                [multiline-result (:result preview) "preview-result"]
 
-            (:target preview)
-            [:span.preview-result (str "= " (:result preview) " " (:target preview))]
+                (:target preview)
+                [:span.preview-result (str "= " (:result preview) " " (:target preview))]
 
-            :else
-            [:span.preview-result (str "= " (:result preview))])]
-         [:button.convert {:on-click evaluate!} "="]])
+                :else
+                [:span.preview-result (str "= " (:result preview))])]
+             [:button.convert {:on-click evaluate!} "="]])))
       (case (:page @state)
         :help [help-page]
         :settings [settings-page]
@@ -814,10 +993,11 @@
          (when (seq history)
            [:div.log
             (for [[idx {:keys [input from target result error]}] (map-indexed vector history)]
-              (let [result-text (cond
-                                  error error
-                                  target (str result " " target)
-                                  :else (str result))
+              (let [result-text (str (or from input) " = "
+                                     (cond
+                                       error error
+                                       target (str result " " target)
+                                       :else (str result)))
                     copied? (= idx (:copied-idx @state))
                     on-press-start (fn [e]
                                      (when-not (.. e -target -classList (contains "log-delete"))

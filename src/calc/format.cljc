@@ -241,6 +241,10 @@
                 " (" (format-number (:percent parsed) fmt-opts) "%)"
                 ", Total: $" (format-number (:total result) money-opts)))
 
+    :download (str (format-number (:size-value parsed) fmt-opts) " " (:size-label parsed)
+                   " at " (format-number (:rate-value parsed) fmt-opts) " " (:rate-label parsed)
+                   " → " (:duration result))
+
     :roll (format-roll-result result)
 
     :base-convert (:value result)

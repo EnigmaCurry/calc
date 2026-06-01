@@ -49,6 +49,11 @@
     (is (= "Mass / Length"  (c/target-dim-hint "24 gram/mile in ")))
     (is (= "Time / Mass"    (c/target-dim-hint "44 millennia/kg in ")))
     (is (= "Length / Data"  (c/target-dim-hint "12 meter/bytes in "))))
+  (testing "compound units with numbers between operands"
+    (is (= "Resistance"     (c/target-dim-hint "10 volt / 56 ampere to ")))
+    (is (= "Speed"          (c/target-dim-hint "5 miles / 2 hours to ")))
+    (is (= "Electrical Potential / Length"
+           (c/target-dim-hint "12 volts / meter in "))))
   (testing "works with prefix after connector"
     (is (= "Speed / Mass"   (c/target-dim-hint "34 mph/gram in f")))
     (is (= "Length"          (c/target-dim-hint "12 feet in y"))))
@@ -110,4 +115,4 @@
                      (clojure.string/lower-case (:text %))
                      "f")
                   results))
-      (is (some #(= "feet" (:text %)) results)))))
+      (is (some #(= "foot" (:text %)) results)))))

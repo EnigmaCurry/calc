@@ -112,6 +112,97 @@
       display: none;
     }
 
+    .completion-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      max-height: 350px;
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 6px 6px;
+      z-index: 20;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    .completion-items {
+      overflow-y: auto;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .completion-preview {
+      border-top: 1px solid var(--border);
+      padding: 0.4rem 0.75rem;
+      font-family: "SF Mono", "Fira Code", "Fira Mono", monospace;
+      font-size: 0.85rem;
+      flex-shrink: 0;
+    }
+
+    .completion-hint {
+      padding: 0.35rem 0.75rem;
+      font-size: 0.75rem;
+      color: var(--accent);
+      font-style: italic;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .completion-group {
+      padding: 0.25rem 0.75rem;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      background: var(--bg);
+      position: sticky;
+      top: 0;
+    }
+
+    .completion-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.4rem 0.75rem;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+
+    .completion-item:hover,
+    .completion-item.highlighted {
+      background: var(--bg);
+    }
+
+    .completion-item.highlighted {
+      border-left: 2px solid var(--accent);
+      padding-left: calc(0.75rem - 2px);
+    }
+
+    .completion-text {
+      font-family: "SF Mono", "Fira Code", "Fira Mono", monospace;
+      font-size: 0.85rem;
+      color: var(--text);
+    }
+
+    .completion-desc {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-left: 1rem;
+    }
+
+    .completion-hint-item {
+      cursor: default;
+      opacity: 0.7;
+    }
+    .completion-hint-item:hover {
+      background: inherit;
+    }
+    .completion-hint-item .completion-text {
+      color: var(--text-muted);
+    }
+
     .preview-bar {
       position: sticky;
       top: -1rem;
@@ -156,6 +247,12 @@
     .preview-error {
       color: var(--red);
       font-size: 0.85rem;
+    }
+
+    .preview-warning {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-style: italic;
     }
 
     button.convert {
@@ -586,6 +683,8 @@
         padding: 0 3.5rem 0 0.5rem;
       }
       .input-wrapper input[type="text"] { font-size: 0.9rem; }
+      .completion-dropdown { max-height: 200px; }
+      .completion-item { padding: 0.5rem 0.75rem; min-height: 44px; }
       /* mobile zoom default handled by JS */
       .preview-bar { padding: 0.5rem 1rem; }
       .preview-spacer { display: none; }

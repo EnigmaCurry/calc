@@ -149,6 +149,26 @@
                  (dec iters))
           [numers denoms remaining])))))
 
+(defn- two-category-label
+  "Try to express dim as A / B or A · B where both A and B are known categories.
+   Returns the simplest match (fewest total dimension keys), or nil."
+  [dim]
+  (let [candidates
+        (concat
+         ;; A / B: dim = A_dim - B_dim, so A_dim = dim + B_dim
+         (for [[cat-dim-b cat-name-b] u/dim-categories
+               :let [a-dim (u/normalize-map (u/merge-dims dim cat-dim-b))]
+               :when (get u/dim-categories a-dim)]
+           {:label (str (get u/dim-categories a-dim) " / " cat-name-b)
+            :cost (+ (count a-dim) (count cat-dim-b))})
+         ;; A · B: dim = A_dim + B_dim, so B_dim = dim - A_dim
+         (for [[cat-dim-a cat-name-a] u/dim-categories
+               :let [b-dim (u/normalize-map (u/merge-dims dim (negate-dim cat-dim-a)))]
+               :when (get u/dim-categories b-dim)]
+           {:label (str cat-name-a " · " (get u/dim-categories b-dim))
+            :cost (+ (count cat-dim-a) (count b-dim))}))]
+    (:label (first (sort-by :cost candidates)))))
+
 (defn dim-label
   "Human-readable label for a dimension map.
    Iteratively factors into known categories:
@@ -158,21 +178,28 @@
   (when (map? dim)
     (or
      (get u/dim-categories dim)
-     (let [[numers denoms remaining] (factor-dim dim)]
-       (when (or (seq numers) (seq denoms))
-         ;; Incorporate any unfactored remainder by sign
-         (let [rem-pos (into {} (filter (fn [[_ v]] (pos? v)) remaining))
-               rem-neg (into {} (filter (fn [[_ v]] (neg? v)) remaining))
-               numer-parts (concat numers
-                                   (when (seq rem-pos) [(format-raw-dim rem-pos)]))
-               denom-parts (concat denoms
-                                   (when (seq rem-neg) [(format-raw-dim (negate-dim rem-neg))]))
-               numer-str (when (seq numer-parts) (str/join " · " numer-parts))
-               denom-str (when (seq denom-parts) (str/join " · " denom-parts))]
-           (cond
-             (and numer-str denom-str) (str numer-str " / " denom-str)
-             numer-str numer-str
-             :else nil))))
+     (let [[numers denoms remaining] (factor-dim dim)
+           greedy-parts (+ (count numers) (count denoms))
+           ;; When greedy uses 3+ categories, a two-category A/B
+           ;; factoring is likely more natural (e.g. V/m →
+           ;; "Electrical Potential / Length" instead of
+           ;; "Force / Electric Current · Frequency")
+           two-cat (when (>= greedy-parts 3)
+                     (two-category-label dim))]
+       (or two-cat
+           (when (or (seq numers) (seq denoms))
+             (let [rem-pos (into {} (filter (fn [[_ v]] (pos? v)) remaining))
+                   rem-neg (into {} (filter (fn [[_ v]] (neg? v)) remaining))
+                   numer-parts (concat numers
+                                       (when (seq rem-pos) [(format-raw-dim rem-pos)]))
+                   denom-parts (concat denoms
+                                       (when (seq rem-neg) [(format-raw-dim (negate-dim rem-neg))]))
+                   numer-str (when (seq numer-parts) (str/join " · " numer-parts))
+                   denom-str (when (seq denom-parts) (str/join " · " denom-parts))]
+               (cond
+                 (and numer-str denom-str) (str numer-str " / " denom-str)
+                 numer-str numer-str
+                 :else nil)))))
      ;; Raw fallback for unfactorable dims
      (let [pos (into {} (filter (fn [[_ v]] (pos? v)) dim))
            neg (into {} (filter (fn [[_ v]] (neg? v)) dim))]
@@ -247,6 +274,9 @@
 (defn- number-token? [s]
   (boolean (re-matches #"-?\d[\d,]*\.?\d*(?:/\d+)?" s)))
 
+(defn- percent-token? [s]
+  (boolean (re-matches #"-?\d[\d,]*\.?\d*%" s)))
+
 (defn- unit-token? [s]
   (let [t (strip-number-prefix s)]
     (boolean (or (resolve-unit t)
@@ -283,9 +313,11 @@
 
 (defn- find-source-dim
   "Walk prior words backwards to find a unit (including compounds) and return its dimension.
-   Joins space-separated '/' expressions first: 'MBps / V' → 'MBps/V'."
+   Strips number tokens and joins space-separated '/' expressions first:
+   '10 volt / 56 ampere' → 'volt/ampere'."
   [words]
-  (some compound-dim (reverse (join-slash-compounds words))))
+  (let [non-numbers (remove #(or (number-token? %) (percent-token? %)) words)]
+    (some compound-dim (reverse (join-slash-compounds non-numbers)))))
 
 ;; ============================================================================
 ;; Magnitude-aware sorting
@@ -443,14 +475,45 @@
         [prior prefix] (if at-space?
                          [parts ""]
                          [(vec (butlast parts)) (or (last parts) "")])
+        dedup-canonical (fn [entries]
+                         (let [grouped (group-by #(or (:canonical %) (:text %)) entries)
+                               prefer (fn [vs]
+                                        (let [singular-set
+                                              (into #{}
+                                                    (keep (fn [v]
+                                                            (when-let [uk (:canonical v)]
+                                                              (:singular (get u/unit-defs uk)))))
+                                                    vs)]
+                                          (or (first (filter #(singular-set (:text %)) vs))
+                                              (first vs))))]
+                           (map (fn [[_ vs]] (prefer vs)) grouped)))
         filter-prefix (fn [entries]
                         (if (str/blank? prefix)
-                          entries
-                          (filter #(prefix-match? prefix (:text %)) entries)))]
+                          (dedup-canonical entries)
+                          (dedup-canonical (filter #(prefix-match? prefix (:text %)) entries))))]
     (cond
-      ;; Slash commands
-      (and (seq prefix) (str/starts-with? prefix "/"))
+      ;; Slash commands (only as the first word)
+      (and (empty? prior) (seq prefix) (str/starts-with? prefix "/"))
       (vec (filter-prefix slash-commands))
+
+      ;; Usage hints for tip/tax/roll commands
+      (let [first-word (str/lower-case (or (first parts) ""))]
+        (and (seq parts)
+             (contains? #{"tip" "tax" "roll" "download" "upload"} first-word)))
+      (let [cmd (str/lower-case (first parts))]
+        (case cmd
+          "tip"  [{:text "tip $35"      :group "Examples" :desc "round tip table" :hint true}
+                  {:text "tip $35 22%"  :group "Examples" :desc "exact tip"       :hint true}
+                  {:text "tip $35 $42"  :group "Examples" :desc "tip to reach total" :hint true}]
+          "tax"  [{:text "tax $100 8.5%" :group "Examples" :desc "sales tax"      :hint true}
+                  {:text "tax $100 $108.50" :group "Examples" :desc "find tax rate" :hint true}]
+          "roll" [{:text "roll 2d6"     :group "Examples" :desc "roll two six-sided dice" :hint true}
+                  {:text "roll 2d6+3"   :group "Examples" :desc "roll with modifier"      :hint true}
+                  {:text "roll 4d6kh3"  :group "Examples" :desc "keep highest 3"          :hint true}]
+          "download" [{:text "download 10GB 1Gbps"  :group "Examples" :desc "download time" :hint true}
+                      {:text "download 1TB 100Mbps" :group "Examples" :desc "download time" :hint true}]
+          "upload"   [{:text "upload 10GB 1Gbps"    :group "Examples" :desc "upload time"   :hint true}]
+          []))
 
       ;; Compound prefix: "fps/p" → complete denominator
       (and (seq prefix) (str/includes? prefix "/"))
@@ -482,13 +545,20 @@
                           (generate-compound-suggestions src-dim prefix)))]
         (vec (concat simple compounds)))
 
+      ;; After a percentage at the start → suggest "of"
+      (and (= 1 (count prior)) (percent-token? (first prior)))
+      (vec (filter-prefix [{:text "of" :group "Connector" :desc nil}]))
+
       ;; After a unit (including compounds like "mph/gram") → suggest connectors
-      (and (seq prior) (unit-token? (last prior)))
+      ;; but only if no connector has been used yet, and not right after "/"
+      (and (seq prior) (unit-token? (last prior))
+           (not (some connector-token? prior))
+           (not= "/" (last prior)))
       (vec (filter-prefix [{:text "in" :group "Connector" :desc nil}
                            {:text "to" :group "Connector" :desc nil}]))
 
-      ;; After a number → suggest all units
-      (and (seq prior) (number-token? (last prior)))
+      ;; After a number → suggest units (only when typing a prefix)
+      (and (seq prior) (number-token? (last prior)) (seq prefix))
       (->> vocabulary filter-prefix (sort-by :text) vec)
 
       ;; Typing with a non-empty prefix → suggest matching units
