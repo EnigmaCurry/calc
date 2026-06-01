@@ -310,6 +310,7 @@
    "tip $50"
    "tip 85.50 20"
    "tax 29.99 8.25"
+   "download 10GB 1Gbps"
    "roll 2d6"])
 
 (def unit-groups units/unit-groups)
@@ -370,6 +371,10 @@
      ["tip $100 15%" "15% exact + round total option"]
      ["tax 29.99 8.25" "Price: $29.99, Tax: $2.48 (8.25%), Total: $32.47"]
      ["tax $50 10%" "Price: $50, Tax: $5 (10%), Total: $55"]]]
+   ["Download Time"
+    [["download 10GB 1Gbps" "10 GB at 1 Gbps \u2192 1 min 20 s"]
+     ["download 1g 1g" "1 GB at 1 Gbps \u2192 8 s"]
+     ["upload 100MB 10Mbps" "100 MB at 10 Mbps \u2192 1 min 20 s"]]]
    ["Formatting"
     [["7 inches in feet as a fraction" "7/12 ft"]
      ["square root of 2 rounded to 4 decimals" "1.4142"]

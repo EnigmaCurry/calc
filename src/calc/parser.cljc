@@ -1419,6 +1419,59 @@
          {:op :tax :percent second-val :price first-val})))))
 
 ;; ---------------------------------------------------------------------------
+;; Download/upload time calculator
+;; ---------------------------------------------------------------------------
+
+(def ^:private download-size-suffixes
+  "Map of case-insensitive suffix → data-size unit keyword (bytes)."
+  {"b" :B "byte" :B "bytes" :B
+   "k" :KB "kb" :KB "kilobyte" :KB "kilobytes" :KB
+   "m" :MB "mb" :MB "megabyte" :MB "megabytes" :MB
+   "g" :GB "gb" :GB "gigabyte" :GB "gigabytes" :GB
+   "t" :TB "tb" :TB "terabyte" :TB "terabytes" :TB
+   "p" :PB "pb" :PB "petabyte" :PB "petabytes" :PB})
+
+(def ^:private download-rate-suffixes
+  "Map of case-insensitive suffix → data-rate exponent map."
+  {"bps"  {:bit 1 :s -1}
+   "k"    {:Kb 1 :s -1} "kbps" {:Kb 1 :s -1}
+   "m"    {:Mb 1 :s -1} "mbps" {:Mb 1 :s -1}
+   "g"    {:Gb 1 :s -1} "gbps" {:Gb 1 :s -1}
+   "t"    {:Tb 1 :s -1} "tbps" {:Tb 1 :s -1}
+   "kbs"  {:KB 1 :s -1} "mbs"  {:MB 1 :s -1}
+   "gbs"  {:GB 1 :s -1} "tbs"  {:TB 1 :s -1}})
+
+(def ^:private rate-unit-labels
+  "Display labels for rate unit exponent maps."
+  {{:bit 1 :s -1} "bps"
+   {:Kb 1 :s -1}  "Kbps"
+   {:Mb 1 :s -1}  "Mbps"
+   {:Gb 1 :s -1}  "Gbps"
+   {:Tb 1 :s -1}  "Tbps"
+   {:KB 1 :s -1}  "KBps"
+   {:MB 1 :s -1}  "MBps"
+   {:GB 1 :s -1}  "GBps"
+   {:TB 1 :s -1}  "TBps"})
+
+(defn parse-download
+  "Try to parse a download/upload time expression. Returns a request map or nil.
+   After clean-phrase, '10MB' becomes '10 MB' and '1g' becomes '1 g', so we
+   handle both 'download NUM SUFFIX NUM SUFFIX' (4 tokens) forms.
+   Supports: 'download 10MB 1000Mbps', 'upload 1g 1g', 'download 10gb 1G'"
+  [s]
+  (when-let [[_ size-num size-sfx rate-num rate-sfx]
+             (re-matches #"(?i)^(?:download|upload)\s+(\d+(?:\.\d+)?)\s+(\S+)\s+(\d+(?:\.\d+)?)\s+(\S+)$" s)]
+    (when-let [size-unit (get download-size-suffixes (str/lower-case size-sfx))]
+      (when-let [rate-unit (get download-rate-suffixes (str/lower-case rate-sfx))]
+        {:op :download
+         :size-value (parse-decimal-token size-num)
+         :size-unit size-unit
+         :size-label (name size-unit)
+         :rate-value (parse-decimal-token rate-num)
+         :rate-unit rate-unit
+         :rate-label (get rate-unit-labels rate-unit "?")}))))
+
+;; ---------------------------------------------------------------------------
 ;; Base conversion (binary, octal, decimal, hex, sexagesimal, arbitrary)
 ;; ---------------------------------------------------------------------------
 
@@ -1562,12 +1615,13 @@
             base-conv (parse-base-convert without-approx original)
             tip (when-not base-conv (parse-tip without-approx))
             tax (when-not (or base-conv tip) (parse-tax without-approx))
-            pct (when-not (or base-conv tip tax) (parse-percentage without-approx))
-            root (when-not (or base-conv tip tax pct) (parse-root without-approx))
-            modulo (when-not (or base-conv tip tax pct root) (parse-modulo without-approx))
-            trig (when-not (or base-conv tip tax pct root modulo) (parse-trig without-approx))
+            dl (when-not (or base-conv tip tax) (parse-download without-approx))
+            pct (when-not (or base-conv tip tax dl) (parse-percentage without-approx))
+            root (when-not (or base-conv tip tax dl pct) (parse-root without-approx))
+            modulo (when-not (or base-conv tip tax dl pct root) (parse-modulo without-approx))
+            trig (when-not (or base-conv tip tax dl pct root modulo) (parse-trig without-approx))
             math (or (when full-math {:op :math-expr :value full-math})
-                     (when-not (or base-conv tip tax pct root modulo trig) (parse-standalone-math without-approx)))]
+                     (when-not (or base-conv tip tax dl pct root modulo trig) (parse-standalone-math without-approx)))]
         (if base-conv
           (cond-> base-conv
             format (assoc :format format))
@@ -1576,6 +1630,9 @@
             format (assoc :format format))
         (if tax
           (cond-> tax
+            format (assoc :format format))
+        (if dl
+          (cond-> dl
             format (assoc :format format))
         (if pct
           (cond-> pct
@@ -1621,7 +1678,7 @@
                                      :to (parse-unit-phrase to-str)}
                               approx? (assoc :approx? true)
                               format (assoc :format format))]
-                request))))))))))))))
+                request)))))))))))))))
       #?(:clj (catch clojure.lang.ExceptionInfo ex
                 (or (parse-error original ex)
                     {:error :unparseable

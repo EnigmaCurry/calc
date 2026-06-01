@@ -499,7 +499,7 @@
       ;; Usage hints for tip/tax/roll commands
       (let [first-word (str/lower-case (or (first parts) ""))]
         (and (seq parts)
-             (contains? #{"tip" "tax" "roll"} first-word)))
+             (contains? #{"tip" "tax" "roll" "download" "upload"} first-word)))
       (let [cmd (str/lower-case (first parts))]
         (case cmd
           "tip"  [{:text "tip $35"      :group "Examples" :desc "round tip table" :hint true}
@@ -510,6 +510,9 @@
           "roll" [{:text "roll 2d6"     :group "Examples" :desc "roll two six-sided dice" :hint true}
                   {:text "roll 2d6+3"   :group "Examples" :desc "roll with modifier"      :hint true}
                   {:text "roll 4d6kh3"  :group "Examples" :desc "keep highest 3"          :hint true}]
+          "download" [{:text "download 10GB 1Gbps"  :group "Examples" :desc "download time" :hint true}
+                      {:text "download 1TB 100Mbps" :group "Examples" :desc "download time" :hint true}]
+          "upload"   [{:text "upload 10GB 1Gbps"    :group "Examples" :desc "upload time"   :hint true}]
           []))
 
       ;; Compound prefix: "fps/p" → complete denominator

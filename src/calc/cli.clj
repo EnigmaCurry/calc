@@ -234,6 +234,8 @@
     "  calc tip $100 15%               # 15% tip on $100"
     "  calc tax 29.99 8.25             # 8.25% tax on $29.99"
     "  calc tax $50 10%                # 10% tax on $50"
+    "  calc download 10GB 1Gbps       # download time for 10 GB at 1 Gbps"
+    "  calc download 1g 1g            # shorthand: 1 GB at 1 Gbps"
     "  calc 10 % 4                     # → 2 (modulo)"
     "  calc 10 mod 3                   # → 1 (modulo)"
     "  calc --list"

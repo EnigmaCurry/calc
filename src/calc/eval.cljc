@@ -498,6 +498,48 @@
         total (u/normalize-number (m/d+ (m/->dec price) (m/->dec tax)))]
     {:value tax :tax tax :total total}))
 
+(def ^:private time-thresholds
+  "Time unit thresholds for auto-scaling, largest first."
+  [[:day  86400]
+   [:hr   3600]
+   [:min  60]
+   [:s    1]])
+
+(defn- format-duration
+  "Convert seconds (BigDecimal or number) into a human-readable mixed time string.
+   E.g., 4925.5 → '1 hr 22 min 5.5 s'"
+  [seconds]
+  (let [secs (double seconds)
+        labels {:day "day" :hr "hr" :min "min" :s "s"}]
+    (if (< secs 1)
+      (str (u/normalize-number seconds) " s")
+      (loop [remaining secs
+             [[unit divisor] & more] time-thresholds
+             parts []]
+        (if-not unit
+          (clojure.string/join " " parts)
+          (let [whole (long (Math/floor (/ remaining divisor)))
+                leftover (- remaining (* whole divisor))]
+            (if (and (pos? whole) (seq more))
+              (recur leftover more (conj parts (str whole " " (get labels unit))))
+              (if (seq more)
+                (recur remaining more parts)
+                ;; Last unit (seconds) — include fractional remainder
+                (let [val (u/normalize-number (m/->dec remaining))]
+                  (if (and (pos? (double val)) (or (seq parts) true))
+                    (clojure.string/join " " (conj parts (str val " s")))
+                    (clojure.string/join " " parts)))))))))))
+
+(defn- evaluate-download [{:keys [size-value size-unit rate-value rate-unit]}]
+  (let [size-spec (u/unit-spec size-unit)
+        rate-spec (u/unit-spec rate-unit)
+        size-bytes (m/d* (m/->dec size-value) (:scale size-spec))
+        rate-bytes-per-sec (m/d* (m/->dec rate-value) (:scale rate-spec))
+        time-seconds (m/ddiv size-bytes rate-bytes-per-sec)]
+    {:value time-seconds
+     :time-seconds time-seconds
+     :duration (format-duration time-seconds)}))
+
 (defn- convert-to-mixed-units
   "Convert a single value+unit to a vector of mixed output units.
    E.g., 180 cm → [{:value 5 :unit-label \"ft\"} {:value 10.866... :unit-label \"in\"}]
@@ -569,6 +611,9 @@
 
      (= op :tax)
      (evaluate-tax request)
+
+     (= op :download)
+     (evaluate-download request)
 
      (= op :base-convert)
      (evaluate-base-convert request)
