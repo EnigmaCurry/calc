@@ -149,6 +149,26 @@
                  (dec iters))
           [numers denoms remaining])))))
 
+(defn- two-category-label
+  "Try to express dim as A / B or A · B where both A and B are known categories.
+   Returns the simplest match (fewest total dimension keys), or nil."
+  [dim]
+  (let [candidates
+        (concat
+         ;; A / B: dim = A_dim - B_dim, so A_dim = dim + B_dim
+         (for [[cat-dim-b cat-name-b] u/dim-categories
+               :let [a-dim (u/normalize-map (u/merge-dims dim cat-dim-b))]
+               :when (get u/dim-categories a-dim)]
+           {:label (str (get u/dim-categories a-dim) " / " cat-name-b)
+            :cost (+ (count a-dim) (count cat-dim-b))})
+         ;; A · B: dim = A_dim + B_dim, so B_dim = dim - A_dim
+         (for [[cat-dim-a cat-name-a] u/dim-categories
+               :let [b-dim (u/normalize-map (u/merge-dims dim (negate-dim cat-dim-a)))]
+               :when (get u/dim-categories b-dim)]
+           {:label (str cat-name-a " · " (get u/dim-categories b-dim))
+            :cost (+ (count cat-dim-a) (count b-dim))}))]
+    (:label (first (sort-by :cost candidates)))))
+
 (defn dim-label
   "Human-readable label for a dimension map.
    Iteratively factors into known categories:
@@ -158,21 +178,28 @@
   (when (map? dim)
     (or
      (get u/dim-categories dim)
-     (let [[numers denoms remaining] (factor-dim dim)]
-       (when (or (seq numers) (seq denoms))
-         ;; Incorporate any unfactored remainder by sign
-         (let [rem-pos (into {} (filter (fn [[_ v]] (pos? v)) remaining))
-               rem-neg (into {} (filter (fn [[_ v]] (neg? v)) remaining))
-               numer-parts (concat numers
-                                   (when (seq rem-pos) [(format-raw-dim rem-pos)]))
-               denom-parts (concat denoms
-                                   (when (seq rem-neg) [(format-raw-dim (negate-dim rem-neg))]))
-               numer-str (when (seq numer-parts) (str/join " · " numer-parts))
-               denom-str (when (seq denom-parts) (str/join " · " denom-parts))]
-           (cond
-             (and numer-str denom-str) (str numer-str " / " denom-str)
-             numer-str numer-str
-             :else nil))))
+     (let [[numers denoms remaining] (factor-dim dim)
+           greedy-parts (+ (count numers) (count denoms))
+           ;; When greedy uses 3+ categories, a two-category A/B
+           ;; factoring is likely more natural (e.g. V/m →
+           ;; "Electrical Potential / Length" instead of
+           ;; "Force / Electric Current · Frequency")
+           two-cat (when (>= greedy-parts 3)
+                     (two-category-label dim))]
+       (or two-cat
+           (when (or (seq numers) (seq denoms))
+             (let [rem-pos (into {} (filter (fn [[_ v]] (pos? v)) remaining))
+                   rem-neg (into {} (filter (fn [[_ v]] (neg? v)) remaining))
+                   numer-parts (concat numers
+                                       (when (seq rem-pos) [(format-raw-dim rem-pos)]))
+                   denom-parts (concat denoms
+                                       (when (seq rem-neg) [(format-raw-dim (negate-dim rem-neg))]))
+                   numer-str (when (seq numer-parts) (str/join " · " numer-parts))
+                   denom-str (when (seq denom-parts) (str/join " · " denom-parts))]
+               (cond
+                 (and numer-str denom-str) (str numer-str " / " denom-str)
+                 numer-str numer-str
+                 :else nil)))))
      ;; Raw fallback for unfactorable dims
      (let [pos (into {} (filter (fn [[_ v]] (pos? v)) dim))
            neg (into {} (filter (fn [[_ v]] (neg? v)) dim))]
