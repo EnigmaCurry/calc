@@ -324,7 +324,7 @@
         (reduce / scales)))
     (token-si-scale token)))
 
-(defn- parse-double [s]
+(defn- parse-dbl [s]
   (try
     (#?(:clj Double/parseDouble :cljs js/parseFloat) (str/replace s "," ""))
     (catch #?(:clj Exception :cljs :default) _ nil)))
@@ -342,12 +342,12 @@
               (cond
                 ;; Abutted: "12ft"
                 (and (not= stripped w) (compound-si-scale stripped))
-                (when-let [v (parse-double (subs w 0 (- (count w) (count stripped))))]
+                (when-let [v (parse-dbl (subs w 0 (- (count w) (count stripped))))]
                   (Math/abs (* v (compound-si-scale stripped))))
 
                 ;; Standalone unit with preceding number
                 (and (compound-si-scale w) (> i 0) (number-token? (nth joined (dec i))))
-                (when-let [v (parse-double (nth joined (dec i)))]
+                (when-let [v (parse-dbl (nth joined (dec i)))]
                   (Math/abs (* v (compound-si-scale w)))))]
           (or result (recur (dec i))))))))
 

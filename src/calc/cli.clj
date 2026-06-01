@@ -350,12 +350,29 @@
   (print "\033[2J\033[H")
   (flush))
 
+;; Sort-prefix approach: JLine sorts candidates by value alphabetically.
+;; We prepend a sort index (e.g. "000001\u200B") to the value so JLine sorts
+;; by our magnitude ordering. The display shows the clean text.
+;; The ACCEPT_LINE widget strips the prefix before the text is committed.
+(def ^:private sort-sep
+  "Zero-width space used as separator between sort key and actual value."
+  "\u200b")
+
+(defn- strip-sort-prefix
+  "Remove sort key prefix from buffer text."
+  [^String s]
+  (let [idx (.indexOf s sort-sep)]
+    (if (>= idx 0)
+      (subs s (inc idx))
+      s)))
+
 (defn- make-preview-highlighter
   "Create a Highlighter that appends a live preview line below the input."
   [fmt-opts accepting]
   (reify Highlighter
     (highlight [_ _ buf]
-      (let [text (str buf)]
+      (let [raw (str buf)
+            text (strip-sort-prefix raw)]
         (if (or @accepting
                 (str/blank? text)
                 (str/starts-with? text "/")
@@ -400,27 +417,13 @@
     (setErrorPattern [_ _])
     (setErrorIndex [_ _])))
 
-(def ^:private proxy-candidate?
-  "Test once at load time whether Candidate proxying works (fails in Babashka)."
-  (try
-    (proxy [Candidate] ["" "" nil nil nil nil true]
-      (compareTo [_] 0))
-    true
-    (catch Throwable _ false)))
-
 (defn- make-candidate
-  "Create a Candidate that sorts by index rather than alphabetically.
-   Falls back to standard Candidate on Babashka where proxy isn't supported."
+  "Create a Candidate whose value has a sort prefix for magnitude ordering."
   [text group desc ^String sort-key]
-  (if proxy-candidate?
-    (proxy [Candidate] [text text group desc nil sort-key true]
-      (compareTo [^Candidate other]
-        (let [my-key (.key ^Candidate this)
-              other-key (.key ^Candidate other)]
-          (if (and my-key other-key)
-            (.compareTo my-key other-key)
-            (.compareTo (.value ^Candidate this) (.value ^Candidate other))))))
-    (Candidate. text text group desc nil sort-key true)))
+  (let [prefixed-value (str sort-key sort-sep text)]
+    (Candidate. prefixed-value  ;; value (used for sorting AND insertion)
+                text             ;; display (what user sees in menu)
+                group desc nil nil true)))
 
 (defn- make-completer
   "Create a JLine Completer backed by the completion engine."
@@ -456,6 +459,12 @@
         (reify Widget
           (apply [_]
             (reset! accepting true)
+            ;; Strip sort prefix from buffer before accepting
+            (let [buf (.getBuffer reader)
+                  text (str buf)]
+              (when (.contains text sort-sep)
+                (.clear buf)
+                (.write buf (strip-sort-prefix text))))
             (.apply orig-accept)))))
     (println "calc — type '/help' for usage, Ctrl-D to exit")
     (loop []
