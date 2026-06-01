@@ -502,9 +502,10 @@
       (vec (filter-prefix [{:text "of" :group "Connector" :desc nil}]))
 
       ;; After a unit (including compounds like "mph/gram") → suggest connectors
-      ;; but only if no connector has been used yet
+      ;; but only if no connector has been used yet, and not right after "/"
       (and (seq prior) (unit-token? (last prior))
-           (not (some connector-token? prior)))
+           (not (some connector-token? prior))
+           (not= "/" (last prior)))
       (vec (filter-prefix [{:text "in" :group "Connector" :desc nil}
                            {:text "to" :group "Connector" :desc nil}]))
 
