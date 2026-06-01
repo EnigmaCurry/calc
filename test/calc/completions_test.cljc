@@ -86,7 +86,7 @@
   (testing "after connector filters by source dimension"
     (let [results (c/complete "12 feet in ")]
       (is (every? #(= {:length 1} (:dim %)) results))
-      (is (some #(= "meter" (:text %)) results))
+      (is (some #(= "m" (:text %)) results))
       (is (not (some #(= "gram" (:text %)) results)))))
   (testing "compound source filters to compound targets"
     (let [results (c/complete "34 mph/gram in ")]
@@ -110,4 +110,4 @@
                      (clojure.string/lower-case (:text %))
                      "f")
                   results))
-      (is (some #(= "feet" (:text %)) results)))))
+      (is (some #(= "ft" (:text %)) results)))))

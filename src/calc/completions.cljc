@@ -443,10 +443,17 @@
         [prior prefix] (if at-space?
                          [parts ""]
                          [(vec (butlast parts)) (or (last parts) "")])
+        dedup-canonical (fn [entries]
+                         (let [;; Group by canonical key (or text for nil-canonical entries)
+                               grouped (group-by #(or (:canonical %) (:text %)) entries)]
+                           (map (fn [[_ vs]]
+                                  ;; Prefer shortest text among matches
+                                  (first (sort-by (comp count :text) vs)))
+                                grouped)))
         filter-prefix (fn [entries]
                         (if (str/blank? prefix)
-                          entries
-                          (filter #(prefix-match? prefix (:text %)) entries)))]
+                          (dedup-canonical entries)
+                          (dedup-canonical (filter #(prefix-match? prefix (:text %)) entries))))]
     (cond
       ;; Slash commands (only as the first word)
       (and (empty? prior) (seq prefix) (str/starts-with? prefix "/"))
