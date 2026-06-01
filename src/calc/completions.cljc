@@ -483,7 +483,9 @@
         (vec (concat simple compounds)))
 
       ;; After a unit (including compounds like "mph/gram") → suggest connectors
-      (and (seq prior) (unit-token? (last prior)))
+      ;; but only if no connector has been used yet
+      (and (seq prior) (unit-token? (last prior))
+           (not (some connector-token? prior)))
       (vec (filter-prefix [{:text "in" :group "Connector" :desc nil}
                            {:text "to" :group "Connector" :desc nil}]))
 
