@@ -247,6 +247,9 @@
 (defn- number-token? [s]
   (boolean (re-matches #"-?\d[\d,]*\.?\d*(?:/\d+)?" s)))
 
+(defn- percent-token? [s]
+  (boolean (re-matches #"-?\d[\d,]*\.?\d*%" s)))
+
 (defn- unit-token? [s]
   (let [t (strip-number-prefix s)]
     (boolean (or (resolve-unit t)
@@ -493,6 +496,10 @@
                         (sort-by-closeness source-si
                           (generate-compound-suggestions src-dim prefix)))]
         (vec (concat simple compounds)))
+
+      ;; After a percentage at the start → suggest "of"
+      (and (= 1 (count prior)) (percent-token? (first prior)))
+      (vec (filter-prefix [{:text "of" :group "Connector" :desc nil}]))
 
       ;; After a unit (including compounds like "mph/gram") → suggest connectors
       ;; but only if no connector has been used yet
