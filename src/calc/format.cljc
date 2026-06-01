@@ -243,4 +243,6 @@
 
     :roll (format-roll-result result)
 
+    :base-convert (:value result)
+
     nil))
