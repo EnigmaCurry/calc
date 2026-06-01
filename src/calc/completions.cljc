@@ -197,9 +197,16 @@
   (let [m (re-find #"^-?[\d,]*\.?\d+(.+)$" token)]
     (if m (second m) token)))
 
+(defn- parse-unit-exponent
+  "Parse 'unit^N' → [unit-name N], or [token 1] if no exponent."
+  [token]
+  (if-let [[_ unit exp-str] (re-matches #"(.+)\^(-?\d+)" token)]
+    [unit #?(:clj (Long/parseLong exp-str) :cljs (js/parseInt exp-str 10))]
+    [token 1]))
+
 (defn- token-dim
   "Get the dimension of a single unit token (simple alias or special form).
-   Also handles abutted number+unit tokens like '12ft'."
+   Handles abutted number+unit tokens like '12ft' and exponents like 'inch^3'."
   [token]
   (let [try-resolve (fn [t]
                       (or (when-let [uk (resolve-unit t)]
@@ -209,11 +216,15 @@
                                                   (get parser/special-unit-forms (str/lower-case t)))]
                             (try (:dim (u/unit-spec unit-map))
                                  (catch #?(:clj Exception :cljs :default) _ nil)))))
-        ;; Try the token as-is first, then strip numeric prefix
-        stripped (strip-number-prefix token)]
+        stripped (strip-number-prefix token)
+        [base-unit exp] (parse-unit-exponent stripped)]
     (or (try-resolve token)
         (when (not= stripped token)
-          (try-resolve stripped)))))
+          (try-resolve stripped))
+        ;; Handle unit^N (e.g., inch^3, meter^2)
+        (when (not= exp 1)
+          (when-let [base-dim (try-resolve base-unit)]
+            (u/normalize-map (u/scale-dim base-dim exp)))))))
 
 (defn- compound-dim
   "Parse a potentially compound token like 'mph/gram' and return its dimension.
