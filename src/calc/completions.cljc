@@ -51,18 +51,39 @@
 ;; Compound dimension support
 ;; ============================================================================
 
+(defn- preferred-alias
+  "Pick the shortest alias that is recognized by the parser for a unit."
+  [unit-key]
+  (let [{:keys [aliases short]} (get u/unit-defs unit-key)
+        ;; Prefer short name if it's a valid alias, otherwise pick shortest alias
+        valid-aliases (filter #(get u/unit-aliases %) aliases)]
+    (if (and short (get u/unit-aliases short))
+      short
+      (first (sort-by count valid-aliases)))))
+
+(def ^:private unique-special-forms
+  "Deduplicated special forms: keep only the shortest name per unique unit-map.
+   E.g., kph/kmph/km/h all map to {:km 1 :hr -1} — keep 'kph'."
+  (let [by-unit-map (group-by val parser/special-unit-forms)]
+    (into {} (for [[unit-map entries] by-unit-map
+                   :let [shortest (first (sort-by count (map key entries)))]]
+               [shortest unit-map]))))
+
 (def ^:private dim->unit-names
-  "Map from dimension-map to vector of {:text short-name :group label}.
-   Used for generating compound A/B suggestions."
+  "Map from dimension-map to vector of {:text alias :group label}.
+   Only includes names verified to resolve through the parser.
+   Deduplicated: one entry per canonical unit or unique special form."
   (let [entries
         (concat
-         ;; One entry per canonical unit using its short name
+         ;; One entry per canonical unit using its shortest valid alias
          (for [[k v] u/unit-defs
-               :when (and (:dim v) (not (:temperature v)))]
-           {:dim (:dim v) :text (:short v)
+               :when (and (:dim v) (not (:temperature v)))
+               :let [alias (preferred-alias k)]
+               :when alias]
+           {:dim (:dim v) :text alias
             :group (get u/dim-categories (:dim v) "Other")})
-         ;; Special forms (mph, fps, kph, etc.)
-         (for [[text unit-map] parser/special-unit-forms
+         ;; Deduplicated special forms (mph, fps, kph — not kmph, km/h, ft/s)
+         (for [[text unit-map] unique-special-forms
                :let [dim (try (:dim (u/unit-spec unit-map))
                               (catch #?(:clj Exception :cljs :default) _ nil))]
                :when dim]
