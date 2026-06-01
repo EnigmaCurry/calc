@@ -99,6 +99,50 @@
   [dim]
   (into {} (map (fn [[k v]] [k (- v)]) dim)))
 
+(defn- format-raw-dim
+  "Format a dimension map as raw component labels, e.g. {:length 1 :time 2} → 'Length · Time^2'."
+  [d]
+  (->> (sort-by key d)
+       (map (fn [[k v]]
+              (let [base (get u/dim-categories {k 1}
+                              (str/capitalize (name k)))
+                    av (if (pos? v) v (- v))]
+                (if (> av 1) (str base "^" av) base))))
+       (str/join " · ")))
+
+(defn dim-label
+  "Human-readable label for a dimension map.
+   Factors out known categories greedily:
+     {:length 1 :time -1 :mass -1} → 'Speed / Mass'
+     {:mass 1 :length -1} → 'Mass / Length'"
+  [dim]
+  (when (map? dim)
+    (or
+     ;; Direct match
+     (get u/dim-categories dim)
+     ;; Try to factor as known-category / remainder
+     (let [;; Find known categories whose subtraction leaves only negative remainder
+           numer-matches
+           (for [[cat-dim cat-name] u/dim-categories
+                 :let [remainder (u/normalize-map
+                                  (u/merge-dims dim (negate-dim cat-dim)))]
+                 :when (every? (fn [[_ v]] (neg? v)) remainder)]
+             {:name cat-name :remainder remainder :coverage (count cat-dim)})
+           best (last (sort-by :coverage numer-matches))]
+       (if best
+         (if (empty? (:remainder best))
+           (:name best)
+           (let [denom-dim (negate-dim (:remainder best))
+                 denom-name (or (get u/dim-categories denom-dim)
+                                (format-raw-dim denom-dim))]
+             (str (:name best) " / " denom-name)))
+         ;; Fallback: raw positive / negative labels
+         (let [pos (into {} (filter (fn [[_ v]] (pos? v)) dim))
+               neg (into {} (filter (fn [[_ v]] (neg? v)) dim))]
+           (if (seq neg)
+             (str (format-raw-dim pos) " / " (format-raw-dim (negate-dim neg)))
+             (format-raw-dim pos))))))))
+
 ;; ============================================================================
 ;; Token classification helpers
 ;; ============================================================================
@@ -278,3 +322,28 @@
 
       ;; Empty input / no context → nothing
       :else [])))
+
+;; ============================================================================
+;; Dimension hint for preview
+;; ============================================================================
+
+(defn target-dim-hint
+  "When the buffer is waiting for a target unit (ends with 'in'/'to' + optional prefix),
+   return a human-readable label for the expected dimension, or nil."
+  [buffer]
+  (let [buf (or buffer "")
+        trimmed (str/trim buf)
+        at-space? (and (seq buf) (= \space (last buf)))
+        parts (if (str/blank? trimmed) [] (str/split trimmed #"\s+"))]
+    (when (>= (count parts) 2)
+      (let [[prior _prefix] (if at-space?
+                              [parts nil]
+                              [(vec (butlast parts)) (last parts)])
+            ;; Find the connector position
+            connector-idx (some (fn [i]
+                                  (when (connector-token? (get prior i)) i))
+                                (range (dec (count prior)) -1 -1))]
+        (when connector-idx
+          (let [before-connector (subvec prior 0 connector-idx)
+                src-dim (find-source-dim before-connector)]
+            (dim-label src-dim)))))))

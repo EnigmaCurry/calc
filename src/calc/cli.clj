@@ -374,20 +374,31 @@
                   (.append asb (str "\n  → " display))
                   (.style asb AttributedStyle/DEFAULT)
                   (.toAttributedString asb))
-                (if error
+                ;; No valid result — show dimension hint if available, otherwise error
+                (if-let [hint (completions/target-dim-hint text)]
                   (let [asb (AttributedStringBuilder.)]
                     (.append asb text)
-                    (.style asb (.foreground AttributedStyle/DEFAULT AttributedStyle/RED))
-                    (.append asb (str "\n  ✗ " error))
+                    (.style asb (.foreground AttributedStyle/DEFAULT AttributedStyle/CYAN))
+                    (.append asb (str "\n  ▸ " hint))
                     (.style asb AttributedStyle/DEFAULT)
                     (.toAttributedString asb))
-                  (AttributedString. text))))
+                  (if error
+                    (let [asb (AttributedStringBuilder.)]
+                      (.append asb text)
+                      (.style asb (.foreground AttributedStyle/DEFAULT AttributedStyle/RED))
+                      (.append asb (str "\n  ✗ " error))
+                      (.style asb AttributedStyle/DEFAULT)
+                      (.toAttributedString asb))
+                    (AttributedString. text)))))
             (catch Exception e
               (let [msg (.getMessage e)
                     asb (AttributedStringBuilder.)]
                 (.append asb text)
-                (.style asb (.foreground AttributedStyle/DEFAULT AttributedStyle/RED))
-                (.append asb (str "\n  ✗ " (or msg "Error")))
+                (if-let [hint (completions/target-dim-hint text)]
+                  (do (.style asb (.foreground AttributedStyle/DEFAULT AttributedStyle/CYAN))
+                      (.append asb (str "\n  ▸ " hint)))
+                  (do (.style asb (.foreground AttributedStyle/DEFAULT AttributedStyle/RED))
+                      (.append asb (str "\n  ✗ " (or msg "Error")))))
                 (.style asb AttributedStyle/DEFAULT)
                 (.toAttributedString asb)))))))
     (setErrorPattern [_ _])
