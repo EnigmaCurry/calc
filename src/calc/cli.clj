@@ -3,8 +3,10 @@
             [calc.eval :as ev]
             [calc.format :as fmt]
             [clojure.string :as str]
-            [calc.parser :as parser])
-  (:import (org.jline.reader LineReaderBuilder EndOfFileException UserInterruptException LineReader Widget Highlighter)
+            [calc.parser :as parser]
+            [calc.completions :as completions])
+  (:import (org.jline.reader LineReaderBuilder EndOfFileException UserInterruptException
+                             LineReader LineReader$Option Widget Highlighter Completer Candidate)
            (org.jline.terminal TerminalBuilder)
            (org.jline.utils AttributedString AttributedStringBuilder AttributedStyle))
   (:gen-class))
@@ -391,6 +393,24 @@
     (setErrorPattern [_ _])
     (setErrorIndex [_ _])))
 
+(defn- make-completer
+  "Create a JLine Completer backed by the completion engine."
+  []
+  (reify Completer
+    (complete [_ _reader line candidates]
+      (let [buf (.line line)
+            results (completions/complete buf)]
+        (doseq [{:keys [text group desc]} results]
+          (.add candidates
+                (Candidate. text   ;; value (inserted into buffer)
+                            text   ;; display string
+                            group  ;; group header
+                            desc   ;; description (shown right-aligned)
+                            nil    ;; suffix
+                            nil    ;; key
+                            true   ;; complete (add space after)
+                            )))))))
+
 (defn repl
   "Launch an interactive REPL with JLine readline support and live preview."
   []
@@ -399,8 +419,14 @@
         terminal (-> (TerminalBuilder/builder) (.system true) (.build))
         reader   (-> (LineReaderBuilder/builder)
                      (.terminal terminal)
+                     (.completer (make-completer))
                      (.highlighter (make-preview-highlighter fmt-opts accepting))
                      (.build))]
+    ;; Enable grouped menu completion
+    (.setOpt reader LineReader$Option/AUTO_LIST)
+    (.setOpt reader LineReader$Option/AUTO_MENU)
+    (.setOpt reader LineReader$Option/GROUP)
+    (.setOpt reader LineReader$Option/LIST_ROWS_FIRST)
     (.setVariable reader LineReader/HISTORY_FILE hist-path)
     (let [widgets (.getWidgets reader)
           ^Widget orig-accept (get widgets LineReader/ACCEPT_LINE)]
