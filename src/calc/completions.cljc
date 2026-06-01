@@ -153,16 +153,30 @@
   (or (get u/unit-aliases word)
       (get u/unit-aliases (str/lower-case word))))
 
-(defn- token-dim
-  "Get the dimension of a single unit token (simple alias or special form)."
+(defn- strip-number-prefix
+  "Strip a leading numeric prefix from a token: '12ft' → 'ft', '3.5kg' → 'kg'.
+   Returns the unit part, or the original token if no prefix found."
   [token]
-  (if-let [uk (resolve-unit token)]
-    (let [info (get u/unit-defs uk)]
-      (when-not (:temperature info) (:dim info)))
-    (when-let [unit-map (or (get parser/special-unit-forms token)
-                            (get parser/special-unit-forms (str/lower-case token)))]
-      (try (:dim (u/unit-spec unit-map))
-           (catch #?(:clj Exception :cljs :default) _ nil)))))
+  (let [m (re-find #"^-?[\d,]*\.?\d+(.+)$" token)]
+    (if m (second m) token)))
+
+(defn- token-dim
+  "Get the dimension of a single unit token (simple alias or special form).
+   Also handles abutted number+unit tokens like '12ft'."
+  [token]
+  (let [try-resolve (fn [t]
+                      (or (when-let [uk (resolve-unit t)]
+                            (let [info (get u/unit-defs uk)]
+                              (when-not (:temperature info) (:dim info))))
+                          (when-let [unit-map (or (get parser/special-unit-forms t)
+                                                  (get parser/special-unit-forms (str/lower-case t)))]
+                            (try (:dim (u/unit-spec unit-map))
+                                 (catch #?(:clj Exception :cljs :default) _ nil)))))
+        ;; Try the token as-is first, then strip numeric prefix
+        stripped (strip-number-prefix token)]
+    (or (try-resolve token)
+        (when (not= stripped token)
+          (try-resolve stripped)))))
 
 (defn- compound-dim
   "Parse a potentially compound token like 'mph/gram' and return its dimension.
@@ -186,11 +200,12 @@
   (boolean (re-matches #"-?\d[\d,]*\.?\d*(?:/\d+)?" s)))
 
 (defn- unit-token? [s]
-  (boolean (or (resolve-unit s)
-               (get parser/special-unit-forms s)
-               (get parser/special-unit-forms (str/lower-case s))
-               (and (str/includes? s "/")
-                    (some? (compound-dim s))))))
+  (let [t (strip-number-prefix s)]
+    (boolean (or (resolve-unit t)
+                 (get parser/special-unit-forms t)
+                 (get parser/special-unit-forms (str/lower-case t))
+                 (and (str/includes? t "/")
+                      (some? (compound-dim t)))))))
 
 (defn- connector-token? [s]
   (contains? #{"in" "to"} (str/lower-case s)))
