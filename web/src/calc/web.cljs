@@ -658,7 +658,7 @@
                    (let [v (not (:completions-enabled @state))]
                      (swap! state assoc :completions-enabled v :show-completions false)
                      (save-completions-enabled! v)))}]
-        "Autocomplete suggestions"]]]
+        "Enable suggestions dropdown"]]]
      [:div.settings-section
       [:h3 "History"]
       [:div.setting-row
