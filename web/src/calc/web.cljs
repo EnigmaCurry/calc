@@ -892,7 +892,7 @@
     [:<>
      [:header
       [:h1 {:on-click (fn [_]
-                        (swap! state assoc :page :calc)
+                        (swap! state assoc :page :calc :input "" :hist-index -1)
                         (js/window.scrollTo 0 0)
                         (when-let [el (.querySelector js/document "header input[type='text']")]
                           (.focus el)))}
