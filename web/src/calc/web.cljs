@@ -247,11 +247,33 @@
                         :hide-examples (load-hide-examples)
                         :zoom (or (load-zoom) (default-zoom))
                         :precision initial-precision
-                        :page :calc
+                        :page (case (.. js/window -location -hash)
+                                "#/help" :help
+                                "#/settings" :settings
+                                :calc)
                         :copied-idx nil
                         :comp-index -1
                         :show-completions false
                         :completions-enabled (load-completions-enabled)}))
+
+(defn- page->hash [page]
+  (case page :help "#/help" :settings "#/settings" ""))
+
+(defn navigate! [page & kvs]
+  (apply swap! state assoc :page page kvs)
+  (let [h (page->hash page)]
+    (when (not= (.. js/window -location -hash) h)
+      (if (= h "")
+        (.pushState js/history nil "" (.. js/window -location -pathname))
+        (.pushState js/history nil "" h)))))
+
+(.addEventListener js/window "popstate"
+  (fn [_]
+    (let [page (case (.. js/window -location -hash)
+                 "#/help" :help
+                 "#/settings" :settings
+                 :calc)]
+      (swap! state assoc :page page))))
 
 (defn effective-fmt-opts
   "Merge default settings with session overrides. Session wins."
@@ -395,7 +417,7 @@
                      :result (:result ev)
                      :error (:error ev)}]
                    h)))
-    (swap! state assoc :page :calc)
+    (navigate! :calc)
     (save-history! (:history @state))
     (js/setTimeout scroll-log-to-top 0)))
 
@@ -403,7 +425,7 @@
   [:div.help-page
    [:div.help-header
     [:button.back-btn
-     {:on-click #(swap! state assoc :page :calc)}
+     {:on-click #(navigate! :calc)}
      "\u2190 Back"]
     [:h2 "Help"]]
    (let [snapshot-meta (.querySelector js/document "meta[name='calc-snapshot']")
@@ -477,7 +499,7 @@
     [:div.help-page
      [:div.help-header
       [:button.back-btn
-       {:on-click #(swap! state assoc :page :calc)}
+       {:on-click #(navigate! :calc)}
        "\u2190 Back"]
       [:h2 "Settings"]]
      [:div.settings-section
@@ -653,7 +675,7 @@
   [{:keys [cmd arg]}]
   (case cmd
     "help"
-    (do (swap! state assoc :page :help) {:input "/help" :result "Showing help page"})
+    (do (navigate! :help) {:input "/help" :result "Showing help page"})
 
     "p"
     (if (str/blank? arg)
@@ -712,7 +734,7 @@
                            :result (:result ev)
                            :error (:error ev)}]
                          h)))
-          (swap! state assoc :page :calc)
+          (navigate! :calc)
           (save-history! (:history @state))
           (js/setTimeout scroll-log-to-top 0))))))
 
@@ -892,7 +914,7 @@
     [:<>
      [:header
       [:h1 {:on-click (fn [_]
-                        (swap! state assoc :page :calc :input "" :hist-index -1)
+                        (navigate! :calc :input "" :hist-index -1)
                         (js/window.scrollTo 0 0)
                         (when-let [el (.querySelector js/document "header input[type='text']")]
                           (.focus el)))}
@@ -937,11 +959,11 @@
         [:nav.menu
          [:button.menu-item
           {:on-click (fn []
-                      (swap! state assoc :page :calc :menu-open false))}
+                      (navigate! :calc :menu-open false))}
           "Home"]
          [:button.menu-item
           {:on-click (fn []
-                      (swap! state assoc :page :help :menu-open false))}
+                      (navigate! :help :menu-open false))}
           "Help"]
          [:button.menu-item
           {:on-click (fn []
@@ -950,7 +972,7 @@
           "Clear History"]
          [:button.menu-item
           {:on-click (fn []
-                      (swap! state assoc :page :settings :menu-open false))}
+                      (navigate! :settings :menu-open false))}
           "Settings"]
          [:a.menu-item
           {:href "https://github.com/EnigmaCurry/calc"
