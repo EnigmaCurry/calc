@@ -16,6 +16,22 @@
     (into [:div {:class css-class}]
           (map-indexed (fn [i line] [:div.result-line {:key i} line]) lines))))
 
+(defn tip-table
+  "Render a tip calculation as a responsive table."
+  [{:keys [bill rows fmt-opts]} css-class]
+  (let [fm #(str "$" (fmt/format-number % fmt-opts))]
+    [:div {:class (str "tip-table " css-class)}
+     [:div.tip-bill (str "Bill: " (fm bill))]
+     [:table
+      [:thead [:tr [:th "Tip%"] [:th "Tip"] [:th "Total"]]]
+      [:tbody
+       (for [{:keys [label tip total]} rows]
+         ^{:key label}
+         [:tr
+          [:td.tip-pct label]
+          [:td.tip-val (fm tip)]
+          [:td.tip-val (fm total)]])]]]))
+
 (defn format-unit-label
   "Format an exponent-map unit like {:ft 2} as 'ft²'."
   [unit]
@@ -67,6 +83,11 @@
             (cond
               (not (:ok? result))
               {:error (fmt/format-error result)}
+
+              (= :tip (:op parsed))
+              {:tip-data {:bill (:bill result)
+                          :rows (:rows result)
+                          :fmt-opts (assoc effective-fmt :round 2)}}
 
               (fmt/format-op-result parsed result effective-fmt)
               {:result (fmt/format-op-result parsed result effective-fmt)}
@@ -361,7 +382,8 @@
     (when (not= (.. js/window -location -hash) h)
       (if (= h "")
         (.pushState js/history nil "" (.. js/window -location -pathname))
-        (.pushState js/history nil "" h)))))
+        (.pushState js/history nil "" h))))
+  (js/setTimeout #(when-let [el (.querySelector js/document "main")] (set! (.-scrollTop el) 0)) 0))
 
 (.addEventListener js/window "popstate"
   (fn [_]
@@ -804,18 +826,18 @@
          [:div.setting-row
           [:button.back-btn
            {:on-click (fn []
-                        (let [v (or (:zoom-pending @state) (:zoom @state))]
-                          (swap! state assoc :zoom v :zoom-pending nil)
-                          (save-zoom! v)
-                          (apply-zoom! v)))}
-           "Apply"]
-          [:button.back-btn
-           {:on-click (fn []
                         (let [d (default-zoom)]
                           (swap! state assoc :zoom d :zoom-pending nil)
                           (save-zoom! nil)
                           (apply-zoom! d)))}
-           "Reset"]]])]]))
+           "Reset"]
+          [:button.back-btn
+           {:on-click (fn []
+                        (let [v (or (:zoom-pending @state) (:zoom @state))]
+                          (swap! state assoc :zoom v :zoom-pending nil)
+                          (save-zoom! v)
+                          (apply-zoom! v)))}
+           "Apply"]]])]]))
 
 (defn settings-page []
   (let [tab (or (:settings-tab @state) :calculator)]
@@ -913,11 +935,12 @@
                  :input "")
           (swap! state update :history
                  (fn [h]
-                   (into [{:input input
-                           :from (:from ev)
-                           :target (:target ev)
-                           :result (:result ev)
-                           :error (:error ev)}]
+                   (into [(cond-> {:input input
+                                   :from (:from ev)
+                                   :target (:target ev)
+                                   :result (:result ev)
+                                   :error (:error ev)}
+                            (:tip-data ev) (assoc :tip-data (:tip-data ev)))]
                          h)))
           (navigate! :calc)
           (save-history! (:history @state))
@@ -1074,6 +1097,8 @@
                          [:div.completion-preview
                           {:key "preview"}
                           (cond
+                            (:tip-data preview)
+                            [tip-table (:tip-data preview) "preview-result"]
                             (and (:result preview) (str/includes? (str (:result preview)) "\n"))
                             [multiline-result (:result preview) "preview-result"]
                             (:target preview)
@@ -1189,6 +1214,9 @@
                   [:span.preview-warning "keep typing\u2026"]
                   [:span.preview-error (:error preview)])
 
+                (:tip-data preview)
+                [tip-table (:tip-data preview) "preview-result"]
+
                 (and (:result preview) (str/includes? (str (:result preview)) "\n"))
                 [multiline-result (:result preview) "preview-result"]
 
@@ -1202,9 +1230,18 @@
         :help [help-page]
         :settings [settings-page]
         [:<>
+         (when (empty? history)
+           [:div.empty-state
+            [:div.empty-lambda "\u03bb"]
+            [:div.empty-bubble "Type a conversion or calculation above"]
+            [:div.empty-bubble "Results will appear here"]
+            [:div.empty-bubble "Try \"5 feet in cm\" or \"2+2\""]
+            [:div.empty-bubble "100% private and all calculations run locally"]
+            [:div.empty-bubble "History is saved to your browser\u2019s local storage"]
+            [:button.empty-bubble.empty-link {:on-click #(navigate! :help)} "View Help"]])
          (when (seq history)
            [:div.log
-            (for [[idx {:keys [input from target result error]}] (map-indexed vector history)]
+            (for [[idx {:keys [input from target result error tip-data]}] (map-indexed vector history)]
               (let [result-text (str (or from input) " = "
                                      (cond
                                        error error
@@ -1258,6 +1295,9 @@
                      error
                      [:span.log-error (str "\u2192 " error)]
 
+                     tip-data
+                     [tip-table tip-data "log-result"]
+
                      (and result (str/includes? (str result) "\n"))
                      [multiline-result result "log-result"]
 
@@ -1274,6 +1314,14 @@
          (when-not (:hide-examples @state)
            [:div.examples
             [:h3 "Try some examples"]
+            [:p.examples-hint
+             "(Hide these examples in the "
+             [:a {:href "#"
+                  :on-click (fn [e]
+                              (.preventDefault e)
+                              (navigate! :settings))}
+              "Settings"]
+             ")"]
             [:div.chips
              (for [ex examples]
                ^{:key ex} [example-chip ex])]])])]]))
