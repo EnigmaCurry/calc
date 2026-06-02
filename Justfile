@@ -38,6 +38,11 @@ web-dev:
 web-test:
     just _nix "cd web && npm ci --silent && npx shadow-cljs compile test"
 
+# Watch for pushes and auto-restart web-dev
+# https://github.com/EnigmaCurry/sway-home/blob/master/bin/git-drone
+drone-dev:
+    git drone --cmd "just web-dev" --pull "git fetch origin && git reset --hard origin/$(git rev-parse --abbrev-ref HEAD)" --repo EnigmaCurry/calc
+
 # Remove build artifacts
 clean:
     rm -rf web/node_modules web/.shadow-cljs web/out web/public/js web/public/index.html web/public/sw.js web/public/calc.html
