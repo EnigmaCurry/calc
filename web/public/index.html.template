@@ -477,11 +477,7 @@
     }
 
     .tip-table {
-      display: grid;
-      grid-template-columns: auto auto auto;
-      gap: 0.15rem 0.75rem;
       font-weight: 600;
-      width: 100%;
       margin: 0;
       font-family: inherit;
       font-size: inherit;
@@ -496,31 +492,38 @@
     }
 
     .tip-bill {
-      display: contents;
+      margin-bottom: 0.25rem;
     }
 
-    .tip-bill .tip-val {
-      grid-column: 2 / -1;
+    .tip-table table {
+      border-collapse: collapse;
     }
 
-    .tip-row {
-      display: contents;
-    }
-
-    .tip-label {
+    .tip-table th {
+      font-weight: 400;
+      color: var(--text-muted);
       text-align: right;
+      padding: 0 0.5rem 0.1rem;
+      font-size: 0.85em;
+    }
+
+    .tip-table td {
+      text-align: right;
+      padding: 0.1rem 0.5rem;
       white-space: nowrap;
     }
 
-    .tip-val {
+    .tip-table td.tip-pct {
       text-align: right;
-      white-space: nowrap;
     }
 
     @media (max-width: 360px) {
       .tip-table {
-        gap: 0.1rem 0.4rem;
         font-size: 0.85em;
+      }
+      .tip-table th,
+      .tip-table td {
+        padding: 0.05rem 0.3rem;
       }
     }
 

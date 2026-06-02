@@ -21,15 +21,16 @@
   [{:keys [bill rows fmt-opts]} css-class]
   (let [fm #(str "$" (fmt/format-number % fmt-opts))]
     [:div {:class (str "tip-table " css-class)}
-     [:div.tip-bill
-      [:span.tip-label "Bill"]
-      [:span.tip-val (fm bill)]]
-     (for [{:keys [label tip total]} rows]
-       ^{:key label}
-       [:div.tip-row
-        [:span.tip-label label]
-        [:span.tip-val (fm tip)]
-        [:span.tip-val (fm total)]])]))
+     [:div.tip-bill (str "Bill: " (fm bill))]
+     [:table
+      [:thead [:tr [:th "Tip%"] [:th "Tip"] [:th "Total"]]]
+      [:tbody
+       (for [{:keys [label tip total]} rows]
+         ^{:key label}
+         [:tr
+          [:td.tip-pct label]
+          [:td.tip-val (fm tip)]
+          [:td.tip-val (fm total)]])]]]))
 
 (defn format-unit-label
   "Format an exponent-map unit like {:ft 2} as 'ft²'."
