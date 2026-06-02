@@ -59,7 +59,7 @@
           (if (map? math-result)
             {:result (str (:trig-expr math-result) " = "
                           (fmt/format-number (:math-value math-result) fmt-opts))}
-            {:result (fmt/format-number math-result fmt-opts)})
+            {:result (fmt/format-number math-result (assoc fmt-opts :original-expr input))})
           ;; Then try as unit conversion
           (let [parsed (parser/parse-request input)
                 effective-fmt (merge (:format parsed) fmt-opts)
