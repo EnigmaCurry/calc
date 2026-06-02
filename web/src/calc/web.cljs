@@ -189,9 +189,9 @@
 (def theme-presets
   [{:name "Midnight"  :bg [215 50 7]   :accent [212 100 67]}
    {:name "Daylight"  :bg [0 0 100]    :accent [212 100 44]}
-   {:name "Ocean"     :bg [200 60 12]  :accent [180 70 60]}
+   {:name "Amber"     :bg [30 40 10]   :accent [30 100 50]}
    {:name "Solarized" :bg [192 100 11] :accent [175 59 40]}
-   {:name "Nord"      :bg [220 16 22]  :accent [213 32 52]}
+   {:name "Forest"    :bg [150 30 10]  :accent [140 60 55]}
    {:name "Dracula"   :bg [231 15 18]  :accent [265 89 78]}])
 
 (def default-dark-preset (first theme-presets))
