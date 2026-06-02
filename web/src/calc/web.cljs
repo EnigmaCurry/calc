@@ -59,7 +59,7 @@
           (if (map? math-result)
             {:result (str (:trig-expr math-result) " = "
                           (fmt/format-number (:math-value math-result) fmt-opts))}
-            {:result (fmt/format-number math-result fmt-opts)})
+            {:result (fmt/format-number math-result (assoc fmt-opts :original-expr input))})
           ;; Then try as unit conversion
           (let [parsed (parser/parse-request input)
                 effective-fmt (merge (:format parsed) fmt-opts)
@@ -110,12 +110,108 @@
               (js/JSON.stringify (clj->js history)))
     (catch :default _ nil)))
 
+;;; ---------- Color utilities ----------
+
+(defn hsl->rgb
+  "Convert HSL [0-360, 0-100, 0-100] to RGB [0-255, 0-255, 0-255]."
+  [[h s l]]
+  (let [s (/ s 100) l (/ l 100)
+        c (* (- 1 (js/Math.abs (- (* 2 l) 1))) s)
+        x (* c (- 1 (js/Math.abs (- (mod (/ h 60) 2) 1))))
+        m (- l (/ c 2))
+        [r1 g1 b1] (cond
+                      (< h 60)  [c x 0]
+                      (< h 120) [x c 0]
+                      (< h 180) [0 c x]
+                      (< h 240) [0 x c]
+                      (< h 300) [x 0 c]
+                      :else     [c 0 x])]
+    [(js/Math.round (* (+ r1 m) 255))
+     (js/Math.round (* (+ g1 m) 255))
+     (js/Math.round (* (+ b1 m) 255))]))
+
+(defn rgb->hsl
+  "Convert RGB [0-255, 0-255, 0-255] to HSL [0-360, 0-100, 0-100]."
+  [[r g b]]
+  (let [r (/ r 255) g (/ g 255) b (/ b 255)
+        mx (max r g b) mn (min r g b)
+        l (/ (+ mx mn) 2)
+        d (- mx mn)]
+    (if (zero? d)
+      [0 0 (js/Math.round (* l 100))]
+      (let [s (if (> l 0.5) (/ d (- 2 mx mn)) (/ d (+ mx mn)))
+            h (cond
+                (= mx r) (* 60 (mod (/ (- g b) d) 6))
+                (= mx g) (* 60 (+ (/ (- b r) d) 2))
+                :else     (* 60 (+ (/ (- r g) d) 4)))
+            h (if (neg? h) (+ h 360) h)]
+        [(js/Math.round h)
+         (js/Math.round (* s 100))
+         (js/Math.round (* l 100))]))))
+
+(defn hex->hsl [hex]
+  (let [hex (if (str/starts-with? hex "#") (subs hex 1) hex)
+        r (js/parseInt (subs hex 0 2) 16)
+        g (js/parseInt (subs hex 2 4) 16)
+        b (js/parseInt (subs hex 4 6) 16)]
+    (rgb->hsl [r g b])))
+
+(defn hsl->hex [[h s l]]
+  (let [[r g b] (hsl->rgb [h s l])]
+    (str "#"
+         (.padStart (.toString r 16) 2 "0")
+         (.padStart (.toString g 16) 2 "0")
+         (.padStart (.toString b 16) 2 "0"))))
+
+(defn clamp [v lo hi] (min hi (max lo v)))
+
+(defn derive-theme
+  "Given bg and accent as [h s l], derive all CSS variable values."
+  [[bh bs bl :as bg] [ah as al :as accent]]
+  (let [dark? (< bl 50)]
+    {:bg (hsl->hex bg)
+     :surface (hsl->hex [bh bs (clamp (if dark? (+ bl 5) (- bl 4)) 0 100)])
+     :border (hsl->hex [bh (clamp (if dark? (max bs 10) bs) 0 100)
+                         (clamp (if dark? (+ bl 15) (- bl 20)) 0 100)])
+     :text (hsl->hex [bh (clamp (/ bs 4) 0 100)
+                       (if dark? 91 13)])
+     :text-muted (hsl->hex [bh (clamp (/ bs 3) 0 100)
+                             (if dark? 55 40)])
+     :accent (hsl->hex accent)
+     :accent-hover (hsl->hex [ah as (clamp (if dark? (+ al 10) (- al 10)) 0 100)])
+     :green (hsl->hex [140 (clamp (if dark? 60 55) 0 100)
+                        (clamp (if dark? 45 30) 0 100)])
+     :red (hsl->hex [0 (clamp (if dark? 80 70) 0 100)
+                      (clamp (if dark? 55 40) 0 100)])}))
+
+;;; ---------- Preset themes ----------
+
+(def theme-presets
+  [{:name "Midnight"  :bg [215 50 7]   :accent [212 100 67]}
+   {:name "Daylight"  :bg [0 0 100]    :accent [212 100 44]}
+   {:name "Amber"     :bg [30 40 10]   :accent [30 100 50]}
+   {:name "Solarized" :bg [192 100 11] :accent [175 59 40]}
+   {:name "Forest"    :bg [150 30 10]  :accent [140 60 55]}
+   {:name "Dracula"   :bg [231 15 18]  :accent [265 89 78]}])
+
+(def default-dark-preset (first theme-presets))
+(def default-light-preset (second theme-presets))
+
+;;; ---------- Theme load/save ----------
+
 (defn load-theme []
-  (or (try (.getItem js/localStorage "calc-theme") (catch :default _ nil))
+  (or (try
+        (when-let [raw (.getItem js/localStorage "calc-theme")]
+          (let [parsed (js->clj (js/JSON.parse raw) :keywordize-keys true)]
+            (when (and (:bg parsed) (:accent parsed))
+              {:bg (vec (:bg parsed))
+               :accent (vec (:accent parsed))
+               :preset (:preset parsed)})))
+        (catch :default _ nil))
       (if (and js/window.matchMedia
                (.-matches (.matchMedia js/window "(prefers-color-scheme: light)")))
-        "light"
-        "dark")))
+        {:bg (:bg default-light-preset) :accent (:accent default-light-preset) :preset "Daylight"}
+        {:bg (:bg default-dark-preset) :accent (:accent default-dark-preset) :preset "Midnight"})))
 
 (defn load-fmt-opts []
   (try
@@ -247,11 +343,33 @@
                         :hide-examples (load-hide-examples)
                         :zoom (or (load-zoom) (default-zoom))
                         :precision initial-precision
-                        :page :calc
+                        :page (case (.. js/window -location -hash)
+                                "#/help" :help
+                                "#/settings" :settings
+                                :calc)
                         :copied-idx nil
                         :comp-index -1
                         :show-completions false
                         :completions-enabled (load-completions-enabled)}))
+
+(defn- page->hash [page]
+  (case page :help "#/help" :settings "#/settings" ""))
+
+(defn navigate! [page & kvs]
+  (apply swap! state assoc :page page kvs)
+  (let [h (page->hash page)]
+    (when (not= (.. js/window -location -hash) h)
+      (if (= h "")
+        (.pushState js/history nil "" (.. js/window -location -pathname))
+        (.pushState js/history nil "" h)))))
+
+(.addEventListener js/window "popstate"
+  (fn [_]
+    (let [page (case (.. js/window -location -hash)
+                 "#/help" :help
+                 "#/settings" :settings
+                 :calc)]
+      (swap! state assoc :page page))))
 
 (defn effective-fmt-opts
   "Merge default settings with session overrides. Session wins."
@@ -269,15 +387,24 @@
   (when-let [el @log-ref]
     (set! (.-scrollTop el) 0)))
 
-(defn apply-theme! [theme]
-  (let [root (.-documentElement js/document)]
-    (.setAttribute root "data-theme" theme)))
+(defn apply-theme! [theme-map]
+  (let [colors (derive-theme (:bg theme-map) (:accent theme-map))
+        style (.-style (.-documentElement js/document))]
+    (doseq [[k v] colors]
+      (.setProperty style (str "--" (name k)) v))
+    (when-let [meta-el (.querySelector js/document "meta[name='theme-color']")]
+      (.setAttribute meta-el "content" (:bg colors)))))
 
-(defn toggle-theme! []
-  (let [new-theme (if (= "dark" (:theme @state)) "light" "dark")]
-    (swap! state assoc :theme new-theme)
-    (.setItem js/localStorage "calc-theme" new-theme)
-    (apply-theme! new-theme)))
+(defn save-theme! [theme-map]
+  (try
+    (.setItem js/localStorage "calc-theme"
+              (js/JSON.stringify (clj->js theme-map)))
+    (catch :default _ nil)))
+
+(defn set-theme! [theme-map]
+  (swap! state assoc :theme theme-map)
+  (save-theme! theme-map)
+  (apply-theme! theme-map))
 
 (def examples
   ["100GB / 900Mbps"
@@ -395,7 +522,7 @@
                      :result (:result ev)
                      :error (:error ev)}]
                    h)))
-    (swap! state assoc :page :calc)
+    (navigate! :calc)
     (save-history! (:history @state))
     (js/setTimeout scroll-log-to-top 0)))
 
@@ -403,7 +530,7 @@
   [:div.help-page
    [:div.help-header
     [:button.back-btn
-     {:on-click #(swap! state assoc :page :calc)}
+     {:on-click #(navigate! :calc)}
      "\u2190 Back"]
     [:h2 "Help"]]
    (let [snapshot-meta (.querySelector js/document "meta[name='calc-snapshot']")
@@ -467,53 +594,71 @@
           [:span.unit-sym (name sym)]
           [:span.unit-label label]])]])])
 
-(defn settings-page []
+(defn hsl-slider [label h-key s-key l-key theme on-change-fn]
+  (let [[h s l] [(get theme h-key) (get theme s-key) (get theme l-key)]
+        swatch-color (hsl->hex [(get theme h-key) (get theme s-key) (get theme l-key)])]
+    [:<>
+     [:div.setting-row
+      [:label.setting-label label]
+      [:div.color-swatch {:style {:background swatch-color}}]]
+     [:div.setting-row
+      [:label.setting-label {:style {:min-width "1.5em"}} "H"]
+      [:input {:type "range" :min 0 :max 360 :step 1 :value h
+               :style {:width "100%"}
+               :on-change (fn [e] (on-change-fn h-key (js/parseInt (.. e -target -value) 10)))}]]
+     [:div.setting-row
+      [:label.setting-label {:style {:min-width "1.5em"}} "S"]
+      [:input {:type "range" :min 0 :max 100 :step 1 :value s
+               :style {:width "100%"}
+               :on-change (fn [e] (on-change-fn s-key (js/parseInt (.. e -target -value) 10)))}]]
+     [:div.setting-row
+      [:label.setting-label {:style {:min-width "1.5em"}} "L"]
+      [:input {:type "range" :min 0 :max 100 :step 1 :value l
+               :style {:width "100%"}
+               :on-change (fn [e] (on-change-fn l-key (js/parseInt (.. e -target -value) 10)))}]]]))
+
+(defn theme-sliders []
+  (let [theme (:theme @state)
+        [bh bs bl] (:bg theme)
+        [ah as al] (:accent theme)
+        ;; Use a flat map for slider state so each slider has its own key
+        slider-state {:bh bh :bs bs :bl bl :ah ah :as as :al al}
+        update-and-apply (fn [k v]
+                           (let [cur (:theme @state)
+                                 [obh obs obl] (:bg cur)
+                                 [oah oas oal] (:accent cur)
+                                 new-theme (case k
+                                             :bh (assoc cur :bg [v obs obl] :preset nil)
+                                             :bs (assoc cur :bg [obh v obl] :preset nil)
+                                             :bl (assoc cur :bg [obh obs v] :preset nil)
+                                             :ah (assoc cur :accent [v oas oal] :preset nil)
+                                             :as (assoc cur :accent [oah v oal] :preset nil)
+                                             :al (assoc cur :accent [oah oas v] :preset nil))]
+                             (set-theme! new-theme)))]
+    [:<>
+     [hsl-slider "Background" :bh :bs :bl slider-state update-and-apply]
+     [:div {:style {:height "0.5rem"}}]
+     [hsl-slider "Accent" :ah :as :al slider-state update-and-apply]]))
+
+(defn settings-calculator-tab []
   (let [defaults (or (:default-fmt-opts @state) {})
         has-round (contains? defaults :round)
         has-sigs (contains? defaults :sig-figs)
         round-val (or (:round defaults) 4)
-        sigs-val (or (:sig-figs defaults) 6)
-        theme (:theme @state)]
-    [:div.help-page
-     [:div.help-header
-      [:button.back-btn
-       {:on-click #(swap! state assoc :page :calc)}
-       "\u2190 Back"]
-      [:h2 "Settings"]]
+        sigs-val (or (:sig-figs defaults) 6)]
+    [:<>
      [:div.settings-section
-      [:h3 "Appearance"]
+      [:h3 "Auto Completion"]
       [:div.setting-row
        [:label.setting-label
         [:input {:type "checkbox"
-                 :checked (= theme "dark")
-                 :on-change (fn [_] (toggle-theme!))}]
-        "Dark mode"]]
-      (let [pending (or (:zoom-pending @state) (:zoom @state))]
-        [:<>
-         [:div.setting-row
-          [:label.setting-label (str "Zoom: " (.toFixed (js/Number pending) 1))]
-          [:input {:type "range"
-                   :min 0.8 :max 2.0 :step 0.1
-                   :value pending
-                   :style {:width "100%"}
-                   :on-change (fn [e]
-                                (let [v (js/parseFloat (.. e -target -value))]
-                                  (swap! state assoc :zoom-pending v)))}]]
-         [:div.setting-row
-          [:button.back-btn
-           {:on-click (fn []
-                        (let [v (or (:zoom-pending @state) (:zoom @state))]
-                          (swap! state assoc :zoom v :zoom-pending nil)
-                          (save-zoom! v)
-                          (apply-zoom! v)))}
-           "Apply"]
-          [:button.back-btn
-           {:on-click (fn []
-                        (let [d (default-zoom)]
-                          (swap! state assoc :zoom d :zoom-pending nil)
-                          (save-zoom! nil)
-                          (apply-zoom! d)))}
-           "Reset"]]])]
+                 :checked (:completions-enabled @state)
+                 :on-change
+                 (fn [_]
+                   (let [v (not (:completions-enabled @state))]
+                     (swap! state assoc :completions-enabled v :show-completions false)
+                     (save-completions-enabled! v)))}]
+        "Enable suggestions dropdown"]]]
      [:div.settings-section
       [:h3 "History"]
       [:div.setting-row
@@ -525,17 +670,7 @@
                    (let [v (not (:hide-examples @state))]
                      (swap! state assoc :hide-examples v)
                      (save-hide-examples! v)))}]
-        "Hide examples cloud"]
-      [:div.setting-row
-       [:label.setting-label
-        [:input {:type "checkbox"
-                 :checked (:completions-enabled @state)
-                 :on-change
-                 (fn [_]
-                   (let [v (not (:completions-enabled @state))]
-                     (swap! state assoc :completions-enabled v :show-completions false)
-                     (save-completions-enabled! v)))}]
-        "Autocomplete suggestions"]]]]
+        "Hide examples cloud"]]]
      [:div.settings-section
       [:h3 "Default Formatting"]
       [:p.group-desc
@@ -631,6 +766,78 @@
                        (swap! state assoc :precision m/default-precision))}
           "Reset"]]])]))
 
+(defn settings-appearance-tab []
+  (let [theme (:theme @state)]
+    [:<>
+     [:div.settings-section
+      [:h3 "Theme"]
+      [:div.preset-row
+       (for [{:keys [name bg accent]} theme-presets]
+         ^{:key name}
+         [:button.preset-chip
+          {:class (when (= name (:preset theme)) "active")
+           :style {:background (hsl->hex bg)
+                   :color (hsl->hex [(first accent) (second accent) (nth accent 2)])}
+           :on-click (fn [] (set-theme! {:bg bg :accent accent :preset name}))}
+          name])]
+      [theme-sliders]
+      [:div.setting-row
+       [:button.back-btn
+        {:on-click (fn []
+                     (let [preset (or (some #(when (= (:name %) (:preset theme)) %) theme-presets)
+                                      default-dark-preset)]
+                       (set-theme! {:bg (:bg preset) :accent (:accent preset) :preset (:name preset)})))}
+        "Reset"]]]
+     [:div.settings-section
+      [:h3 "Zoom"]
+      (let [pending (or (:zoom-pending @state) (:zoom @state))]
+        [:<>
+         [:div.setting-row
+          [:label.setting-label (str "Zoom: " (.toFixed (js/Number pending) 1))]
+          [:input {:type "range"
+                   :min 0.8 :max 2.0 :step 0.1
+                   :value pending
+                   :style {:width "100%"}
+                   :on-change (fn [e]
+                                (let [v (js/parseFloat (.. e -target -value))]
+                                  (swap! state assoc :zoom-pending v)))}]]
+         [:div.setting-row
+          [:button.back-btn
+           {:on-click (fn []
+                        (let [v (or (:zoom-pending @state) (:zoom @state))]
+                          (swap! state assoc :zoom v :zoom-pending nil)
+                          (save-zoom! v)
+                          (apply-zoom! v)))}
+           "Apply"]
+          [:button.back-btn
+           {:on-click (fn []
+                        (let [d (default-zoom)]
+                          (swap! state assoc :zoom d :zoom-pending nil)
+                          (save-zoom! nil)
+                          (apply-zoom! d)))}
+           "Reset"]]])]]))
+
+(defn settings-page []
+  (let [tab (or (:settings-tab @state) :calculator)]
+    [:div.settings-page
+     [:div.help-header
+      [:button.back-btn
+       {:on-click #(navigate! :calc)}
+       "\u2190 Back"]
+      [:h2 "Settings"]]
+     [:div.settings-tabs
+      [:button.settings-tab
+       {:class (when (= tab :calculator) "active")
+        :on-click #(swap! state assoc :settings-tab :calculator)}
+       "Calculator"]
+      [:button.settings-tab
+       {:class (when (= tab :appearance) "active")
+        :on-click #(swap! state assoc :settings-tab :appearance)}
+       "Appearance"]]
+     (case tab
+       :appearance [settings-appearance-tab]
+       [settings-calculator-tab])]))
+
 (def clear-commands #{"clear" "/clear" "reset" "/reset"})
 
 (defn clear-history! []
@@ -653,7 +860,7 @@
   [{:keys [cmd arg]}]
   (case cmd
     "help"
-    (do (swap! state assoc :page :help) {:input "/help" :result "Showing help page"})
+    (do (navigate! :help) {:input "/help" :result "Showing help page"})
 
     "p"
     (if (str/blank? arg)
@@ -712,7 +919,7 @@
                            :result (:result ev)
                            :error (:error ev)}]
                          h)))
-          (swap! state assoc :page :calc)
+          (navigate! :calc)
           (save-history! (:history @state))
           (js/setTimeout scroll-log-to-top 0))))))
 
@@ -891,7 +1098,12 @@
                       (evaluate input eff-fmt)))]
     [:<>
      [:header
-      [:h1 "calc"]
+      [:h1 {:on-click (fn [_]
+                        (navigate! :calc :input "" :hist-index -1)
+                        (js/window.scrollTo 0 0)
+                        (when-let [el (.querySelector js/document "header input[type='text']")]
+                          (.focus el)))}
+       "λ"]
       [:div.input-wrapper
        [:input (cond-> {:type "text"
                         :value input
@@ -932,11 +1144,11 @@
         [:nav.menu
          [:button.menu-item
           {:on-click (fn []
-                      (swap! state assoc :page :calc :menu-open false))}
+                      (navigate! :calc :menu-open false))}
           "Home"]
          [:button.menu-item
           {:on-click (fn []
-                      (swap! state assoc :page :help :menu-open false))}
+                      (navigate! :help :menu-open false))}
           "Help"]
          [:button.menu-item
           {:on-click (fn []
@@ -945,7 +1157,7 @@
           "Clear History"]
          [:button.menu-item
           {:on-click (fn []
-                      (swap! state assoc :page :settings :menu-open false))}
+                      (navigate! :settings :menu-open false))}
           "Settings"]
          [:a.menu-item
           {:href "https://github.com/EnigmaCurry/calc"
@@ -1069,7 +1281,8 @@
 (defonce root (atom nil))
 
 (defn ^:export init []
-  (apply-theme! (load-theme))
+  (let [theme (load-theme)]
+    (apply-theme! theme))
   (apply-zoom! (or (load-zoom) (default-zoom)))
   (let [el (js/document.getElementById "app")]
     (when-not @root

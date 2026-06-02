@@ -111,30 +111,48 @@
                 s))))
 
         :cljs
-        (let [d (m/->dec x)]
-          (cond
-            round
-            (.toFixed d round)
+        (let [d (m/->dec x)
+              format-plain (fn [d]
+                             (cond
+                               round
+                               (.toFixed d round)
 
-            sig-figs
-            (let [s (.toPrecision d sig-figs)]
-              (if (str/includes? s ".")
-                (-> s (str/replace #"0+$" "") (str/replace #"\.$" ""))
-                s))
+                               sig-figs
+                               (let [s (.toPrecision d sig-figs)]
+                                 (if (str/includes? s ".")
+                                   (-> s (str/replace #"0+$" "") (str/replace #"\.$" ""))
+                                   s))
 
-            (m/dinteger? d)
-            (let [s (.toFixed d 0)]
-              (if (> (count s) 20)
-                (.toExponential d)
-                s))
+                               (m/dinteger? d)
+                               (let [s (.toFixed d 0)]
+                                 (if (> (count s) 20)
+                                   (.toExponential d)
+                                   s))
 
-            :else
-            (let [s (.toPrecision d 10)]
-              (if (str/includes? s ".")
-                (-> s
-                    (str/replace #"0+$" "")
-                    (str/replace #"\.$" ""))
-                s))))))))
+                               :else
+                               (let [s (.toPrecision d 10)]
+                                 (if (str/includes? s ".")
+                                   (-> s
+                                       (str/replace #"0+$" "")
+                                       (str/replace #"\.$" ""))
+                                   s))))
+              plain (format-plain d)]
+          (if (and original-expr (not numeric)
+                   (re-matches #"\s*-?\s*\d+\s*/\s*\d+\s*" original-expr))
+            (let [m (re-matches #"\s*(-?)\s*(\d+)\s*/\s*(\d+)\s*" original-expr)
+                  neg? (= "-" (nth m 1))
+                  numer (js/parseInt (nth m 2) 10)
+                  denom (js/parseInt (nth m 3) 10)
+                  gcd (loop [a numer b denom]
+                        (if (zero? b) a (recur b (mod a b))))
+                  rn (/ numer gcd)
+                  rd (/ denom gcd)
+                  reduced (str (when neg? "-") rn "/" rd)
+                  trimmed (str/trim original-expr)]
+              (if (not= trimmed reduced)
+                (str trimmed " = " reduced " = " plain)
+                (str reduced " = " plain)))
+            plain))))))
 
 (defn format-error
   "Format an error map into a human-readable string (without 'Error: ' prefix)."
