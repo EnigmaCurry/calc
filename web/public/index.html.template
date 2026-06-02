@@ -523,6 +523,38 @@
       color: var(--accent);
     }
 
+    /* Empty state */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      padding: 3rem 1rem;
+      text-align: center;
+    }
+
+    .empty-bubble {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0.6rem 1.25rem;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    .empty-link {
+      cursor: pointer;
+      color: var(--accent);
+      border-color: var(--accent);
+      transition: background 0.15s;
+    }
+
+    .empty-link:hover {
+      background: var(--accent);
+      color: var(--bg);
+    }
+
     /* Help page */
     .help-page {
       max-width: 640px;

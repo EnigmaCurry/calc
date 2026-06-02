@@ -1202,6 +1202,14 @@
         :help [help-page]
         :settings [settings-page]
         [:<>
+         (when (empty? history)
+           [:div.empty-state
+            [:div.empty-bubble "Type a conversion or calculation above"]
+            [:div.empty-bubble "Results will appear here"]
+            [:div.empty-bubble "Try \"5 feet in cm\" or \"2+2\""]
+            [:div.empty-bubble "100% private \u2014 all calculations run locally"]
+            [:div.empty-bubble "History is saved to your browser\u2019s local storage"]
+            [:button.empty-bubble.empty-link {:on-click #(navigate! :help)} "View Help"]])
          (when (seq history)
            [:div.log
             (for [[idx {:keys [input from target result error]}] (map-indexed vector history)]
