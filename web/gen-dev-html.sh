@@ -9,19 +9,24 @@ sed 's/main\.__HASH__\.js/main.js/g; s/__HASH__/dev/g' sw.js.template > sw.js
 # Removes the SW registration from the template and adds a polling reload script.
 sed -i '/<\/body>/i <script>\
 (function() {\
-  /* Unregister service workers in dev so they cannot serve stale assets */\
   if (navigator.serviceWorker) {\
     navigator.serviceWorker.getRegistrations().then(function(regs) {\
       regs.forEach(function(r) { r.unregister(); });\
     });\
   }\
-  /* Poll shadow-cljs dev server; reload when it comes back after going down */\
   var wasDown = false;\
+  var lastLen = null;\
   setInterval(function() {\
     var x = new XMLHttpRequest();\
-    x.open("HEAD", "/js/main.js?_=" + Date.now(), true);\
-    x.timeout = 1500;\
-    x.onload = function() { if (wasDown) location.reload(true); };\
+    x.open("GET", "/js/main.js?_=" + Date.now(), true);\
+    x.timeout = 3000;\
+    x.onload = function() {\
+      var len = x.responseText.length;\
+      if (!wasDown) { lastLen = len; return; }\
+      /* Server is back; only reload once JS content has changed (build done) */\
+      if (lastLen !== null && len !== lastLen) location.reload(true);\
+      if (lastLen === null) lastLen = len;\
+    };\
     x.onerror = x.ontimeout = function() { wasDown = true; };\
     x.send();\
   }, 2000);\
