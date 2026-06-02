@@ -805,18 +805,18 @@
          [:div.setting-row
           [:button.back-btn
            {:on-click (fn []
-                        (let [v (or (:zoom-pending @state) (:zoom @state))]
-                          (swap! state assoc :zoom v :zoom-pending nil)
-                          (save-zoom! v)
-                          (apply-zoom! v)))}
-           "Apply"]
-          [:button.back-btn
-           {:on-click (fn []
                         (let [d (default-zoom)]
                           (swap! state assoc :zoom d :zoom-pending nil)
                           (save-zoom! nil)
                           (apply-zoom! d)))}
-           "Reset"]]])]]))
+           "Reset"]
+          [:button.back-btn
+           {:on-click (fn []
+                        (let [v (or (:zoom-pending @state) (:zoom @state))]
+                          (swap! state assoc :zoom v :zoom-pending nil)
+                          (save-zoom! v)
+                          (apply-zoom! v)))}
+           "Apply"]]])]]))
 
 (defn settings-page []
   (let [tab (or (:settings-tab @state) :calculator)]
