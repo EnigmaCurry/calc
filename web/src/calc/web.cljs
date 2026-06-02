@@ -16,6 +16,21 @@
     (into [:div {:class css-class}]
           (map-indexed (fn [i line] [:div.result-line {:key i} line]) lines))))
 
+(defn tip-table
+  "Render a tip calculation as a responsive table."
+  [{:keys [bill rows fmt-opts]} css-class]
+  (let [fm #(str "$" (fmt/format-number % fmt-opts))]
+    [:div {:class (str "tip-table " css-class)}
+     [:div.tip-bill
+      [:span.tip-label "Bill"]
+      [:span.tip-val (fm bill)]]
+     (for [{:keys [label tip total]} rows]
+       ^{:key label}
+       [:div.tip-row
+        [:span.tip-label label]
+        [:span.tip-val (fm tip)]
+        [:span.tip-val (fm total)]])]))
+
 (defn format-unit-label
   "Format an exponent-map unit like {:ft 2} as 'ft²'."
   [unit]
@@ -67,6 +82,11 @@
             (cond
               (not (:ok? result))
               {:error (fmt/format-error result)}
+
+              (= :tip (:op parsed))
+              {:tip-data {:bill (:bill result)
+                          :rows (:rows result)
+                          :fmt-opts (assoc effective-fmt :round 2)}}
 
               (fmt/format-op-result parsed result effective-fmt)
               {:result (fmt/format-op-result parsed result effective-fmt)}
@@ -914,11 +934,12 @@
                  :input "")
           (swap! state update :history
                  (fn [h]
-                   (into [{:input input
-                           :from (:from ev)
-                           :target (:target ev)
-                           :result (:result ev)
-                           :error (:error ev)}]
+                   (into [(cond-> {:input input
+                                   :from (:from ev)
+                                   :target (:target ev)
+                                   :result (:result ev)
+                                   :error (:error ev)}
+                            (:tip-data ev) (assoc :tip-data (:tip-data ev)))]
                          h)))
           (navigate! :calc)
           (save-history! (:history @state))
@@ -1075,6 +1096,8 @@
                          [:div.completion-preview
                           {:key "preview"}
                           (cond
+                            (:tip-data preview)
+                            [tip-table (:tip-data preview) "preview-result"]
                             (and (:result preview) (str/includes? (str (:result preview)) "\n"))
                             [multiline-result (:result preview) "preview-result"]
                             (:target preview)
@@ -1190,6 +1213,9 @@
                   [:span.preview-warning "keep typing\u2026"]
                   [:span.preview-error (:error preview)])
 
+                (:tip-data preview)
+                [tip-table (:tip-data preview) "preview-result"]
+
                 (and (:result preview) (str/includes? (str (:result preview)) "\n"))
                 [multiline-result (:result preview) "preview-result"]
 
@@ -1214,7 +1240,7 @@
             [:button.empty-bubble.empty-link {:on-click #(navigate! :help)} "View Help"]])
          (when (seq history)
            [:div.log
-            (for [[idx {:keys [input from target result error]}] (map-indexed vector history)]
+            (for [[idx {:keys [input from target result error tip-data]}] (map-indexed vector history)]
               (let [result-text (str (or from input) " = "
                                      (cond
                                        error error
@@ -1267,6 +1293,9 @@
                    (cond
                      error
                      [:span.log-error (str "\u2192 " error)]
+
+                     tip-data
+                     [tip-table tip-data "log-result"]
 
                      (and result (str/includes? (str result) "\n"))
                      [multiline-result result "log-result"]

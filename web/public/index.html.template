@@ -472,6 +472,58 @@
       flex-wrap: wrap;
     }
 
+    .log-entry:has(div.tip-table) {
+      flex-wrap: wrap;
+    }
+
+    .tip-table {
+      display: grid;
+      grid-template-columns: auto auto auto;
+      gap: 0.15rem 0.75rem;
+      font-weight: 600;
+      width: 100%;
+      margin: 0;
+      font-family: inherit;
+      font-size: inherit;
+    }
+
+    .tip-table.preview-result {
+      color: var(--green);
+    }
+
+    .tip-table.log-result {
+      color: var(--green);
+    }
+
+    .tip-bill {
+      display: contents;
+    }
+
+    .tip-bill .tip-val {
+      grid-column: 2 / -1;
+    }
+
+    .tip-row {
+      display: contents;
+    }
+
+    .tip-label {
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .tip-val {
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 360px) {
+      .tip-table {
+        gap: 0.1rem 0.4rem;
+        font-size: 0.85em;
+      }
+    }
+
     .log-error {
       color: var(--red);
     }
