@@ -1314,6 +1314,14 @@
          (when-not (:hide-examples @state)
            [:div.examples
             [:h3 "Try some examples"]
+            [:p.examples-hint
+             "(Hide these examples in the "
+             [:a {:href "#"
+                  :on-click (fn [e]
+                              (.preventDefault e)
+                              (navigate! :settings))}
+              "Settings"]
+             ")"]
             [:div.chips
              (for [ex examples]
                ^{:key ex} [example-chip ex])]])])]]))

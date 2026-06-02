@@ -552,7 +552,18 @@
       text-transform: uppercase;
       letter-spacing: 0.05em;
       color: var(--text-muted);
+      margin-bottom: 0.25rem;
+    }
+
+    .examples-hint {
+      font-size: 0.75rem;
+      color: var(--text-muted);
       margin-bottom: 0.75rem;
+    }
+
+    .examples-hint a {
+      color: var(--accent);
+      text-decoration: underline;
     }
 
     .chips {
