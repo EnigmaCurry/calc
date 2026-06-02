@@ -361,7 +361,8 @@
     (when (not= (.. js/window -location -hash) h)
       (if (= h "")
         (.pushState js/history nil "" (.. js/window -location -pathname))
-        (.pushState js/history nil "" h)))))
+        (.pushState js/history nil "" h))))
+  (js/setTimeout #(when-let [el @log-ref] (set! (.-scrollTop el) 0)) 0))
 
 (.addEventListener js/window "popstate"
   (fn [_]
