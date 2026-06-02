@@ -529,6 +529,10 @@
       padding-bottom: 2rem;
     }
 
+    .settings-page {
+      padding: 0 1rem 2rem;
+    }
+
     .help-header {
       display: flex;
       align-items: center;

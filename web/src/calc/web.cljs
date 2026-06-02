@@ -817,7 +817,7 @@
 
 (defn settings-page []
   (let [tab (or (:settings-tab @state) :calculator)]
-    [:div.help-page
+    [:div.settings-page
      [:div.help-header
       [:button.back-btn
        {:on-click #(navigate! :calc)}
