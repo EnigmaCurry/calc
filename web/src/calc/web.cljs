@@ -1204,6 +1204,7 @@
         [:<>
          (when (empty? history)
            [:div.empty-state
+            [:div.empty-lambda "\u03bb"]
             [:div.empty-bubble "Type a conversion or calculation above"]
             [:div.empty-bubble "Results will appear here"]
             [:div.empty-bubble "Try \"5 feet in cm\" or \"2+2\""]

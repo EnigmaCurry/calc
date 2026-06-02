@@ -534,6 +534,14 @@
       text-align: center;
     }
 
+    .empty-lambda {
+      font-size: 5rem;
+      color: var(--accent);
+      line-height: 1;
+      margin-bottom: 0.5rem;
+      opacity: 0.6;
+    }
+
     .empty-bubble {
       background: var(--surface);
       border: 1px solid var(--border);
