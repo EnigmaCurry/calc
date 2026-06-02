@@ -891,7 +891,7 @@
                       (evaluate input eff-fmt)))]
     [:<>
      [:header
-      [:h1 "calc"]
+      [:h1 "λ"]
       [:div.input-wrapper
        [:input (cond-> {:type "text"
                         :value input
