@@ -648,6 +648,18 @@
         sigs-val (or (:sig-figs defaults) 6)]
     [:<>
      [:div.settings-section
+      [:h3 "Auto Completion"]
+      [:div.setting-row
+       [:label.setting-label
+        [:input {:type "checkbox"
+                 :checked (:completions-enabled @state)
+                 :on-change
+                 (fn [_]
+                   (let [v (not (:completions-enabled @state))]
+                     (swap! state assoc :completions-enabled v :show-completions false)
+                     (save-completions-enabled! v)))}]
+        "Autocomplete suggestions"]]]
+     [:div.settings-section
       [:h3 "History"]
       [:div.setting-row
        [:label.setting-label
@@ -658,17 +670,7 @@
                    (let [v (not (:hide-examples @state))]
                      (swap! state assoc :hide-examples v)
                      (save-hide-examples! v)))}]
-        "Hide examples cloud"]
-      [:div.setting-row
-       [:label.setting-label
-        [:input {:type "checkbox"
-                 :checked (:completions-enabled @state)
-                 :on-change
-                 (fn [_]
-                   (let [v (not (:completions-enabled @state))]
-                     (swap! state assoc :completions-enabled v :show-completions false)
-                     (save-completions-enabled! v)))}]
-        "Autocomplete suggestions"]]]]
+        "Hide examples cloud"]]]
      [:div.settings-section
       [:h3 "Default Formatting"]
       [:p.group-desc
