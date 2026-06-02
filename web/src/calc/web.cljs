@@ -891,7 +891,12 @@
                       (evaluate input eff-fmt)))]
     [:<>
      [:header
-      [:h1 "λ"]
+      [:h1 {:on-click (fn [_]
+                        (swap! state assoc :page :calc)
+                        (js/window.scrollTo 0 0)
+                        (when-let [el (.querySelector js/document "header input[type='text']")]
+                          (.focus el)))}
+       "λ"]
       [:div.input-wrapper
        [:input (cond-> {:type "text"
                         :value input
