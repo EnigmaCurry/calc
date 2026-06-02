@@ -640,66 +640,13 @@
      [:div {:style {:height "0.5rem"}}]
      [hsl-slider "Accent" :ah :as :al slider-state update-and-apply]]))
 
-(defn settings-page []
+(defn settings-calculator-tab []
   (let [defaults (or (:default-fmt-opts @state) {})
         has-round (contains? defaults :round)
         has-sigs (contains? defaults :sig-figs)
         round-val (or (:round defaults) 4)
-        sigs-val (or (:sig-figs defaults) 6)
-        theme (:theme @state)]
-    [:div.help-page
-     [:div.help-header
-      [:button.back-btn
-       {:on-click #(navigate! :calc)}
-       "\u2190 Back"]
-      [:h2 "Settings"]]
-     [:div.settings-section
-      [:h3 "Theme"]
-      [:div.preset-row
-       (for [{:keys [name bg accent]} theme-presets]
-         ^{:key name}
-         [:button.preset-chip
-          {:class (when (= name (:preset theme)) "active")
-           :style {:background (hsl->hex bg)
-                   :color (hsl->hex [(first accent) (second accent) (nth accent 2)])}
-           :on-click (fn [] (set-theme! {:bg bg :accent accent :preset name}))}
-          name])]
-      [theme-sliders]
-      [:div.setting-row
-       [:button.back-btn
-        {:on-click (fn []
-                     (let [preset (or (some #(when (= (:name %) (:preset theme)) %) theme-presets)
-                                      default-dark-preset)]
-                       (set-theme! {:bg (:bg preset) :accent (:accent preset) :preset (:name preset)})))}
-        "Reset"]]]
-     [:div.settings-section
-      [:h3 "Appearance"]
-      (let [pending (or (:zoom-pending @state) (:zoom @state))]
-        [:<>
-         [:div.setting-row
-          [:label.setting-label (str "Zoom: " (.toFixed (js/Number pending) 1))]
-          [:input {:type "range"
-                   :min 0.8 :max 2.0 :step 0.1
-                   :value pending
-                   :style {:width "100%"}
-                   :on-change (fn [e]
-                                (let [v (js/parseFloat (.. e -target -value))]
-                                  (swap! state assoc :zoom-pending v)))}]]
-         [:div.setting-row
-          [:button.back-btn
-           {:on-click (fn []
-                        (let [v (or (:zoom-pending @state) (:zoom @state))]
-                          (swap! state assoc :zoom v :zoom-pending nil)
-                          (save-zoom! v)
-                          (apply-zoom! v)))}
-           "Apply"]
-          [:button.back-btn
-           {:on-click (fn []
-                        (let [d (default-zoom)]
-                          (swap! state assoc :zoom d :zoom-pending nil)
-                          (save-zoom! nil)
-                          (apply-zoom! d)))}
-           "Reset"]]])]
+        sigs-val (or (:sig-figs defaults) 6)]
+    [:<>
      [:div.settings-section
       [:h3 "History"]
       [:div.setting-row
@@ -816,6 +763,78 @@
                        (save-precision! nil)
                        (swap! state assoc :precision m/default-precision))}
           "Reset"]]])]))
+
+(defn settings-appearance-tab []
+  (let [theme (:theme @state)]
+    [:<>
+     [:div.settings-section
+      [:h3 "Theme"]
+      [:div.preset-row
+       (for [{:keys [name bg accent]} theme-presets]
+         ^{:key name}
+         [:button.preset-chip
+          {:class (when (= name (:preset theme)) "active")
+           :style {:background (hsl->hex bg)
+                   :color (hsl->hex [(first accent) (second accent) (nth accent 2)])}
+           :on-click (fn [] (set-theme! {:bg bg :accent accent :preset name}))}
+          name])]
+      [theme-sliders]
+      [:div.setting-row
+       [:button.back-btn
+        {:on-click (fn []
+                     (let [preset (or (some #(when (= (:name %) (:preset theme)) %) theme-presets)
+                                      default-dark-preset)]
+                       (set-theme! {:bg (:bg preset) :accent (:accent preset) :preset (:name preset)})))}
+        "Reset"]]]
+     [:div.settings-section
+      [:h3 "Zoom"]
+      (let [pending (or (:zoom-pending @state) (:zoom @state))]
+        [:<>
+         [:div.setting-row
+          [:label.setting-label (str "Zoom: " (.toFixed (js/Number pending) 1))]
+          [:input {:type "range"
+                   :min 0.8 :max 2.0 :step 0.1
+                   :value pending
+                   :style {:width "100%"}
+                   :on-change (fn [e]
+                                (let [v (js/parseFloat (.. e -target -value))]
+                                  (swap! state assoc :zoom-pending v)))}]]
+         [:div.setting-row
+          [:button.back-btn
+           {:on-click (fn []
+                        (let [v (or (:zoom-pending @state) (:zoom @state))]
+                          (swap! state assoc :zoom v :zoom-pending nil)
+                          (save-zoom! v)
+                          (apply-zoom! v)))}
+           "Apply"]
+          [:button.back-btn
+           {:on-click (fn []
+                        (let [d (default-zoom)]
+                          (swap! state assoc :zoom d :zoom-pending nil)
+                          (save-zoom! nil)
+                          (apply-zoom! d)))}
+           "Reset"]]])]]))
+
+(defn settings-page []
+  (let [tab (or (:settings-tab @state) :calculator)]
+    [:div.help-page
+     [:div.help-header
+      [:button.back-btn
+       {:on-click #(navigate! :calc)}
+       "\u2190 Back"]
+      [:h2 "Settings"]]
+     [:div.settings-tabs
+      [:button.settings-tab
+       {:class (when (= tab :calculator) "active")
+        :on-click #(swap! state assoc :settings-tab :calculator)}
+       "Calculator"]
+      [:button.settings-tab
+       {:class (when (= tab :appearance) "active")
+        :on-click #(swap! state assoc :settings-tab :appearance)}
+       "Appearance"]]
+     (case tab
+       :appearance [settings-appearance-tab]
+       [settings-calculator-tab])]))
 
 (def clear-commands #{"clear" "/clear" "reset" "/reset"})
 
