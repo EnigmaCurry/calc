@@ -76,31 +76,28 @@ calc> 3 * 3
 ### Examples
 
 ```
-$ calc 100 fahrenheit to celsius
-100 fahrenheit = 37.77777777777778 celsius
+> 100 F to C
+100 °F = 37.77777777777778 °C
 
-$ calc how many inches are in 3 feet?
-3 feet = 36 inches
+> how many inches are in 3 feet?
+3 ft = 36 inch
 
-$ calc 5 feet 11 inches to cm
-5 feet 11 inches = 180.34 cm
+> 5 feet 11 inches to cm
+5 ft 11 inch = 180.34 cm
 
-$ calc 60 mph in ft/s
+> 60 mph in ft/s
 60 mph = 88 ft/s
 
-$ calc 100 MB / 10 Mbps in seconds
-100 MB / 10 Mbps = 80 seconds
+> 100 MB / 10 Mbps in seconds
+80 s
 
-$ calc 7 inches in feet as a fraction
-7 inches = 7/12 feet
+> 7 inches in feet as a fraction
+7 inch = 7/12 ft
 
-$ calc -n 100GB / 900Mbps in days
-0.01028806584362
-
-$ calc 2 + 2
+> 2 + 2
 4
 
-$ calc 3 '*' '(4 + 5)'
+> 3 * (4 + 5)
 27
 ```
 
