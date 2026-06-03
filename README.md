@@ -59,8 +59,8 @@ $ calc 12 feet in yards
 Remember to use single quotes around characters that your shell interprets (like shell globs for `*`):
 
 ```bash
-$ calc '3 * 3'
-9
+$ calc '3*3 in binary'
+0b1001
 ```
 
 Start `calc` with no arguments to start an interactive REPL. Inside
