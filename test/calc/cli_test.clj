@@ -135,7 +135,7 @@
   (testing "mixed quantities use canonical form"
     (let [{:keys [from error]} (cli/process-request-text "5 feet 11 inches in cm" nil)]
       (is (nil? error))
-      (is (= "5 ft 11 in" from)))))
+      (is (= "5 ft 11 inch" from)))))
 
 ;; --- parse-format-opts tests ---
 

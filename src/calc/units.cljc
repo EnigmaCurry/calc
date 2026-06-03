@@ -49,8 +49,8 @@
             :name "yards" :singular "yard" :short "yd"
             :aliases ["yd" "yard" "yards"]}
    :in     {:dim {:length 1} :scale (->bigdec 0.0254)
-            :name "inches" :singular "inch" :short "in"
-            :aliases ["in" "inch" "inches"]}
+            :name "inches" :singular "inch" :short "inch"
+            :aliases ["inch" "inches"]}
    :mi     {:dim {:length 1} :scale (->bigdec 1609.344)
             :name "miles" :singular "mile" :short "mi" :auto-scale true
             :aliases ["mi" "mile" "miles"]}
