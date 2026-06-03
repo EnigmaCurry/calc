@@ -419,7 +419,13 @@
   (testing "nonsense input gets a useful parse error"
     (is (th/deep== {:error :unparseable
             :phrase "banana canoe surprise"}
-           (parser/parse-request "banana canoe surprise")))))
+           (parser/parse-request "banana canoe surprise"))))
+
+  (testing "trailing 'in' is incomplete, not a unit"
+    (is (th/deep== {:error :unparseable :phrase "12 feet in"}
+           (parser/parse-request "12 feet in")))
+    (is (th/deep== {:error :unparseable :phrase "5 kg in"}
+           (parser/parse-request "5 kg in")))))
 
 (deftest parses-math-expressions
   (testing "parenthesised arithmetic in quantity"

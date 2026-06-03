@@ -29,9 +29,12 @@
         });
 
       devShells = forAllSystems ({ pkgs }:
-        {
+        let
+          calc = self.packages.${pkgs.system}.calc;
+        in {
           default = pkgs.mkShell {
             packages = [
+              calc
               pkgs.babashka
               pkgs.clojure
               pkgs.jdk

@@ -34,7 +34,7 @@
   (testing "2 feet + 6 inches in inches = 30"
     (let [{:keys [result target]} (th/evaluate "2 feet + 6 inches in inches" nil)]
       (is (= "30" result))
-      (is (= "in" target))))
+      (is (= "inch" target))))
 
   (testing "1 km + 500 m in meters = 1500"
     (let [{:keys [result target]} (th/evaluate "1 km + 500 m in meters" nil)]
@@ -61,7 +61,7 @@
   (testing "1 yard + 2 feet + 3 inches in inches = 63"
     (let [{:keys [result target]} (th/evaluate "1 yard + 2 feet + 3 inches in inches" nil)]
       (is (= "63" result))
-      (is (= "in" target)))))
+      (is (= "inch" target)))))
 
 (deftest auto-scales-multi-unit-addition
   (testing "99 hours + 10 minutes + 2 seconds auto-selects a unit"
