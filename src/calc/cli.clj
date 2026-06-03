@@ -545,8 +545,12 @@
                       (let [{:keys [error result from target]} (process-request-text input @fmt-opts)]
                         (if error
                           (println error)
-                          (if (and from target)
+                          (cond
+                            (and (not (str/blank? from)) target)
                             (println (str from " = " result " " target))
+                            target
+                            (println (str result " " target))
+                            :else
                             (println result))))
                       (catch Exception e
                         (println "Error:" (.getMessage e))))
@@ -567,8 +571,12 @@
         (if error
           (do (vreset! has-error true)
               (binding [*out* *err*] (println error)))
-          (if (and from target)
+          (cond
+            (and (not (str/blank? from)) target)
             (println (str from " = " result " " target))
+            target
+            (println (str result " " target))
+            :else
             (println result)))))
     (when @has-error
       (System/exit 1))))
@@ -631,8 +639,12 @@
                     (binding [*out* *err*]
                       (println error))
                     (System/exit 1))
-                  (if (and from target)
+                  (cond
+                    (and (not (str/blank? from)) target)
                     (println (str from " = " result " " target))
+                    target
+                    (println (str result " " target))
+                    :else
                     (println result)))))))))
     (catch Exception e
       (binding [*out* *err*]
