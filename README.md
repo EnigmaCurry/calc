@@ -48,15 +48,30 @@ just calc 12 feet in yards
 
 ## CLI usage
 
-You can pass the calculation request directly as an argument. Remember to use single quotes around characters that your shell interprets (like shell globs for `*`):
+You can pass the calculation request directly as an argument list (all
+non-optional arguments are concatenated as a single string):
 
 ```bash
 $ calc 12 feet in yards
 12 feet = 4 yards
+```
 
+Remember to use single quotes around characters that your shell interprets (like shell globs for `*`):
+
+```bash
 $ calc '3 * 3'
 9
 ```
+
+Start `calc` with no arguments to start an interactive REPL. Inside
+the REPL, your inputs can be parsed correctly without quotes:
+
+```
+$ calc
+calc> 3 * 3
+9
+```
+
 
 ### Examples
 

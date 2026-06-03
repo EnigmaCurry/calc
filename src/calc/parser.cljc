@@ -1592,6 +1592,14 @@
                  :value (long (#?(:clj BigInteger. :cljs js/parseInt)
                                trimmed #?(:clj 10 :cljs 10)))
                  :from-base :decimal
+                 :to-base to-base}))
+
+            ;; Math expression (e.g. "3*3", "2+5", "4^2")
+            (when-let [v (math-value (parse-math (str/trim qty-str)))]
+              (when (integer? v)
+                {:op :base-convert
+                 :value (long v)
+                 :from-base :decimal
                  :to-base to-base}))))))
 
      ;; Standalone base literal (no target): "0xff", "0b1010", "1:30:45"

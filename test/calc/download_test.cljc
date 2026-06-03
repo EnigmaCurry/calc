@@ -43,7 +43,7 @@
                                  :rate-value 1 :rate-unit {:Gb 1 :s -1}
                                  :size-label "GB" :rate-label "Gbps"})]
       (is (:ok? r))
-      (is (== 8 (:time-seconds r)))))
+      (is (== 8 (double (:time-seconds r))))))
 
   (testing "10 MB at 1000 Mbps = 0.08 seconds"
     (let [r (ev/convert-request {:op :download
@@ -59,7 +59,7 @@
                                  :rate-value 1 :rate-unit {:Gb 1 :s -1}
                                  :size-label "GB" :rate-label "Gbps"})]
       (is (:ok? r))
-      (is (== 80 (:time-seconds r))))))
+      (is (== 80 (double (:time-seconds r)))))))
 
 ;; ==========================================================================
 ;; End-to-end tests

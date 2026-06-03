@@ -357,6 +357,56 @@
       (is (= "0b11111111" result)))))
 
 ;; ==========================================================================
+;; Parser tests — math expressions as quantity
+;; ==========================================================================
+
+(deftest parses-math-expr-to-base
+  (testing "multiplication"
+    (are [phrase expected] (th/deep== expected (parser/parse-request phrase))
+      "3*3 to bin"
+      {:op :base-convert :value 9 :from-base :decimal :to-base :binary}
+
+      "16*16 in hex"
+      {:op :base-convert :value 256 :from-base :decimal :to-base :hex}))
+
+  (testing "addition"
+    (is (th/deep== {:op :base-convert :value 10 :from-base :decimal :to-base :binary}
+                   (parser/parse-request "7+3 to binary"))))
+
+  (testing "exponentiation"
+    (is (th/deep== {:op :base-convert :value 256 :from-base :decimal :to-base :hex}
+                   (parser/parse-request "2^8 in hex"))))
+
+  (testing "subtraction"
+    (is (th/deep== {:op :base-convert :value 100 :from-base :decimal :to-base :octal}
+                   (parser/parse-request "150-50 to octal")))))
+
+;; ==========================================================================
+;; End-to-end tests — math expressions in base conversion
+;; ==========================================================================
+
+(deftest end-to-end-math-expr-base-convert
+  (testing "3*3 to bin"
+    (let [{:keys [result]} (th/evaluate "3*3 to bin" nil)]
+      (is (= "0b1001" result))))
+
+  (testing "2^8 in hex"
+    (let [{:keys [result]} (th/evaluate "2^8 in hex" nil)]
+      (is (= "0x100" result))))
+
+  (testing "7+3 to binary"
+    (let [{:keys [result]} (th/evaluate "7+3 to binary" nil)]
+      (is (= "0b1010" result))))
+
+  (testing "150-50 to octal"
+    (let [{:keys [result]} (th/evaluate "150-50 to octal" nil)]
+      (is (= "0o144" result))))
+
+  (testing "16*16 in hex"
+    (let [{:keys [result]} (th/evaluate "16*16 in hex" nil)]
+      (is (= "0x100" result)))))
+
+;; ==========================================================================
 ;; Standalone base literals (no target, default to decimal)
 ;; ==========================================================================
 
