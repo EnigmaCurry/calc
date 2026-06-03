@@ -4,11 +4,13 @@ A calculator and unit conversion utility written in Clojure. Parses
 natural English phrases like "how many inches are in 3 feet?" and
 evaluates them using arbitrary-precision arithmetic on all platforms.
 
-Runs in three places:
+calc can be accessed from several runtimes:
 
- * **CLI** via Babashka or JVM Clojure
- * **Web** at [calc.rymcg.tech](https://calc.rymcg.tech) (100% client-side)
- * **Library** in your Clojure/ClojureScript applications
+ * In your **CLI** via Babashka or JVM Clojure.
+ * On the **Web** at [calc.rymcg.tech](https://calc.rymcg.tech) (100%
+   client-side) or by downloading a copy of of the bundled website:
+   [calc.html](https://calc.rymcg.tech/calc.html).
+ * As a **Library** in your Clojure/ClojureScript applications.
 
 ## Install
 
@@ -46,49 +48,54 @@ just calc 12 feet in yards
 
 ## CLI usage
 
+You can pass the calculation request directly as an argument. Remember to use single quotes around characters that your shell interprets (like shell globs for `*`):
+
 ```bash
-just calc 12 feet in yards
-# 12 feet = 4 yards
+$ calc 12 feet in yards
+12 feet = 4 yards
+
+$ calc '3 * 3'
+9
 ```
 
 ### Examples
 
 ```
-$ just calc 100 fahrenheit to celsius
+$ calc 100 fahrenheit to celsius
 100 fahrenheit = 37.77777777777778 celsius
 
-$ just calc how many inches are in 3 feet?
+$ calc how many inches are in 3 feet?
 3 feet = 36 inches
 
-$ just calc 5 feet 11 inches to cm
+$ calc 5 feet 11 inches to cm
 5 feet 11 inches = 180.34 cm
 
-$ just calc 60 mph in ft/s
+$ calc 60 mph in ft/s
 60 mph = 88 ft/s
 
-$ just calc 100 MB / 10 Mbps in seconds
+$ calc 100 MB / 10 Mbps in seconds
 100 MB / 10 Mbps = 80 seconds
 
-$ just calc 7 inches in feet as a fraction
+$ calc 7 inches in feet as a fraction
 7 inches = 7/12 feet
 
-$ just calc -n 100GB / 900Mbps in days
+$ calc -n 100GB / 900Mbps in days
 0.01028806584362
 
-$ just calc 2 + 2
+$ calc 2 + 2
 4
 
-$ just calc 3 '*' '(4 + 5)'
+$ calc 3 '*' '(4 + 5)'
 27
 ```
 
 ### Listing units
 
 ```bash
-just calc --list                  # All units
-just calc --list --kind length    # Just length units
-just calc --list --kind data      # Data units
-just calc --list --kind compound  # Compound units (mph, Mbps, etc.)
+calc --list                  # All units
+calc --list --kind length    # Just length units
+calc --list --kind data      # Data units
+calc --list --kind compound  # Compound units (mph, Mbps, etc.)
 ```
 
 ### Formatting options
@@ -159,7 +166,7 @@ Length, Mass, Time, Temperature, Volume, Area, Data (decimal and
 binary), Force, Energy, Power, Pressure, Frequency, Electrical (V, A,
 ohm, F, H), Angle, Speed.
 
-Run `just calc --list` for the full registry with all aliases.
+Run `calc --list` for the full registry with all aliases.
 
 ## Data units and case sensitivity
 
