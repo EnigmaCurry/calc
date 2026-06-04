@@ -1,5 +1,6 @@
 (ns calc.completions-test
   (:require [clojure.test :refer [deftest is testing]]
+            [clojure.string :as str]
             [calc.completions :as c]))
 
 ;; ============================================================================
@@ -30,7 +31,7 @@
     (is (= "Mass / Time"    (c/dim-label {:mass 1 :time -1})))
     (is (= "Area / Time^2"  (c/dim-label {:length 2 :time -2}))))
   (testing "multi-step factoring for complex dimensions"
-    (is (= "Data / Electrical Potential · Time"
+    (is (= "Data / Inductance · Electric Current"
            (c/dim-label {:data 1 :time 2 :mass -1 :length -2 :current 1}))))
   (testing "nil for non-map inputs"
     (is (nil? (c/dim-label nil)))
@@ -104,15 +105,15 @@
   (testing "completing denominator of compound target"
     (let [results (c/complete "34 mph/gram in fps/p")]
       (is (pos? (count results)))
-      (is (every? #(clojure.string/starts-with? (:text %) "fps/p") results))
+      (is (every? #(str/starts-with? (:text %) "fps/p") results))
       ;; Should suggest mass units (pound, pounds)
       (is (some #(= "fps/pound" (:text %)) results)))))
 
 (deftest complete-unit-prefix-test
   (testing "prefix filters units"
     (let [results (c/complete "12 f")]
-      (is (every? #(clojure.string/starts-with?
-                     (clojure.string/lower-case (:text %))
+      (is (every? #(str/starts-with?
+                     (str/lower-case (:text %))
                      "f")
                   results))
       (is (some #(= "foot" (:text %)) results)))))

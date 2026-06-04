@@ -2,20 +2,24 @@
   (:require [clojure.string :as str]
             [calc.units :as units]
             [calc.math :as m]
-            [calc.dice :as dice]))
+            [calc.dice :as dice])
+  #?(:lpy (:import math)))
 
 (def ^:private pi-value
   #?(:clj  (bigdec Math/PI)
-     :cljs (m/dec->double (m/->dec m/PI))))
+     :cljs (m/dec->double (m/->dec m/PI))
+     :lpy  (bigdec m/PI)))
 
 (def ^:private e-value
   #?(:clj  (bigdec Math/E)
-     :cljs (m/dec->double (m/->dec m/E))))
+     :cljs (m/dec->double (m/->dec m/E))
+     :lpy  (bigdec m/E)))
 
 (def ^:private phi-value
   "The golden ratio φ = (1 + √5) / 2"
   #?(:clj  (bigdec 1.6180339887498948482)
-     :cljs (m/dec->double (m/ddiv (m/d+ 1 (m/dsqrt 5)) 2))))
+     :cljs (m/dec->double (m/ddiv (m/d+ 1 (m/dsqrt 5)) 2))
+     :lpy  (bigdec 1.6180339887498948482)))
 
 (def ^:private math-constants
   {"pi" pi-value "π" pi-value
@@ -68,6 +72,43 @@
    "PBps" {:PB 1 :s -1}
    "EBps" {:EB 1 :s -1}})
 
+#?(:lpy (import re))
+
+#?(:lpy
+   (defn- re-sub
+     "Basilisp regex replace: converts $1/$2 back-references to \\1/\\2."
+     [s pattern replacement]
+     (re/sub (.-pattern pattern) (re/sub "\\$(\\d+)" "\\\\\\1" replacement) s))
+   :default
+   (defn- re-sub
+     "Regex replace with back-reference support."
+     [s pattern replacement]
+     (str/replace s pattern replacement)))
+
+#?(:lpy
+   (defn- re-replace-fn
+     "Basilisp str/replace with fn: passes [full g1 g2 ...] to f (like Clojure)."
+     [s pattern f]
+     (str/replace s pattern
+                  (fn [match-str]
+                    (let [groups (re-find pattern match-str)]
+                      (f (if (vector? groups) groups [groups]))))))
+   :default
+   (defn- re-replace-fn
+     "str/replace with fn that receives match groups vector."
+     [s pattern f]
+     (str/replace s pattern f)))
+
+;; Basilisp treats \b in #"" as backspace, not word boundary.
+;; Use re-pattern with explicit \\b for Basilisp.
+(def ^:private re-expand-in
+  #?(:lpy (re-pattern "(?i)(\\d)in\\b")
+     :default #"(?i)(\d)in\b"))
+
+(def ^:private re-digit-alpha
+  #?(:lpy (re-pattern "(\\d)(?!(?:st|nd|rd|th)\\b)(?![eE][+-]?\\d)([A-Za-z])")
+     :default #"(\d)(?!(?:st|nd|rd|th)\b)(?![eE][+-]?\d)([A-Za-z])"))
+
 (defn clean-phrase [s]
   (-> s
       str/trim
@@ -76,38 +117,38 @@
       (str/replace #"~\s*" "~ ")
       ;; Expand abutted "in" to "inch" so standalone "in" is always a connector.
       ;; 12in → 12 inch, 3.5in → 3.5 inch (but 12inch, 12inches unchanged)
-      (str/replace #"(?i)(\d)in\b" "$1 inch")
+      (re-sub re-expand-in "$1 inch")
       ;; 12ft -> 12 ft, 100kg -> 100 kg
       ;; But preserve ordinals like 4th, 2nd, 3rd, 5th etc.
       ;; And preserve scientific notation like 10E9, 3.5e-12
-      (str/replace #"(\d)(?!(?:st|nd|rd|th)\b)(?![eE][+-]?\d)([A-Za-z])" "$1 $2")
+      (re-sub re-digit-alpha "$1 $2")
       ;; Normalize % between two numbers to mod (modulo), standalone % to percent
-      (str/replace #"(\d)\s*%\s*(\d)" "$1 mod $2")
-      (str/replace #"(\d)\s*%" "$1 percent")
+      (re-sub #"(\d)\s*%\s*(\d)" "$1 mod $2")
+      (re-sub #"(\d)\s*%" "$1 percent")
       ;; Collapse whitespace around / between unit words: "meters / second" → "meters/second"
-      (str/replace #"([A-Za-z])\s*/\s*([A-Za-z])" "$1/$2")
+      (re-sub #"([A-Za-z])\s*/\s*([A-Za-z])" "$1/$2")
       ;; Collapse whitespace around / between digits: "21349 /234234" → "21349/234234"
-      (str/replace #"(\d)\s*/\s*(\d)" "$1/$2")
+      (re-sub #"(\d)\s*/\s*(\d)" "$1/$2")
       ;; Ensure / and * have spaces between letter and digit: "W/12" → "W / 12", "V*1" → "V * 1"
-      (str/replace #"([A-Za-z])\s*[/]\s*(\d)" "$1 / $2")
-      (str/replace #"(\d)\s*[/]\s*([A-Za-z])" "$1 / $2")
-      (str/replace #"([A-Za-z])\s*[*]\s*(\d)" "$1 * $2")
-      (str/replace #"(\d)\s*[*]\s*([A-Za-z])" "$1 * $2")
+      (re-sub #"([A-Za-z])\s*[/]\s*(\d)" "$1 / $2")
+      (re-sub #"(\d)\s*[/]\s*([A-Za-z])" "$1 / $2")
+      (re-sub #"([A-Za-z])\s*[*]\s*(\d)" "$1 * $2")
+      (re-sub #"(\d)\s*[*]\s*([A-Za-z])" "$1 * $2")
       (str/replace #"\s+" " ")
       str/trim))
 
 (defn parse-integer [s]
-  #?(:clj (bigint s)
-     :cljs (js/parseInt s 10)))
+  #?(:cljs (js/parseInt s 10)
+     :default (bigint s)))
 
 (defn parse-ratio-token [s]
   (let [[n d] (str/split s #"/")]
-    #?(:clj (/ (parse-integer n) (parse-integer d))
-       :cljs (m/dec->double (m/ddiv (parse-integer n) (parse-integer d))))))
+    #?(:cljs (m/dec->double (m/ddiv (parse-integer n) (parse-integer d)))
+       :default (/ (parse-integer n) (parse-integer d)))))
 
 (defn parse-decimal-token [s]
-  #?(:clj (bigdec s)
-     :cljs (js/parseFloat s)))  ;; Stays as float; precision applied in math evaluator
+  #?(:cljs (js/parseFloat s)
+     :default (bigdec s)))  ;; Stays as float in CLJS; precision applied in math evaluator
 
 (def number-words
   {"zero" 0 "one" 1 "two" 2 "three" 3 "four" 4 "five" 5
@@ -161,8 +202,8 @@
        (re-matches #"(?i)\d+(?:\.\d+)?[eE][+-]?\d+" s))))
 
 (defn parse-sci-token [s]
-  #?(:clj (bigdec s)
-     :cljs (js/parseFloat s)))
+  #?(:cljs (js/parseFloat s)
+     :default (bigdec s)))
 
 (defn parse-number-token [s]
   (cond
@@ -316,7 +357,20 @@
            rounded (m/dround result)]
        (if (m/d== result rounded)
          (m/dec->double rounded)
-         (m/dec->double result)))))
+         (m/dec->double result)))
+     :lpy
+     (let [xd (double x)]
+       (cond
+         (zero? xd) 0N
+         :else
+         (let [approx (math/pow (abs xd) (/ 1.0 (double n)))
+               candidate (long (round approx))]
+           (if (and (pos? xd)
+                    (pos? candidate)
+                    (= (reduce * 1N (repeat (long n) (bigint candidate)))
+                       (bigint x)))
+             (bigint candidate)
+             (bigdec (math/pow xd (/ 1.0 (double n))))))))))
 
 (defn- math-deg->rad [x]
   (* (m/dec->double x) (/ m/PI 180.0)))
@@ -344,12 +398,12 @@
         result (if (inverse-math-trig fname)
                  (if (= mode :rad) raw-result (* (/ 180.0 m/PI) raw-result))
                  raw-result)
-        rounded (Math/round (* result 1e10))]
-    (if (< (Math/abs result) 1e-14)
-      #?(:clj 0N :cljs 0)
-      (if (< (Math/abs (- result (/ (double rounded) 1e10))) 1e-14)
-        #?(:clj (bigdec (/ (double rounded) 1e10)) :cljs (/ rounded 1e10))
-        #?(:clj (bigdec result) :cljs result)))))
+        rounded (#?(:lpy round :default Math/round) (* result 1e10))]
+    (if (< (#?(:lpy abs :default Math/abs) result) 1e-14)
+      #?(:cljs 0 :default 0N)
+      (if (< (#?(:lpy abs :default Math/abs) (- result (/ (double rounded) 1e10))) 1e-14)
+        #?(:cljs (/ rounded 1e10) :default (bigdec (/ (double rounded) 1e10)))
+        #?(:cljs result :default (bigdec result))))))
 
 (defn- math-parse-factor [tokens pos]
   (when (< pos (count tokens))
@@ -420,8 +474,8 @@
       nil)))
 
 (defn- max-pow-exponent []
-  #?(:clj 10000
-     :cljs (m/get-precision)))
+  #?(:cljs (m/get-precision)
+     :default 10000))
 
 (defn- math-pow [base exp]
   #?(:clj
@@ -438,7 +492,16 @@
        (when (> (Math/abs (m/dec->double exp)) limit)
          (throw (ex-info "Exponent too large" {:error :exponent-too-large :exp exp
                                                :limit limit})))
-       (m/dpow base exp))))
+       (m/dpow base exp))
+     :lpy
+     (let [n (long exp)]
+       (when (> (abs n) (max-pow-exponent))
+         (throw (ex-info "Exponent too large" {:error :exponent-too-large :exp n
+                                               :limit (max-pow-exponent)})))
+       (cond
+         (zero? n) 1N
+         (pos? n)  (reduce * 1N (repeat n base))
+         :else     (/ 1N (math-pow base (- n)))))))
 
 (defn- math-parse-power
   "Parse factor (^ factor)* — right-associative."
@@ -454,7 +517,8 @@
   #?(:clj  (try (/ a b)
                 (catch ArithmeticException _
                   (.divide (bigdec a) (bigdec b) (java.math.MathContext. 34))))
-     :cljs (m/ddiv a b)))
+     :cljs (m/ddiv a b)
+     :lpy  (/ a b)))
 
 (defn- math-parse-term [tokens pos]
   (when-let [[v0 p0] (math-parse-power tokens pos)]
@@ -504,6 +568,14 @@
                 (= :num (first (nth tokens 1)))
                 (= (m/dec->double pi-value) (m/dec->double (second (nth tokens 1))))))))
 
+(def ^:private re-trig-bare
+  #?(:lpy (re-pattern "(?i)\\b(a?(?:rc)?(?:sin|cos|tan))\\s+(\\d+(?:\\.\\d+)?)(\\s+(?:rad|radians|deg|degrees)\\b)?")
+     :default #"(?i)\b(a?(?:rc)?(?:sin|cos|tan))\s+(\d+(?:\.\d+)?)(\s+(?:rad|radians|deg|degrees)\b)?"))
+
+(def ^:private re-trig-paren
+  #?(:lpy (re-pattern "(?i)\\b(a?(?:rc)?(?:sin|cos|tan))\\((\\d+(?:\\.\\d+)?)\\s*((?:rad|radians|deg|degrees))?\\)")
+     :default #"(?i)\b(a?(?:rc)?(?:sin|cos|tan))\((\d+(?:\.\d+)?)\s*((?:rad|radians|deg|degrees))?\)"))
+
 (defn- annotate-trig-expr
   "Annotate a trig expression string with explicit angle markers.
    'cos 32 / sin 45'       → 'cos 32° / sin 45°'
@@ -512,17 +584,17 @@
   [s]
   (-> s
       ;; Bare form: sin 30 → sin 30°, sin 30 rad → sin 30 rad (unchanged)
-      (str/replace #"(?i)\b(a?(?:rc)?(?:sin|cos|tan))\s+(\d+(?:\.\d+)?)(\s+(?:rad|radians|deg|degrees)\b)?"
-                   (fn [[_ fname num mode]]
-                     (if mode
-                       (str fname " " num mode)
-                       (str fname " " num "°"))))
+      (re-replace-fn re-trig-bare
+                     (fn [[_ fname num mode]]
+                       (if mode
+                         (str fname " " num mode)
+                         (str fname " " num "°"))))
       ;; Paren form: sin(30) → sin(30°), sin(30 rad) → sin(30 rad)
-      (str/replace #"(?i)\b(a?(?:rc)?(?:sin|cos|tan))\((\d+(?:\.\d+)?)\s*((?:rad|radians|deg|degrees))?\)"
-                   (fn [[_ fname num mode]]
-                     (if mode
-                       (str fname "(" num " " mode ")")
-                       (str fname "(" num "°)"))))
+      (re-replace-fn re-trig-paren
+                     (fn [[_ fname num mode]]
+                       (if mode
+                         (str fname "(" num " " mode ")")
+                         (str fname "(" num "°)"))))
       str/trim))
 
 (defn parse-math
@@ -549,11 +621,11 @@
   "Replace parenthesised arithmetic expressions in `s` with their values.
    Skips parentheses immediately preceded by function names (sqrt, cbrt, root)."
   [s]
-  (let [result (str/replace s #"(?<![A-Za-z])\(([^()]+)\)"
-                            (fn [[match inner]]
-                              (if-let [v (math-value (parse-math inner))]
-                                (str v)
-                                match)))]
+  (let [result (re-replace-fn s #"(?<![A-Za-z])\(([^()]+)\)"
+                              (fn [[match inner]]
+                                (if-let [v (math-value (parse-math inner))]
+                                  (str v)
+                                  match)))]
     (if (= result s)
       s
       (recur result))))
@@ -580,16 +652,16 @@
               [v j])))))))
 
 (def ordinal-fractions
-  {"half"       #?(:clj 1/2 :cljs 0.5)
-   "third"      #?(:clj 1/3 :cljs (/ 1 3))
-   "quarter"    #?(:clj 1/4 :cljs 0.25)
-   "fifth"      #?(:clj 1/5 :cljs 0.2)
-   "sixth"      #?(:clj 1/6 :cljs (/ 1 6))
-   "seventh"    #?(:clj 1/7 :cljs (/ 1 7))
-   "eighth"     #?(:clj 1/8 :cljs 0.125)
-   "ninth"      #?(:clj 1/9 :cljs (/ 1 9))
-   "tenth"      #?(:clj 1/10 :cljs 0.1)
-   "sixteenth"  #?(:clj 1/16 :cljs 0.0625)})
+  {"half"       #?(:cljs 0.5     :default 1/2)
+   "third"      #?(:cljs (/ 1 3) :default 1/3)
+   "quarter"    #?(:cljs 0.25    :default 1/4)
+   "fifth"      #?(:cljs 0.2     :default 1/5)
+   "sixth"      #?(:cljs (/ 1 6) :default 1/6)
+   "seventh"    #?(:cljs (/ 1 7) :default 1/7)
+   "eighth"     #?(:cljs 0.125   :default 1/8)
+   "ninth"      #?(:cljs (/ 1 9) :default 1/9)
+   "tenth"      #?(:cljs 0.1     :default 1/10)
+   "sixteenth"  #?(:cljs 0.0625  :default 1/16)})
 
 (defn parse-number-at [tokens i]
   (let [raw (nth tokens i nil)
@@ -624,9 +696,9 @@
       ;; Pi division as single token: "pi/4"
       (and t (re-matches #"(?i)(?:pi|π)/\d+(?:\.\d+)?" t))
       (let [[_ denom-str] (re-matches #"(?i)(?:pi|π)/(.+)" t)
-            v #?(:clj (bigdec denom-str) :cljs (js/parseFloat denom-str))]
-        [#?(:clj (.divide pi-value v (java.math.MathContext. 34))
-            :cljs (m/dec->double (m/ddiv pi-value v)))
+            v #?(:cljs (js/parseFloat denom-str) :default (bigdec denom-str))]
+        [#?(:cljs (m/dec->double (m/ddiv pi-value v))
+            :default (m/ddiv pi-value v))
          (inc i)])
 
       ;; English number words: "ten", "twenty three", "one hundred", etc.
@@ -661,7 +733,8 @@
 
 (defn- parse-int-str [s]
   #?(:clj (Integer/parseInt s)
-     :cljs (js/parseInt s 10)))
+     :cljs (js/parseInt s 10)
+     :lpy (int s)))
 
 (defn parse-component-token [token]
   (let [raw token
@@ -770,8 +843,8 @@
                        ;; Multi-token group — check if it's a compound unit
                        (let [joined (str/join " " group)]
                          (if (try (normalize-unit-token joined) true
-                                  #?(:clj (catch Exception _ false)
-                                     :cljs (catch :default _ false)))
+                                  #?(:cljs (catch :default _ false)
+                                     :default (catch Exception _ false)))
                            (conj acc joined)
                            (into acc group)))))
                    []
@@ -907,7 +980,8 @@
 
 (defn- parse-long-str [s]
   #?(:clj (Long/parseLong s)
-     :cljs (js/parseInt s 10)))
+     :cljs (js/parseInt s 10)
+     :lpy (int s)))
 
 (defn extract-format [s]
   (cond
@@ -1001,26 +1075,26 @@
   (try
     (parse-quantity s)
     true
-    #?(:clj (catch Exception _ false)
-       :cljs (catch :default _ false))))
+    #?(:cljs (catch :default _ false)
+       :default (catch Exception _ false))))
 
 (defn- try-swap-sides [quantity-str to-str]
   (try
     (parse-quantity quantity-str)
     [quantity-str to-str]
-    #?(:clj
-       (catch Exception _
-         (try
-           (parse-quantity to-str)
-           [to-str quantity-str]
-           (catch Exception _
-             [quantity-str to-str])))
-       :cljs
+    #?(:cljs
        (catch :default _
          (try
            (parse-quantity to-str)
            [to-str quantity-str]
            (catch :default _
+             [quantity-str to-str])))
+       :default
+       (catch Exception _
+         (try
+           (parse-quantity to-str)
+           [to-str quantity-str]
+           (catch Exception _
              [quantity-str to-str]))))))
 
 (defn split-display-parts
@@ -1165,16 +1239,16 @@
       ;; "pi/N" as a single token like "pi/4"
       (and t (re-matches #"(?i)(?:pi|π)/\d+(?:\.\d+)?" t))
       (let [[_ denom-str] (re-matches #"(?i)(?:pi|π)/(.+)" t)
-            v #?(:clj (bigdec denom-str) :cljs (js/parseFloat denom-str))]
-        [#?(:clj (.divide pi-value v (java.math.MathContext. 34))
-            :cljs (m/dec->double (m/ddiv pi-value v)))
+            v #?(:cljs (js/parseFloat denom-str) :default (bigdec denom-str))]
+        [#?(:cljs (m/dec->double (m/ddiv pi-value v))
+            :default (m/ddiv pi-value v))
          :rad (inc i)])
 
       ;; "pi" "/" "N" as separate tokens (clean-phrase splits "pi/4" → "pi / 4")
       (and (#{"pi" "π"} t) (= "/" t2) t3 (re-matches #"\d+(?:\.\d+)?" t3))
-      (let [v #?(:clj (bigdec t3) :cljs (js/parseFloat t3))]
-        [#?(:clj (.divide pi-value v (java.math.MathContext. 34))
-            :cljs (m/dec->double (m/ddiv pi-value v)))
+      (let [v #?(:cljs (js/parseFloat t3) :default (bigdec t3))]
+        [#?(:cljs (m/dec->double (m/ddiv pi-value v))
+            :default (m/ddiv pi-value v))
          :rad (+ i 3)])
 
       ;; bare "pi"
@@ -1492,22 +1566,22 @@
       ;; 0x/0X hex prefix (with optional space from clean-phrase)
       (re-matches #"(?i)^0x\s*[0-9a-f]+$" s)
       (let [digits (str/replace (str/replace s #"(?i)^0x\s*" "") #"\s+" "")]
-        [(#?(:clj BigInteger. :cljs js/parseInt)
-          digits #?(:clj 16 :cljs 16))
+        [(#?(:clj BigInteger. :cljs js/parseInt :lpy python/int)
+          digits #?(:clj 16 :cljs 16 :lpy 16))
          :hex])
 
       ;; 0b/0B binary prefix (with optional space)
       (re-matches #"(?i)^0b\s*[01]+$" s)
       (let [digits (str/replace (str/replace s #"(?i)^0b\s*" "") #"\s+" "")]
-        [(#?(:clj BigInteger. :cljs js/parseInt)
-          digits #?(:clj 2 :cljs 2))
+        [(#?(:clj BigInteger. :cljs js/parseInt :lpy python/int)
+          digits #?(:clj 2 :cljs 2 :lpy 2))
          :binary])
 
       ;; 0o/0O octal prefix (with optional space)
       (re-matches #"(?i)^0o\s*[0-7]+$" s)
       (let [digits (str/replace (str/replace s #"(?i)^0o\s*" "") #"\s+" "")]
-        [(#?(:clj BigInteger. :cljs js/parseInt)
-          digits #?(:clj 8 :cljs 8))
+        [(#?(:clj BigInteger. :cljs js/parseInt :lpy python/int)
+          digits #?(:clj 8 :cljs 8 :lpy 8))
          :octal])
 
       ;; Sexagesimal: H:MM:SS or M:SS (colon-separated digits)
@@ -1542,11 +1616,11 @@
             (when radix
               (try
                 (let [digits (str/replace value-str #"\s+" "")
-                      v (#?(:clj BigInteger. :cljs js/parseInt)
-                         digits #?(:clj radix :cljs radix))]
+                      v (#?(:clj BigInteger. :cljs js/parseInt :lpy python/int)
+                         digits #?(:clj radix :cljs radix :lpy radix))]
                   [v base-kw])
-                #?(:clj (catch Exception _ nil)
-                   :cljs (catch :default _ nil))))))))))
+                #?(:cljs (catch :default _ nil)
+                   :default (catch Exception _ nil))))))))))
 
 (defn- clean-phrase-light
   "Minimal cleaning for base conversion detection: strip ? and , collapse whitespace.
@@ -1589,8 +1663,8 @@
             (let [trimmed (str/trim qty-str)]
               (when (re-matches #"\d+" trimmed)
                 {:op :base-convert
-                 :value (long (#?(:clj BigInteger. :cljs js/parseInt)
-                               trimmed #?(:clj 10 :cljs 10)))
+                 :value (long (#?(:clj BigInteger. :cljs js/parseInt :lpy python/int)
+                               trimmed #?(:clj 10 :cljs 10 :lpy 10)))
                  :from-base :decimal
                  :to-base to-base}))
 
@@ -1661,8 +1735,8 @@
         (if-not pieces
           ;; No "in"/"to" target — try as a standalone quantity expression
           (let [qty (try (parse-quantity without-approx)
-                         #?(:clj (catch Exception _ nil)
-                            :cljs (catch :default _ nil)))]
+                         #?(:cljs (catch :default _ nil)
+                            :default (catch Exception _ nil)))]
             (if (and qty (or (:qty-expr qty)
                              (and (map? qty) (:unit qty) (not= {} (:unit qty)))))
               (cond-> {:op :convert :quantity qty :to :auto}
@@ -1694,7 +1768,14 @@
          :cljs (catch ExceptionInfo ex
                  (or (parse-error original ex)
                      {:error :unparseable
-                      :phrase original})))
+                      :phrase original}))
+         :lpy (catch Exception ex
+                (if (ex-data ex)
+                  (or (parse-error original ex)
+                      {:error :unparseable
+                       :phrase original})
+                  {:error :unparseable
+                   :phrase original})))
       #?(:clj (catch Exception _
                 {:error :unparseable
                  :phrase original})

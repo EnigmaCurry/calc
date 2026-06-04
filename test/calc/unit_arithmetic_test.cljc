@@ -1,5 +1,6 @@
 (ns calc.unit-arithmetic-test
   (:require [clojure.test :refer [deftest testing is]]
+            [clojure.string :as str]
             [calc.eval :as ev]
             [calc.test-helpers :as th]
             [calc.parser :as parser]))
@@ -68,7 +69,7 @@
     (let [{:keys [result]} (th/evaluate "99 hours + 10 minutes + 2 seconds" nil)]
       (is (some? result))
       ;; Should produce something like "4.125... days" or "99.167... hours"
-      (is (not (clojure.string/includes? result "Error"))))))
+      (is (not (str/includes? result "Error"))))))
 
 (deftest evaluates-multiplication
   (testing "60 mph * 2 hours in miles = 120"
@@ -84,7 +85,7 @@
   (testing "60 mph * 2 hours auto-selects unit"
     (let [{:keys [result]} (th/evaluate "60 mph * 2 hours" nil)]
       (is (some? result))
-      (is (not (clojure.string/includes? result "Error")))))
+      (is (not (str/includes? result "Error")))))
 
   (testing "15V * 2.46A = 36.9 watts"
     (let [{:keys [result]} (th/evaluate "15V*2.46A" nil)]
@@ -113,11 +114,11 @@
   (testing "100 MB / 100 Mbps auto-selects unit"
     (let [{:keys [result]} (th/evaluate "100 MB / 100 Mbps" nil)]
       (is (some? result))
-      (is (not (clojure.string/includes? result "Error")))))
+      (is (not (str/includes? result "Error")))))
 
   (testing "37W / 15V auto-selects amps"
     (let [{:keys [result]} (th/evaluate "37W/15V" nil)]
-      (is (clojure.string/includes? result "amps"))))
+      (is (str/includes? result "amps"))))
 
   (testing "watts / volts with explicit target"
     (let [{:keys [result target]} (th/evaluate "37W / 15V in amps" nil)]

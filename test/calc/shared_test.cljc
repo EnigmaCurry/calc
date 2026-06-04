@@ -39,8 +39,8 @@
               :else
               {:result (fmt/format-number (:value result) effective-fmt)
                :target (ev/format-unit-label (:to parsed))})))
-        (catch #?(:clj Exception :cljs :default) e
-          {:error (str #?(:clj (.getMessage e) :cljs (.-message e)))})))))
+        (catch #?(:cljs :default :default Exception) e
+          {:error (str #?(:cljs (.-message e) :default (ex-message e)))})))))
 
 (defn run-case [{:keys [input result target error]}]
   (let [ev (evaluate input nil)]

@@ -23,24 +23,29 @@
              cmp-op-str cmp-target-str] m
             dice-count (if (str/blank? count-str) 1
                            #?(:clj (Long/parseLong count-str)
-                              :cljs (js/parseInt count-str 10)))
+                              :cljs (js/parseInt count-str 10)
+                              :lpy (int count-str)))
             sides (if (str/blank? sides-str) 0
                       #?(:clj (Long/parseLong sides-str)
-                         :cljs (js/parseInt sides-str 10)))
+                         :cljs (js/parseInt sides-str 10)
+                         :lpy (int sides-str)))
             explode (= "!" bang-str)
             kd-op (when kd-op-str (keyword (str/lower-case kd-op-str)))
             kd-n (when kd-n-str
                    #?(:clj (Long/parseLong kd-n-str)
-                      :cljs (js/parseInt kd-n-str 10)))
+                      :cljs (js/parseInt kd-n-str 10)
+                      :lpy (int kd-n-str)))
             modifier (if mod-val-str
                        (let [v #?(:clj (Long/parseLong mod-val-str)
-                                  :cljs (js/parseInt mod-val-str 10))]
+                                  :cljs (js/parseInt mod-val-str 10)
+                                  :lpy (int mod-val-str))]
                          (if (= "-" mod-sign) (- v) v))
                        0)
             cmp-op (when cmp-op-str (keyword cmp-op-str))
             cmp-target (when cmp-target-str
                          #?(:clj (Long/parseLong cmp-target-str)
-                            :cljs (js/parseInt cmp-target-str 10)))]
+                            :cljs (js/parseInt cmp-target-str 10)
+                            :lpy (int cmp-target-str)))]
         (cond
           (< dice-count 1)
           {:error :invalid-count :message "Dice count must be at least 1."}

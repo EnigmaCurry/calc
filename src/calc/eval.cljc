@@ -2,7 +2,8 @@
   (:require [calc.units :as u]
             [calc.math :as m]
             [calc.dice :as dice]
-            [clojure.string :as str]))
+            [clojure.string :as str])
+  #?(:lpy (:import decimal math)))
 
 ;; ============================================================================
 ;; Helpers
@@ -318,6 +319,20 @@
            {:value (u/normalize-number (if (and neg? (odd? n)) (- result) result))})
          (let [result (Math/pow (double v) (/ 1.0 n))]
            {:value (u/normalize-number (bigdec result))})))
+     :lpy
+     (let [n (long degree)
+           v (m/->dec value)
+           neg? (neg? (double v))
+           abs-v (if neg? (- v) v)
+           approx (math/pow (double abs-v) (/ 1.0 n))
+           candidate (long (round approx))]
+       (if (and (pos? candidate)
+                (= (reduce * 1N (repeat n (bigint candidate)))
+                   (bigint abs-v)))
+         (let [result (bigint candidate)]
+           {:value (u/normalize-number (if (and neg? (odd? n)) (- result) result))})
+         (let [result (math/pow (double v) (/ 1.0 n))]
+           {:value (u/normalize-number (bigdec result))})))
      :cljs
      (let [result (m/dpow value (m/ddiv 1.0 degree))
            rounded (m/dround result)]
@@ -346,18 +361,18 @@
     (if-let [f (get forward-trig-fns fn)]
       (let [rad (if (= angle-mode :rad) v (deg->rad v))
             result (f rad)
-            result (if (< (Math/abs (double result)) 1e-14) 0.0 (double result))]
-        {:value (u/normalize-number #?(:clj (bigdec result) :cljs result))})
+            result (if (< #?(:lpy (abs (double result)) :default (Math/abs (double result))) 1e-14) 0.0 (double result))]
+        {:value (u/normalize-number #?(:clj (bigdec result) :lpy (bigdec result) :cljs result))})
       (let [f (get inverse-trig-fns fn)
             rad-result (f v)
             result (if (= angle-mode :rad)
                      rad-result
                      (rad->deg rad-result))
             result (double result)
-            result (if (< (Math/abs (- result (Math/round result))) 1e-10)
-                     (double (Math/round result))
+            result (if (< #?(:lpy (abs (- result (long (round result)))) :default (Math/abs (- result (Math/round result)))) 1e-10)
+                     (double #?(:lpy (long (round result)) :default (Math/round result)))
                      result)]
-        {:value (u/normalize-number #?(:clj (bigdec result) :cljs result))
+        {:value (u/normalize-number #?(:clj (bigdec result) :lpy (bigdec result) :cljs result))
          :unit-label (if (= angle-mode :rad) "rad" "°")}))))
 
 (defn- evaluate-modulo [{:keys [dividend divisor]}]
@@ -368,6 +383,13 @@
   "Round a monetary value up to the nearest cent (ceiling)."
   [x]
   #?(:clj  (u/normalize-number (.setScale (u/->bigdec x) 2 java.math.RoundingMode/CEILING))
+     :lpy  (u/normalize-number
+            (let [d (m/->dec x)
+                  scaled (m/d* d 100)
+                  ceiled (.quantize (decimal/Decimal (str (math/ceil (double scaled))))
+                                    (decimal/Decimal "1")
+                                    decimal/ROUND-CEILING)]
+              (m/ddiv ceiled 100)))
      :cljs (u/normalize-number (m/ddiv (m/dceil (m/d* x 100)) 100))))
 
 (defn- calc-pct
@@ -376,6 +398,10 @@
   (u/normalize-number
    #?(:clj  (.setScale (m/ddiv (m/d* (m/->dec tip) (m/->dec 100)) (m/->dec bill))
                         1 java.math.RoundingMode/HALF_UP)
+      :lpy  (let [raw (m/ddiv (m/d* (m/->dec tip) (m/->dec 100)) (m/->dec bill))]
+              (.quantize (decimal/Decimal (str (double raw)))
+                         (decimal/Decimal "0.1")
+                         decimal/ROUND-HALF-UP))
       :cljs (m/ddiv (m/dround (m/d* (m/ddiv tip bill) 1000)) 10))))
 
 (defn- tip-row
@@ -468,6 +494,18 @@
   "Convert an integer to a string in the given base (2-36). Uses lowercase."
   [n base]
   #?(:clj  (.toString (BigInteger/valueOf (long n)) (int base))
+     :lpy  (cond
+             (= base 16) (python/format (long n) "x")
+             (= base 8) (python/format (long n) "o")
+             (= base 2) (python/format (long n) "b")
+             :else (let [digits "0123456789abcdefghijklmnopqrstuvwxyz"]
+                     (if (zero? (long n))
+                       "0"
+                       (loop [v (abs (long n)) result ""]
+                         (if (zero? v)
+                           (if (neg? (long n)) (str "-" result) result)
+                           (recur (quot v base)
+                                  (str (nth digits (int (mod v base))) result)))))))
      :cljs (.toString (js/Number n) base)))
 
 (defn- format-base-result
@@ -484,8 +522,8 @@
           remainder (mod total 3600)
           m (quot remainder 60)
           s (mod remainder 60)]
-      #?(:clj  (format "%d:%02d:%02d" h m s)
-         :cljs (str h ":" (when (< m 10) "0") m ":" (when (< s 10) "0") s)))
+      #?(:cljs (str h ":" (when (< m 10) "0") m ":" (when (< s 10) "0") s)
+         :default (format "%d:%02d:%02d" h m s)))
     (integer? to-base) (int->base-str value to-base)
     :else (str value)))
 
@@ -518,7 +556,7 @@
              parts []]
         (if-not unit
           (clojure.string/join " " parts)
-          (let [whole (long (Math/floor (/ remaining divisor)))
+          (let [whole (long #?(:lpy (math/floor (/ remaining divisor)) :default (Math/floor (/ remaining divisor))))
                 leftover (- remaining (* whole divisor))]
             (if (and (pos? whole) (seq more))
               (recur leftover more (conj parts (str whole " " (get labels unit))))
@@ -579,6 +617,7 @@
                               spec (u/unit-spec u)
                               converted (m/ddiv remaining-si (:scale spec))
                               whole #?(:clj (bigint (long (Math/floor (double converted))))
+                                       :lpy (bigint (long (math/floor (double converted))))
                                        :cljs (m/dfloor converted))
                               used (m/d* (coerce-to-decimal whole) (:scale spec))
                               leftover (m/d- remaining-si used)]
