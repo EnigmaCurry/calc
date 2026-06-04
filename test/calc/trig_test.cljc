@@ -3,7 +3,13 @@
             [clojure.string :as str]
             [calc.parser :as parser]
             [calc.eval :as ev]
+            [calc.math :as m]
             [calc.test-helpers :as th]))
+
+(def ^:private PI m/PI)
+(def ^:private E m/E)
+(defn- math-sin [x] (m/dsin x))
+(defn- math-cos [x] (m/dcos x))
 
 ;; ==========================================================================
 ;; Parser tests — trig function phrases
@@ -77,7 +83,7 @@
 
 (deftest parses-trig-with-pi
   (testing "'sin pi' parses pi as a value in radians"
-    (is (th/deep== {:op :trig :fn :sin :value Math/PI :angle-mode :rad}
+    (is (th/deep== {:op :trig :fn :sin :value PI :angle-mode :rad}
            (parser/parse-request "sin pi"))))
 
   (testing "'cos pi/4' parses pi division"
@@ -85,14 +91,14 @@
       (is (= :trig (:op parsed)))
       (is (= :cos (:fn parsed)))
       (is (= :rad (:angle-mode parsed)))
-      (is (th/approx== (/ Math/PI 4) (:value parsed)))))
+      (is (th/approx== (/ PI 4) (:value parsed)))))
 
   (testing "'sin pi/2 radians' — explicit radians with pi"
     (let [parsed (parser/parse-request "sin pi/2 radians")]
       (is (= :trig (:op parsed)))
       (is (= :sin (:fn parsed)))
       (is (= :rad (:angle-mode parsed)))
-      (is (th/approx== (/ Math/PI 2) (:value parsed))))))
+      (is (th/approx== (/ PI 2) (:value parsed))))))
 
 ;; ==========================================================================
 ;; Parser tests — inverse trig
@@ -162,7 +168,7 @@
       (is (= :convert (:op parsed)))
       (is (= :rad (:unit (:quantity parsed))))
       (is (= :deg (:to parsed)))
-      (is (th/approx== Math/PI (:value (:quantity parsed)))))))
+      (is (th/approx== PI (:value (:quantity parsed)))))))
 
 ;; ==========================================================================
 ;; Parser tests — trig with formatting
@@ -197,7 +203,7 @@
       360  0.0))
 
   (testing "sin in radians"
-    (let [r (ev/convert-request {:op :trig :fn :sin :value (/ Math/PI 6) :angle-mode :rad})]
+    (let [r (ev/convert-request {:op :trig :fn :sin :value (/ PI 6) :angle-mode :rad})]
       (is (:ok? r))
       (is (th/approx== 0.5 (:value r))))))
 
@@ -232,7 +238,7 @@
   (testing "asin in radians"
     (let [r (ev/convert-request {:op :trig :fn :asin :value 0.5 :angle-mode :rad})]
       (is (:ok? r))
-      (is (th/approx== (/ Math/PI 6) (:value r))))))
+      (is (th/approx== (/ PI 6) (:value r))))))
 
 (deftest evaluates-acos
   (testing "acos returns degrees by default"
@@ -259,22 +265,22 @@
   (testing "degrees to radians"
     (let [r (ev/convert-request {:op :convert :quantity {:value 180 :unit :deg} :to :rad})]
       (is (:ok? r))
-      (is (th/approx== Math/PI (:value r)))))
+      (is (th/approx== PI (:value r)))))
 
   (testing "radians to degrees"
-    (let [r (ev/convert-request {:op :convert :quantity {:value Math/PI :unit :rad} :to :deg})]
+    (let [r (ev/convert-request {:op :convert :quantity {:value PI :unit :rad} :to :deg})]
       (is (:ok? r))
       (is (th/approx== 180.0 (:value r)))))
 
   (testing "90 degrees to radians"
     (let [r (ev/convert-request {:op :convert :quantity {:value 90 :unit :deg} :to :rad})]
       (is (:ok? r))
-      (is (th/approx== (/ Math/PI 2) (:value r)))))
+      (is (th/approx== (/ PI 2) (:value r)))))
 
   (testing "full circle"
     (let [r (ev/convert-request {:op :convert :quantity {:value 360 :unit :deg} :to :rad})]
       (is (:ok? r))
-      (is (th/approx== (* 2 Math/PI) (:value r))))))
+      (is (th/approx== (* 2 PI) (:value r))))))
 
 ;; ==========================================================================
 ;; Eval tests — trig result unit labels
@@ -409,8 +415,8 @@
   (testing "bare trig with operators (no parens)"
     (let [r (parser/math-value (parser/parse-math "cos 32 / sin 45"))]
       (is (some? r))
-      (is (th/approx== (/ (Math/cos (* 32 (/ Math/PI 180)))
-                          (Math/sin (* 45 (/ Math/PI 180))))
+      (is (th/approx== (/ (math-cos (* 32 (/ PI 180)))
+                          (math-sin (* 45 (/ PI 180))))
                        r)))
 
     (let [r (parser/math-value (parser/parse-math "sin 30 + cos 60"))]
@@ -425,11 +431,11 @@
   (testing "rad/deg suffix in compound math expressions"
     (let [r (parser/math-value (parser/parse-math "cos 32 rad / sin 45 rad"))]
       (is (some? r))
-      (is (th/approx== (/ (Math/cos 32) (Math/sin 45)) r)))
+      (is (th/approx== (/ (math-cos 32) (math-sin 45)) r)))
 
     (let [r (parser/math-value (parser/parse-math "sin(1 rad) + cos(0 rad)"))]
       (is (some? r))
-      (is (th/approx== (+ (Math/sin 1) (Math/cos 0)) r)))
+      (is (th/approx== (+ (math-sin 1) (math-cos 0)) r)))
 
     (let [r (parser/math-value (parser/parse-math "sin 30 deg + cos 60 deg"))]
       (is (some? r))
@@ -472,27 +478,27 @@
   (testing "bare 'pi' parses as math-expr"
     (let [parsed (parser/parse-request "pi")]
       (is (= :math-expr (:op parsed)))
-      (is (th/approx== Math/PI (:value parsed)))))
+      (is (th/approx== PI (:value parsed)))))
 
   (testing "bare 'π' (unicode) parses as math-expr"
     (let [parsed (parser/parse-request "π")]
       (is (= :math-expr (:op parsed)))
-      (is (th/approx== Math/PI (:value parsed)))))
+      (is (th/approx== PI (:value parsed)))))
 
   (testing "'pi/4' parses as math-expr"
     (let [parsed (parser/parse-request "pi/4")]
       (is (= :math-expr (:op parsed)))
-      (is (th/approx== (/ Math/PI 4) (:value parsed)))))
+      (is (th/approx== (/ PI 4) (:value parsed)))))
 
   (testing "'2*pi' parses as math-expr"
     (let [parsed (parser/parse-request "2*pi")]
       (is (= :math-expr (:op parsed)))
-      (is (th/approx== (* 2 Math/PI) (:value parsed)))))
+      (is (th/approx== (* 2 PI) (:value parsed)))))
 
   (testing "'pi*2' parses as math-expr"
     (let [parsed (parser/parse-request "pi*2")]
       (is (= :math-expr (:op parsed)))
-      (is (th/approx== (* 2 Math/PI) (:value parsed))))))
+      (is (th/approx== (* 2 PI) (:value parsed))))))
 
 (deftest e2e-standalone-pi
   (testing "pi returns its value"
@@ -550,17 +556,17 @@
   (testing "bare 'e' parses as math-expr"
     (let [parsed (parser/parse-request "e")]
       (is (= :math-expr (:op parsed)))
-      (is (th/approx== Math/E (:value parsed)))))
+      (is (th/approx== E (:value parsed)))))
 
   (testing "'e^2' parses as math-expr"
     (let [parsed (parser/parse-request "e^2")]
       (is (= :math-expr (:op parsed)))
-      (is (th/approx== (* Math/E Math/E) (:value parsed)))))
+      (is (th/approx== (* E E) (:value parsed)))))
 
   (testing "'2*e' parses as math-expr"
     (let [parsed (parser/parse-request "2*e")]
       (is (= :math-expr (:op parsed)))
-      (is (th/approx== (* 2 Math/E) (:value parsed))))))
+      (is (th/approx== (* 2 E) (:value parsed))))))
 
 (deftest parse-standalone-phi
   (testing "bare 'phi' parses as math-expr"

@@ -1,5 +1,6 @@
 (ns calc.completions-test
   (:require [clojure.test :refer [deftest is testing]]
+            [clojure.string :as str]
             [calc.completions :as c]))
 
 ;; ============================================================================
@@ -104,15 +105,15 @@
   (testing "completing denominator of compound target"
     (let [results (c/complete "34 mph/gram in fps/p")]
       (is (pos? (count results)))
-      (is (every? #(clojure.string/starts-with? (:text %) "fps/p") results))
+      (is (every? #(str/starts-with? (:text %) "fps/p") results))
       ;; Should suggest mass units (pound, pounds)
       (is (some #(= "fps/pound" (:text %)) results)))))
 
 (deftest complete-unit-prefix-test
   (testing "prefix filters units"
     (let [results (c/complete "12 f")]
-      (is (every? #(clojure.string/starts-with?
-                     (clojure.string/lower-case (:text %))
+      (is (every? #(str/starts-with?
+                     (str/lower-case (:text %))
                      "f")
                   results))
       (is (some #(= "foot" (:text %)) results)))))

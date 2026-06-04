@@ -55,10 +55,7 @@ test-lpy:
         source .venv/bin/activate
     fi
     rm -rf src/calc/__pycache__ test/calc/__pycache__
-    PYTHONPATH=src:test BASILISP_TEST_PATH=test basilisp test -- \
-        --ignore=test/calc/completions_test.cljc \
-        --ignore=test/calc/trig_test.cljc \
-        --ignore=test/calc/unit_arithmetic_test.cljc
+    PYTHONPATH=src:test BASILISP_TEST_PATH=test basilisp test
 
 # Remove build artifacts
 clean:

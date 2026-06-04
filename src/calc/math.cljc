@@ -354,9 +354,15 @@
            (let [rounded (.quantize x (decimal/Decimal (str "1E-" output-scale))
                                     decimal/ROUND-HALF-UP)
                  d (double (.normalize rounded))]
-             (if (math/isfinite d)
-               d
-               (.normalize rounded)))))
+             (cond
+               (not (math/isfinite d)) (.normalize rounded)
+               (= d (double (long d))) (long d)
+               :else d))))
+
+       (float? x)
+       (if (= x (double (long x)))
+         (long x)
+         x)
 
        :else
        x)))
