@@ -6,11 +6,12 @@ evaluates them using arbitrary-precision arithmetic on all platforms.
 
 calc can be accessed from several runtimes:
 
- * In your **CLI** via Babashka or JVM Clojure.
+ * In your **CLI** via Babashka, JVM Clojure, or Python
+   ([Basilisp](https://github.com/basilisp-lang/basilisp)).
  * On the **Web** at [calc.rymcg.tech](https://calc.rymcg.tech) (100%
    client-side) or by downloading a copy of of the bundled website:
    [calc.html](https://calc.rymcg.tech/calc.html).
- * As a **Library** in your Clojure/ClojureScript applications.
+ * As a **Library** in your Clojure/ClojureScript/Basilisp applications.
 
 ## Install
 
@@ -36,6 +37,25 @@ self-contained file with all HTML, CSS, and JavaScript inlined. No
 server required; open it directly in any browser, save it to your
 desktop, or put it on a USB stick. A download link is also available
 from the Help page of the [web app](https://calc.rymcg.tech).
+
+### With Python (via Basilisp)
+
+Requires [uv](https://docs.astral.sh/uv/getting-started/installation/).
+
+Install:
+
+```bash
+uv tool install "calc @ git+https://github.com/EnigmaCurry/calc.git"
+calc 12 feet in yards
+```
+
+Or run without installing:
+
+```bash
+uvx --from "calc @ git+https://github.com/EnigmaCurry/calc.git" calc 12 feet in yards
+```
+
+To uninstall: `uv tool uninstall calc`
 
 ### From source
 
@@ -206,6 +226,8 @@ All platforms use arbitrary-precision arithmetic:
    Settings — use the **Auto** button to benchmark your device and
    find the maximum it can handle (often 100,000+ digits), or set it
    manually.
+ * **Basilisp (Python)** — exact ratios (Python `Fraction`) and
+   `decimal.Decimal` with 34 significant digits.
 
 This means expressions like `(10^100)+1-(10^100)` correctly return `1`
 on all platforms, and conversions between units with exact rational
@@ -253,7 +275,7 @@ Add the dependency, then:
 
 | Namespace | Responsibility |
 |-----------|----------------|
-| `calc.math` | Cross-platform arithmetic (BigDecimal on JVM, decimal.js on CLJS) |
+| `calc.math` | Cross-platform arithmetic (BigDecimal on JVM, decimal.js on CLJS, decimal.Decimal on Basilisp) |
 | `calc.units` | Unit registry, aliases, dimensions, unit algebra |
 | `calc.parser` | Natural language text to structured request AST |
 | `calc.eval` | Request AST to result (conversion engine) |
@@ -274,7 +296,8 @@ just web-dev          # Dev server with hot reload (http://localhost:8080)
 
 ```bash
 just dev              # Enter nix dev shell
-just test             # Run all tests (Babashka + JVM)
+just test             # Run all tests (Babashka + JVM + ClojureScript + Basilisp)
+just test-lpy         # Run Basilisp tests only
 just calc --list      # List all supported units
 just web-build        # Build the static web app
 just web-dev          # Web dev server with hot reload
