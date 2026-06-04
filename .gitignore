@@ -4,6 +4,8 @@
 __pycache__/
 *.lpyc
 .pytest_cache/
+build/
+*.egg-info/
 web/out/
 web/public/index.html
 web/public/calc.html
