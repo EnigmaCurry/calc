@@ -3,7 +3,7 @@ requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "unitz"
+name = "calc"
 version = "0.1.0"
 description = "Dimensional analysis and unit conversion library for Basilisp"
 requires-python = ">=3.10"
