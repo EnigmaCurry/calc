@@ -7,7 +7,7 @@ evaluates them using arbitrary-precision arithmetic on all platforms.
 calc can be accessed from several runtimes:
 
  * In your **CLI** via Babashka, JVM Clojure, or Python
-   ([Basilisp](https://github.com/basilisp-lang/basilisp)).
+   (Basilisp).
  * On the **Web** at [calc.rymcg.tech](https://calc.rymcg.tech) (100%
    client-side) or by downloading a copy of of the bundled website:
    [calc.html](https://calc.rymcg.tech/calc.html).
