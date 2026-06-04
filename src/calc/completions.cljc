@@ -168,7 +168,7 @@
                :when (get u/dim-categories b-dim)]
            {:label (str cat-name-a " · " (get u/dim-categories b-dim))
             :cost (+ (count cat-dim-a) (count b-dim))}))]
-    (:label (first (sort-by :cost candidates)))))
+    (:label (first (sort-by (juxt :cost :label) candidates)))))
 
 (defn dim-label
   "Human-readable label for a dimension map.
