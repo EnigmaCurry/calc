@@ -20,12 +20,12 @@
       any-failures? (pos? (+ (:fail totals) (:error totals)))]
 
   (println)
-  (println (format "  %-16s %6s %6s %6s %6s" "Platform" "Tests" "Pass" "Fail" "Error"))
-  (println (apply str (repeat 48 "-")))
+  (println (format "  %-16s %6s %8s %6s %6s" "Platform" "Tests" "Asserts" "Fail" "Error"))
+  (println (apply str (repeat 50 "-")))
   (doseq [{:keys [platform test pass fail error]} results]
-    (println (format "  %-16s %6d %6d %6d %6d" platform test pass fail error)))
-  (println (apply str (repeat 48 "-")))
-  (println (format "  %-16s %6d %6d %6d %6d" "Total" (:test totals) (:pass totals) (:fail totals) (:error totals)))
+    (println (format "  %-16s %6d %8d %6d %6d" platform test pass fail error)))
+  (println (apply str (repeat 50 "-")))
+  (println (format "  %-16s %6d %8d %6d %6d" "Total" (:test totals) (:pass totals) (:fail totals) (:error totals)))
   (println)
 
   (let [by-platform (into {} (map (juxt :platform identity) results))
