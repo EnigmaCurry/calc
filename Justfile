@@ -43,6 +43,23 @@ web-test:
 drone-dev:
     git drone --cmd "just web-dev" --pull "git fetch origin && git reset --hard origin/$(git rev-parse --abbrev-ref HEAD)" --repo EnigmaCurry/calc
 
+# Run tests under Basilisp (Python)
+test-lpy:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ ! -d .venv ]; then
+        uv venv .venv
+        source .venv/bin/activate
+        uv pip install "basilisp[pytest]"
+    else
+        source .venv/bin/activate
+    fi
+    rm -rf src/calc/__pycache__ test/calc/__pycache__
+    PYTHONPATH=src:test BASILISP_TEST_PATH=test basilisp test -- \
+        --ignore=test/calc/completions_test.cljc \
+        --ignore=test/calc/trig_test.cljc \
+        --ignore=test/calc/unit_arithmetic_test.cljc
+
 # Remove build artifacts
 clean:
     rm -rf web/node_modules web/.shadow-cljs web/out web/public/js web/public/index.html web/public/sw.js web/public/calc.html

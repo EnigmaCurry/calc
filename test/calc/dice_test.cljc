@@ -400,7 +400,7 @@
   (testing "rolling an invalid parse throws"
     (let [bad-parse (dice/parse-dice "0d6")]
       (is (:error bad-parse))
-      (is (thrown? #?(:clj Exception :cljs js/Error)
+      (is (thrown? #?(:cljs js/Error :default Exception)
                    (dice/roll bad-parse)))))
 
   (testing "invalid parse through convert-request returns error"

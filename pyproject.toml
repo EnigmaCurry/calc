@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "unitz"
+version = "0.1.0"
+description = "Dimensional analysis and unit conversion library for Basilisp"
+requires-python = ">=3.10"
+dependencies = [
+    "basilisp>=0.3.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "basilisp[pytest]",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"*" = ["*.cljc", "*.lpy"]
+
+[tool.basilisp]
+test-paths = ["test"]
+
+[tool.pytest.ini_options]
+testpaths = ["test"]

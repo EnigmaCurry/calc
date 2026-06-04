@@ -1,5 +1,9 @@
 .cpcache
 .test-results/
+.venv/
+__pycache__/
+*.lpyc
+.pytest_cache/
 web/out/
 web/public/index.html
 web/public/calc.html

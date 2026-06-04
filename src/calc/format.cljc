@@ -1,5 +1,6 @@
 (ns calc.format
-  #?(:clj (:import [java.math BigDecimal MathContext RoundingMode]))
+  #?(:clj (:import [java.math BigDecimal MathContext RoundingMode])
+     :lpy (:import decimal math))
   (:require [clojure.string :as str]
             [calc.math :as m]
             [calc.dice :as dice]))
@@ -37,8 +38,8 @@
     (str (if neg? (- n) n))
 
     :else
-    (let [whole #?(:clj (quot n d) :cljs (m/dec->double (m/dquot n d)))
-          rem   #?(:clj (mod n d) :cljs (m/dec->double (m/dmod n d)))
+    (let [whole #?(:cljs (m/dec->double (m/dquot n d)) :default (quot n d))
+          rem   #?(:cljs (m/dec->double (m/dmod n d)) :default (mod n d))
           s (cond
               (zero? rem)   (str whole)
               (zero? whole) (str n "/" d)
@@ -50,8 +51,8 @@
     (if (m/dinteger? x)
       (str (long d))
       (let [neg?  (neg? d)
-            abs-d (Math/abs d)
-            whole (long (Math/floor abs-d))
+            abs-d (if neg? (- d) d)
+            whole (long (m/dfloor abs-d))
             frac  (- abs-d whole)]
         (if (< frac 1e-9)
           (str (if neg? (- whole) whole))
@@ -108,6 +109,43 @@
               (if (> (count s) 20)
                 (let [bd (BigDecimal. s)]
                   (.toString (.stripTrailingZeros bd)))
+                s))))
+
+        :lpy
+        (cond
+          round
+          (let [d (if (instance? decimal/Decimal x) x (m/->dec x))
+                rounded (.quantize d (decimal/Decimal (str "1E-" (int round)))
+                                   decimal/ROUND-HALF-UP)]
+            (m/plain-decimal-str (.normalize rounded)))
+
+          sig-figs
+          (let [d (if (instance? decimal/Decimal x) x (m/->dec x))]
+            (python/format d (str "." (int sig-figs) "g")))
+
+          :else
+          (cond
+            (instance? decimal/Decimal x)
+            (let [stripped (.normalize x)
+                  s (m/plain-decimal-str stripped)]
+              (if (> (count s) 20)
+                (str stripped)
+                s))
+
+            (ratio? x)
+            (let [approx (python/format (m/->dec (double x)) ".10g")
+                  reduced (str x)]
+              (if numeric
+                approx
+                (if (and original-expr
+                         (not= (str/trim original-expr) reduced))
+                  (str (str/trim original-expr) " = " reduced " = " approx)
+                  (str reduced " = " approx))))
+
+            :else
+            (let [s (str x)]
+              (if (> (count s) 20)
+                (m/plain-decimal-str (m/->dec x))
                 s))))
 
         :cljs

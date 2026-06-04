@@ -110,6 +110,27 @@
 
      (testing "ratio where original matches reduced shows fraction = decimal"
        (let [result (fmt/format-number 1/5 {:original-expr "1/5"})]
+         (is (= "1/5 = 0.2" result)))))
+
+   :lpy
+   (deftest format-number-ratio
+     (testing "ratio shows fraction = decimal"
+       (let [result (fmt/format-number 1/5)]
+         (is (= "1/5 = 0.2" result))))
+
+     (testing "ratio with numeric option returns only decimal"
+       (let [result (fmt/format-number 1/3 {:numeric true})]
+         (is (not (re-find #"=" result)))
+         (is (re-find #"^0\.\d+" result))))
+
+     (testing "ratio with original-expr shows original = reduced = decimal"
+       (let [result (fmt/format-number 2/10 {:original-expr "4 / 8"})]
+         ;; 2/10 reduces to 1/5
+         (is (re-find #"4 / 8" result))
+         (is (re-find #"1/5" result))))
+
+     (testing "ratio where original matches reduced shows fraction = decimal"
+       (let [result (fmt/format-number 1/5 {:original-expr "1/5"})]
          (is (= "1/5 = 0.2" result))))))
 
 ;; ---------------------------------------------------------------------------

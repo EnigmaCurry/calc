@@ -3,7 +3,8 @@
    Works across JVM (CLI) and ClojureScript (web)."
   (:require [clojure.string :as str]
             [calc.units :as u]
-            [calc.parser :as parser]))
+            [calc.parser :as parser])
+  #?(:lpy (:import decimal math)))
 
 ;; ============================================================================
 ;; Vocabulary — built once from unit-defs + special-unit-forms
@@ -27,7 +28,7 @@
        :desc (when (not= alias-str short-name) short-name)})
     (for [[alias-str unit-map] parser/special-unit-forms
           :let [dim (try (:dim (u/unit-spec unit-map))
-                        (catch #?(:clj Exception :cljs :default) _ nil))
+                        (catch #?(:cljs :default :default Exception) _ nil))
                 group (if dim
                         (get u/dim-categories dim "Compound")
                         "Compound")]]
@@ -85,7 +86,7 @@
          ;; Deduplicated special forms (mph, fps, kph — not kmph, km/h, ft/s)
          (for [[text unit-map] unique-special-forms
                :let [dim (try (:dim (u/unit-spec unit-map))
-                              (catch #?(:clj Exception :cljs :default) _ nil))]
+                              (catch #?(:cljs :default :default Exception) _ nil))]
                :when dim]
            {:dim dim :text text
             :group (get u/dim-categories dim "Compound")}))]
@@ -228,7 +229,7 @@
   "Parse 'unit^N' → [unit-name N], or [token 1] if no exponent."
   [token]
   (if-let [[_ unit exp-str] (re-matches #"(.+)\^(-?\d+)" token)]
-    [unit #?(:clj (Long/parseLong exp-str) :cljs (js/parseInt exp-str 10))]
+    [unit #?(:clj (Long/parseLong exp-str) :cljs (js/parseInt exp-str 10) :lpy (int exp-str))]
     [token 1]))
 
 (defn- token-dim
@@ -242,7 +243,7 @@
                           (when-let [unit-map (or (get parser/special-unit-forms t)
                                                   (get parser/special-unit-forms (str/lower-case t)))]
                             (try (:dim (u/unit-spec unit-map))
-                                 (catch #?(:clj Exception :cljs :default) _ nil)))))
+                                 (catch #?(:cljs :default :default Exception) _ nil)))))
         stripped (strip-number-prefix token)
         [base-unit exp] (parse-unit-exponent stripped)]
     (or (try-resolve token)
@@ -324,7 +325,7 @@
 ;; ============================================================================
 
 (defn- to-double [x]
-  #?(:clj (double x) :cljs x))
+  #?(:cljs x :default (double x)))
 
 (defn- token-si-scale
   "Get the SI scale factor as a double for a unit token. Returns nil for unresolvable."
@@ -344,7 +345,7 @@
      (let [stripped (strip-number-prefix token)]
        (when (not= stripped token)
          (token-si-scale stripped))))
-    (catch #?(:clj Exception :cljs :default) _ nil)))
+    (catch #?(:cljs :default :default Exception) _ nil)))
 
 (defn- compound-si-scale
   "Get SI scale for a potentially compound token like 'mph/gram'."
@@ -358,8 +359,8 @@
 
 (defn- parse-dbl [s]
   (try
-    (#?(:clj Double/parseDouble :cljs js/parseFloat) (str/replace s "," ""))
-    (catch #?(:clj Exception :cljs :default) _ nil)))
+    (#?(:clj Double/parseDouble :cljs js/parseFloat :lpy python/float) (str/replace s "," ""))
+    (catch #?(:cljs :default :default Exception) _ nil)))
 
 (defn- source-si-value
   "Compute |source_value * source_scale| in SI base units as a double.
@@ -375,12 +376,12 @@
                 ;; Abutted: "12ft"
                 (and (not= stripped w) (compound-si-scale stripped))
                 (when-let [v (parse-dbl (subs w 0 (- (count w) (count stripped))))]
-                  (Math/abs (* v (compound-si-scale stripped))))
+                  (#?(:lpy abs :default Math/abs) (* v (compound-si-scale stripped))))
 
                 ;; Standalone unit with preceding number
                 (and (compound-si-scale w) (> i 0) (number-token? (nth joined (dec i))))
                 (when-let [v (parse-dbl (nth joined (dec i)))]
-                  (Math/abs (* v (compound-si-scale w)))))]
+                  (#?(:lpy abs :default Math/abs) (* v (compound-si-scale w)))))]
           (or result (recur (dec i))))))))
 
 (def ^:private max-completions
@@ -401,8 +402,9 @@
                                     (to-double (:scale info)))))
                               (compound-si-scale (:text entry)))
                       closeness (if scale
-                                  (Math/abs (#?(:clj Math/log10 :cljs js/Math.log10)
-                                              (/ source-si scale)))
+                                  (let [log-val (#?(:clj Math/log10 :cljs js/Math.log10 :lpy math/log10)
+                                                  (/ source-si scale))]
+                                    (#?(:lpy abs :default Math/abs) log-val))
                                   1e9)]
                   (assoc entry :_closeness closeness))))
          (sort-by :_closeness)
