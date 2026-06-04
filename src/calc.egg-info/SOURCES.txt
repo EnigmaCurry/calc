@@ -1,0 +1,17 @@
+LICENSE
+README.md
+pyproject.toml
+src/calc_cli_main.py
+src/calc/completions.cljc
+src/calc/dice.cljc
+src/calc/eval.cljc
+src/calc/format.cljc
+src/calc/math.cljc
+src/calc/parser.cljc
+src/calc/units.cljc
+src/calc.egg-info/PKG-INFO
+src/calc.egg-info/SOURCES.txt
+src/calc.egg-info/dependency_links.txt
+src/calc.egg-info/entry_points.txt
+src/calc.egg-info/requires.txt
+src/calc.egg-info/top_level.txt

@@ -1,0 +1,2 @@
+[console_scripts]
+calc = calc_cli_main:main
