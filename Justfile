@@ -20,11 +20,13 @@ _test-bb:
 _test-clj:
     clojure -M:test
 
-# Run tests in Babashka, JVM Clojure, and ClojureScript (Node)
+# Run tests in Babashka, JVM Clojure, ClojureScript (Node), and Basilisp (Python)
 test:
     @rm -rf .test-results
-    @echo "Running tests for Babashka, JVM, and ClojureScript..."
-    @just _nix "bb test; clojure -M:test; cd web && npm ci --silent && npx shadow-cljs compile test 2>&1 | grep -v -E '^\[:|^shadow-cljs|^='; cd ..; bb test/report.clj"
+    @echo "Running tests for Babashka, JVM, ClojureScript, and Basilisp..."
+    @just _nix "bb test; clojure -M:test; cd web && npm ci --silent && npx shadow-cljs compile test 2>&1 | grep -v -E '^\[:|^shadow-cljs|^='; cd .."
+    @just _test-lpy-report
+    @just _nix "bb test/report.clj"
 
 # Build the static ClojureScript web app (output: web/public/)
 web-build:
@@ -43,19 +45,36 @@ web-test:
 drone-dev:
     git drone --cmd "just web-dev" --pull "git fetch origin && git reset --hard origin/$(git rev-parse --abbrev-ref HEAD)" --repo EnigmaCurry/calc
 
-# Run tests under Basilisp (Python)
-test-lpy:
+# Ensure Basilisp venv exists
+_ensure-venv:
     #!/usr/bin/env bash
     set -euo pipefail
     if [ ! -d .venv ]; then
         uv venv .venv
         source .venv/bin/activate
         uv pip install "basilisp[pytest]"
-    else
-        source .venv/bin/activate
     fi
-    rm -rf src/calc/__pycache__ test/calc/__pycache__
+
+# Run tests under Basilisp (Python)
+test-lpy: _ensure-venv
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source .venv/bin/activate
+    find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+    rm -rf .pytest_cache
     PYTHONPATH=src:test BASILISP_TEST_PATH=test basilisp test
+
+# Run Basilisp tests and write EDN report to .test-results/
+_test-lpy-report: _ensure-venv
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source .venv/bin/activate
+    find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+    rm -rf .pytest_cache
+    mkdir -p .test-results
+    PYTHONPATH=src:test BASILISP_TEST_PATH=test basilisp test -- \
+        --junit-xml=.test-results/lpy-junit.xml --tb=no -q --no-header || true
+    python3 test/lpy_report.py
 
 # Remove build artifacts
 clean:

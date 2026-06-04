@@ -139,9 +139,10 @@
                    :when (< (count r) (count remaining))]
                {:type :denom :name cat-name :remainder r
                 :reduction (- (count remaining) (count r))}))
-            ;; Prefer numer over denom when reduction ties (more natural factoring)
+            ;; Prefer numer over denom when reduction ties, then alphabetical for determinism
             best (last (sort-by (juxt :reduction
-                                      (fn [m] (if (= :numer (:type m)) 1 0)))
+                                      (fn [m] (if (= :numer (:type m)) 1 0))
+                                      :name)
                                 moves))]
         (if best
           (recur (:remainder best)
