@@ -117,7 +117,7 @@
           (let [d (if (instance? decimal/Decimal x) x (m/->dec x))
                 rounded (.quantize d (decimal/Decimal (str "1E-" (int round)))
                                    decimal/ROUND-HALF-UP)]
-            (m/plain-decimal-str (.normalize rounded)))
+            (m/plain-decimal-str rounded))
 
           sig-figs
           (let [d (if (instance? decimal/Decimal x) x (m/->dec x))]

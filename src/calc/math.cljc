@@ -351,9 +351,12 @@
        (let [stripped (.normalize x)]
          (if (= (.to-integral-value stripped) stripped)
            (int stripped)
-           (.normalize
-            (.quantize x (decimal/Decimal (str "1E-" output-scale))
-                       decimal/ROUND-HALF-UP))))
+           (let [rounded (.quantize x (decimal/Decimal (str "1E-" output-scale))
+                                    decimal/ROUND-HALF-UP)
+                 d (double (.normalize rounded))]
+             (if (math/isfinite d)
+               d
+               (.normalize rounded)))))
 
        :else
        x)))

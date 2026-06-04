@@ -72,6 +72,43 @@
    "PBps" {:PB 1 :s -1}
    "EBps" {:EB 1 :s -1}})
 
+#?(:lpy (import re))
+
+#?(:lpy
+   (defn- re-sub
+     "Basilisp regex replace: converts $1/$2 back-references to \\1/\\2."
+     [s pattern replacement]
+     (re/sub (.-pattern pattern) (re/sub "\\$(\\d+)" "\\\\\\1" replacement) s))
+   :default
+   (defn- re-sub
+     "Regex replace with back-reference support."
+     [s pattern replacement]
+     (str/replace s pattern replacement)))
+
+#?(:lpy
+   (defn- re-replace-fn
+     "Basilisp str/replace with fn: passes [full g1 g2 ...] to f (like Clojure)."
+     [s pattern f]
+     (str/replace s pattern
+                  (fn [match-str]
+                    (let [groups (re-find pattern match-str)]
+                      (f (if (vector? groups) groups [groups]))))))
+   :default
+   (defn- re-replace-fn
+     "str/replace with fn that receives match groups vector."
+     [s pattern f]
+     (str/replace s pattern f)))
+
+;; Basilisp treats \b in #"" as backspace, not word boundary.
+;; Use re-pattern with explicit \\b for Basilisp.
+(def ^:private re-expand-in
+  #?(:lpy (re-pattern "(?i)(\\d)in\\b")
+     :default #"(?i)(\d)in\b"))
+
+(def ^:private re-digit-alpha
+  #?(:lpy (re-pattern "(\\d)(?!(?:st|nd|rd|th)\\b)(?![eE][+-]?\\d)([A-Za-z])")
+     :default #"(\d)(?!(?:st|nd|rd|th)\b)(?![eE][+-]?\d)([A-Za-z])"))
+
 (defn clean-phrase [s]
   (-> s
       str/trim
@@ -80,23 +117,23 @@
       (str/replace #"~\s*" "~ ")
       ;; Expand abutted "in" to "inch" so standalone "in" is always a connector.
       ;; 12in → 12 inch, 3.5in → 3.5 inch (but 12inch, 12inches unchanged)
-      (str/replace #"(?i)(\d)in\b" "$1 inch")
+      (re-sub re-expand-in "$1 inch")
       ;; 12ft -> 12 ft, 100kg -> 100 kg
       ;; But preserve ordinals like 4th, 2nd, 3rd, 5th etc.
       ;; And preserve scientific notation like 10E9, 3.5e-12
-      (str/replace #"(\d)(?!(?:st|nd|rd|th)\b)(?![eE][+-]?\d)([A-Za-z])" "$1 $2")
+      (re-sub re-digit-alpha "$1 $2")
       ;; Normalize % between two numbers to mod (modulo), standalone % to percent
-      (str/replace #"(\d)\s*%\s*(\d)" "$1 mod $2")
-      (str/replace #"(\d)\s*%" "$1 percent")
+      (re-sub #"(\d)\s*%\s*(\d)" "$1 mod $2")
+      (re-sub #"(\d)\s*%" "$1 percent")
       ;; Collapse whitespace around / between unit words: "meters / second" → "meters/second"
-      (str/replace #"([A-Za-z])\s*/\s*([A-Za-z])" "$1/$2")
+      (re-sub #"([A-Za-z])\s*/\s*([A-Za-z])" "$1/$2")
       ;; Collapse whitespace around / between digits: "21349 /234234" → "21349/234234"
-      (str/replace #"(\d)\s*/\s*(\d)" "$1/$2")
+      (re-sub #"(\d)\s*/\s*(\d)" "$1/$2")
       ;; Ensure / and * have spaces between letter and digit: "W/12" → "W / 12", "V*1" → "V * 1"
-      (str/replace #"([A-Za-z])\s*[/]\s*(\d)" "$1 / $2")
-      (str/replace #"(\d)\s*[/]\s*([A-Za-z])" "$1 / $2")
-      (str/replace #"([A-Za-z])\s*[*]\s*(\d)" "$1 * $2")
-      (str/replace #"(\d)\s*[*]\s*([A-Za-z])" "$1 * $2")
+      (re-sub #"([A-Za-z])\s*[/]\s*(\d)" "$1 / $2")
+      (re-sub #"(\d)\s*[/]\s*([A-Za-z])" "$1 / $2")
+      (re-sub #"([A-Za-z])\s*[*]\s*(\d)" "$1 * $2")
+      (re-sub #"(\d)\s*[*]\s*([A-Za-z])" "$1 * $2")
       (str/replace #"\s+" " ")
       str/trim))
 
@@ -531,6 +568,14 @@
                 (= :num (first (nth tokens 1)))
                 (= (m/dec->double pi-value) (m/dec->double (second (nth tokens 1))))))))
 
+(def ^:private re-trig-bare
+  #?(:lpy (re-pattern "(?i)\\b(a?(?:rc)?(?:sin|cos|tan))\\s+(\\d+(?:\\.\\d+)?)(\\s+(?:rad|radians|deg|degrees)\\b)?")
+     :default #"(?i)\b(a?(?:rc)?(?:sin|cos|tan))\s+(\d+(?:\.\d+)?)(\s+(?:rad|radians|deg|degrees)\b)?"))
+
+(def ^:private re-trig-paren
+  #?(:lpy (re-pattern "(?i)\\b(a?(?:rc)?(?:sin|cos|tan))\\((\\d+(?:\\.\\d+)?)\\s*((?:rad|radians|deg|degrees))?\\)")
+     :default #"(?i)\b(a?(?:rc)?(?:sin|cos|tan))\((\d+(?:\.\d+)?)\s*((?:rad|radians|deg|degrees))?\)"))
+
 (defn- annotate-trig-expr
   "Annotate a trig expression string with explicit angle markers.
    'cos 32 / sin 45'       → 'cos 32° / sin 45°'
@@ -539,17 +584,17 @@
   [s]
   (-> s
       ;; Bare form: sin 30 → sin 30°, sin 30 rad → sin 30 rad (unchanged)
-      (str/replace #"(?i)\b(a?(?:rc)?(?:sin|cos|tan))\s+(\d+(?:\.\d+)?)(\s+(?:rad|radians|deg|degrees)\b)?"
-                   (fn [[_ fname num mode]]
-                     (if mode
-                       (str fname " " num mode)
-                       (str fname " " num "°"))))
+      (re-replace-fn re-trig-bare
+                     (fn [[_ fname num mode]]
+                       (if mode
+                         (str fname " " num mode)
+                         (str fname " " num "°"))))
       ;; Paren form: sin(30) → sin(30°), sin(30 rad) → sin(30 rad)
-      (str/replace #"(?i)\b(a?(?:rc)?(?:sin|cos|tan))\((\d+(?:\.\d+)?)\s*((?:rad|radians|deg|degrees))?\)"
-                   (fn [[_ fname num mode]]
-                     (if mode
-                       (str fname "(" num " " mode ")")
-                       (str fname "(" num "°)"))))
+      (re-replace-fn re-trig-paren
+                     (fn [[_ fname num mode]]
+                       (if mode
+                         (str fname "(" num " " mode ")")
+                         (str fname "(" num "°)"))))
       str/trim))
 
 (defn parse-math
@@ -576,11 +621,11 @@
   "Replace parenthesised arithmetic expressions in `s` with their values.
    Skips parentheses immediately preceded by function names (sqrt, cbrt, root)."
   [s]
-  (let [result (str/replace s #"(?<![A-Za-z])\(([^()]+)\)"
-                            (fn [[match inner]]
-                              (if-let [v (math-value (parse-math inner))]
-                                (str v)
-                                match)))]
+  (let [result (re-replace-fn s #"(?<![A-Za-z])\(([^()]+)\)"
+                              (fn [[match inner]]
+                                (if-let [v (math-value (parse-math inner))]
+                                  (str v)
+                                  match)))]
     (if (= result s)
       s
       (recur result))))
