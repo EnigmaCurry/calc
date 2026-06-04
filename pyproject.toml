@@ -7,6 +7,7 @@ name = "calc"
 version = "0.1.0"
 description = "Dimensional analysis and unit conversion library for Basilisp"
 requires-python = ">=3.10"
+license = "MIT"
 dependencies = [
     "basilisp>=0.3.0",
 ]
@@ -16,8 +17,14 @@ test = [
     "basilisp[pytest]",
 ]
 
+[project.scripts]
+calc = "calc_cli_main:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools]
+py-modules = ["calc_cli_main"]
 
 [tool.setuptools.package-data]
 "*" = ["*.cljc", "*.lpy"]
