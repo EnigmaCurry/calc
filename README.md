@@ -49,12 +49,6 @@ uv tool install "calc @ git+https://github.com/EnigmaCurry/calc.git"
 calc 12 feet in yards
 ```
 
-Or run without installing:
-
-```bash
-uvx --from "calc @ git+https://github.com/EnigmaCurry/calc.git" calc 12 feet in yards
-```
-
 To uninstall: `uv tool uninstall calc`
 
 ### From source
